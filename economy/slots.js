@@ -40,7 +40,23 @@ window.GTModules = window.GTModules || {};
       maxPayoutMultiplier: 10000,
       rtp: 0.96,
       volatility: "very-high",
-      layout: { reels: 6, rows: 8 }
+      layout: { reels: 6, rows: 8 },
+      mechanic: "tumble",
+      payMode: "cluster",
+      clusterMin: 6,
+      symbolWeights: {
+        dimebag: 22,
+        lighter: 20,
+        leaf: 18,
+        mic: 16,
+        dollar: 13,
+        chain: 11,
+        lowrider: 8,
+        dogg: 6,
+        crown: 4,
+        scatter: 1,
+        wild: 1
+      }
     },
     slots_v3: {
       id: "slots_v3",
@@ -331,6 +347,16 @@ window.GTModules = window.GTModules || {};
 
   function cloneDef(row) {
     const def = row || GAME_DEFS.slots;
+    const weightSrc = def && def.symbolWeights && typeof def.symbolWeights === "object" ? def.symbolWeights : null;
+    const symbolWeights = {};
+    if (weightSrc) {
+      const keys = Object.keys(weightSrc);
+      for (let i = 0; i < keys.length; i++) {
+        const key = String(keys[i] || "");
+        if (!key) continue;
+        symbolWeights[key] = Math.max(0, Number(weightSrc[key]) || 0);
+      }
+    }
     return {
       id: String(def.id || "slots"),
       name: String(def.name || "Slots"),
@@ -339,6 +365,10 @@ window.GTModules = window.GTModules || {};
       maxPayoutMultiplier: Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || 10)),
       rtp: Number(def.rtp) || 0.95,
       volatility: String(def.volatility || "medium"),
+      mechanic: String(def.mechanic || "classic").trim().toLowerCase(),
+      payMode: String(def.payMode || "lines").trim().toLowerCase(),
+      clusterMin: Math.max(0, Math.floor(Number(def.clusterMin) || 0)),
+      symbolWeights: symbolWeights,
       layout: {
         reels: Math.max(1, Math.floor(Number(def.layout && def.layout.reels) || 3)),
         rows: Math.max(1, Math.floor(Number(def.layout && def.layout.rows) || 1))
@@ -2001,6 +2031,7 @@ window.GTModules = window.GTModules || {};
     const includeEvents = Boolean(opts.includeEvents);
     const lineWins = [];
     const events = [];
+    const tumbleFrames = [];
     let totalPayout = 0;
     let cascades = 0;
     let biggestCascadeWin = 0;
@@ -2008,10 +2039,14 @@ window.GTModules = window.GTModules || {};
       const winners = snoopFindWinningClusters(grid);
       if (!winners.length) break;
       cascades += 1;
+      const beforeRows = snoopGridToTextRows(grid, state);
+      const beforeCellMeta = snoopBuildCellMeta(state);
       let cascadePayout = 0;
       const cleared = [];
       const clearedMap = {};
       const wildUpgrades = [];
+      const winningKeys = [];
+      const winningMap = {};
       for (let w = 0; w < winners.length; w++) {
         const row = winners[w];
         const win = snoopComputeClusterWin(state, row);
@@ -2029,6 +2064,10 @@ window.GTModules = window.GTModules || {};
           const key = String(cellRef && cellRef.key || "");
           const cell = cellRef && cellRef.cell ? cellRef.cell : null;
           if (!cell || !key) continue;
+          if (!winningMap[key]) {
+            winningMap[key] = true;
+            winningKeys.push(key);
+          }
           if (String(cell.id || "") === "wild") {
             const prev = Math.max(1, Math.floor(Number(state.stickyWilds[key] || cell.wildMult) || 1));
             const next = snoopRaiseWildValue(prev, 1, true);
@@ -2064,11 +2103,12 @@ window.GTModules = window.GTModules || {};
       if (totalWildUps > 0) {
         lineWins.push("WILD UP +" + snoopWildStepValue() + " x" + totalWildUps);
       }
+
+      const mergedWildUpgrades = wildUpgrades.slice(0);
+      if (Array.isArray(dig.wildUpgrades) && dig.wildUpgrades.length) {
+        for (let i = 0; i < dig.wildUpgrades.length; i++) mergedWildUpgrades.push(dig.wildUpgrades[i]);
+      }
       if (includeEvents) {
-        const mergedWildUpgrades = wildUpgrades.slice(0);
-        if (Array.isArray(dig.wildUpgrades) && dig.wildUpgrades.length) {
-          for (let i = 0; i < dig.wildUpgrades.length; i++) mergedWildUpgrades.push(dig.wildUpgrades[i]);
-        }
         events.push({
           cascade: cascades,
           payout: cascadePayout,
@@ -2080,6 +2120,38 @@ window.GTModules = window.GTModules || {};
         });
       }
       grid = snoopRefillGrid(grid, state);
+      const afterRows = snoopGridToTextRows(grid, state);
+      const afterCellMeta = snoopBuildCellMeta(state);
+      const effectCells = {};
+      if (Array.isArray(dig.multiplierCellKeys)) {
+        for (let i = 0; i < dig.multiplierCellKeys.length; i++) {
+          const key = String(dig.multiplierCellKeys[i] || "");
+          if (key) effectCells[key] = "weed";
+        }
+      }
+      if (Array.isArray(dig.skullRemoved)) {
+        for (let i = 0; i < dig.skullRemoved.length; i++) {
+          const key = String(dig.skullRemoved[i] && dig.skullRemoved[i].key || "");
+          if (key) effectCells[key] = "skull";
+        }
+      }
+      for (let i = 0; i < mergedWildUpgrades.length; i++) {
+        const key = String(mergedWildUpgrades[i] && mergedWildUpgrades[i].key || "");
+        if (key) effectCells[key] = "wild-up";
+      }
+      tumbleFrames.push({
+        index: cascades,
+        payout: Math.max(0, Math.floor(Number(cascadePayout) || 0)),
+        lineText: "Tumble " + cascades + " | +" + Math.floor(cascadePayout / Math.max(1, Number(state.bet) || 1)) + "x",
+        winningKeys: winningKeys.slice(0, 256),
+        clearedKeys: cleared.map((row) => String(row && row.key || "")).filter(Boolean).slice(0, 256),
+        beforeRows: beforeRows,
+        afterRows: afterRows,
+        beforeCellMeta: beforeCellMeta,
+        afterCellMeta: afterCellMeta,
+        effectCells: effectCells,
+        markedCells: Object.keys(state.marked || {}).slice(0, 256)
+      });
       if (totalPayout >= state.winCap) {
         totalPayout = state.winCap;
         break;
@@ -2091,6 +2163,7 @@ window.GTModules = window.GTModules || {};
       lineWins: lineWins.slice(0, 48),
       finalGrid: grid,
       events: events.slice(0, 128),
+      tumbleFrames: tumbleFrames.slice(0, 128),
       biggestCascadeWin: Math.max(0, Math.floor(Number(biggestCascadeWin) || 0))
     };
   }
@@ -2126,6 +2199,7 @@ window.GTModules = window.GTModules || {};
         avoidWins: preferDeadSpin,
         maxAttempts: Number(SNOOP_CFG.featureNoClusterAttempts) || 16
       });
+      const spinStartRows = snoopGridToTextRows(grid, state);
       const scattersBefore = Math.max(0, Math.floor(Number(state.scatterCollected) || 0));
       const run = snoopRunCascades(state, grid, {
         includeEvents: true,
@@ -2196,6 +2270,8 @@ window.GTModules = window.GTModules || {};
       frames.push({
         frameType: "bonus_spin",
         reels: snoopGridToTextRows(grid, state),
+        spinStartReels: spinStartRows,
+        tumbleFrames: Array.isArray(run.tumbleFrames) ? run.tumbleFrames.slice(0, 32) : [],
         markedCells: Object.keys(state.marked || {}),
         cellMeta: snoopBuildCellMeta(state),
         effectCells,
@@ -2265,6 +2341,8 @@ window.GTModules = window.GTModules || {};
     let freeSpinPayout = 0;
     let biggestCascadeWin = 0;
     let grid = snoopBuildFreshGrid(state);
+    const spinStartRows = snoopGridToTextRows(grid, state);
+    let baseTumbleFrames = [];
     const bonusFrames = [];
 
     if (buyTrigger >= 3) {
@@ -2295,6 +2373,7 @@ window.GTModules = window.GTModules || {};
     } else {
       const baseRun = snoopRunCascades(state, grid, { guaranteedWild: isHype ? 1 : 0 });
       basePayout = Math.max(0, Math.floor(Number(baseRun.payout) || 0));
+      baseTumbleFrames = Array.isArray(baseRun.tumbleFrames) ? baseRun.tumbleFrames.slice(0, 48) : [];
       grid = baseRun.finalGrid;
       if (baseRun.biggestCascadeWin > biggestCascadeWin) biggestCascadeWin = baseRun.biggestCascadeWin;
       for (let i = 0; i < baseRun.lineWins.length && lineWins.length < 42; i++) lineWins.push(baseRun.lineWins[i]);
@@ -2377,6 +2456,10 @@ window.GTModules = window.GTModules || {};
       paylines: 0,
       lineIds: [],
       lineWins: lineWins.slice(0, 24),
+      tumbleFrames: baseTumbleFrames.slice(0, 48),
+      spinStartReels: baseTumbleFrames.length && Array.isArray(baseTumbleFrames[0].beforeRows)
+        ? baseTumbleFrames[0].beforeRows
+        : spinStartRows,
       scatterCount: Math.max(0, Math.floor(Number(state.scatterCollected) || 0)),
       bonusTriggered: Boolean(bonusTriggered),
       freeSpinsAwarded,
@@ -2385,7 +2468,23 @@ window.GTModules = window.GTModules || {};
       bonusFrames: bonusFrames.slice(0, 96),
       biggestCascadeWin: Math.max(0, Math.floor(Number(biggestCascadeWin) || 0)),
       cellMeta: snoopBuildCellMeta(state),
-      rtpTarget: Number(SNOOP_CFG.rtp) || Number(GAME_DEFS.snoop_dogg_dollars.rtp) || 0.96
+      rtpTarget: Number(SNOOP_CFG.rtp) || Number(GAME_DEFS.snoop_dogg_dollars.rtp) || 0.96,
+      mechanic: "tumble",
+      payMode: "cluster",
+      clusterMin: Math.max(5, Math.floor(Number(SNOOP_CFG.clusterMin) || 6)),
+      symbolWeights: {
+        dimebag: 22,
+        lighter: 20,
+        leaf: 18,
+        mic: 16,
+        dollar: 13,
+        chain: 11,
+        lowrider: 8,
+        dogg: 6,
+        crown: 4,
+        scatter: 1,
+        wild: 1
+      }
     };
   }
 

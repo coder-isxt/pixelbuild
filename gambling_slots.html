@@ -893,6 +893,50 @@
       background: rgba(55, 42, 13, 0.72);
     }
 
+    .win-meter {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid rgba(122, 196, 255, 0.45);
+      border-radius: 12px;
+      padding: 7px 10px;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(114, 196, 255, 0.16), transparent 44%),
+        linear-gradient(180deg, rgba(8, 24, 44, 0.9), rgba(4, 12, 24, 0.92));
+      box-shadow:
+        inset 0 0 0 1px rgba(189, 226, 255, 0.09),
+        0 0 16px rgba(112, 196, 255, 0.16);
+      min-height: 46px;
+    }
+
+    .win-meter .label {
+      font-size: 9px;
+      color: #cde8ff;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .win-meter .value {
+      font-size: 16px;
+      color: #f3fbff;
+      text-shadow: 0 0 8px rgba(124, 211, 255, 0.38);
+      line-height: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .win-meter .mult {
+      border: 1px solid rgba(255, 210, 113, 0.62);
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: rgba(70, 45, 11, 0.75);
+      color: #ffe2a1;
+      font-size: 9px;
+      white-space: nowrap;
+    }
+
     .tag {
       border: 1px solid rgba(112, 165, 236, 0.45);
       border-radius: 999px;
@@ -1047,6 +1091,20 @@
       border-color: rgba(120, 255, 180, 0.9);
     }
 
+    .cell.effect-tumble-win {
+      animation: tumbleWinPulse 320ms ease;
+      box-shadow: 0 0 20px rgba(255, 208, 121, 0.45);
+      border-color: rgba(255, 214, 142, 0.95);
+    }
+
+    .cell.effect-tumble-clear {
+      animation: tumbleClearFade 180ms ease forwards;
+    }
+
+    .cell.effect-tumble-drop {
+      animation: tumbleDropLand 260ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
     @keyframes wheelHighlightPulse {
       from {
         transform: scale(1);
@@ -1078,6 +1136,42 @@
 
       100% {
         transform: scale(1);
+      }
+    }
+
+    @keyframes tumbleWinPulse {
+      0% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.08);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    @keyframes tumbleClearFade {
+      0% {
+        opacity: 1;
+        filter: brightness(1);
+      }
+
+      100% {
+        opacity: 0.18;
+        filter: brightness(0.7);
+      }
+    }
+
+    @keyframes tumbleDropLand {
+      0% {
+        transform: translateY(-8px);
+      }
+
+      100% {
+        transform: translateY(0);
       }
     }
 
@@ -1167,6 +1261,31 @@
     .bonus-banner.active {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
+    }
+
+    .tumble-indicator {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      z-index: 10;
+      border: 1px solid rgba(255, 210, 113, 0.74);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: linear-gradient(180deg, rgba(74, 48, 13, 0.9), rgba(45, 29, 8, 0.92));
+      color: #ffe7ad;
+      font-size: 8px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      box-shadow: 0 0 14px rgba(255, 201, 102, 0.28);
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 140ms ease, transform 180ms ease;
+      pointer-events: none;
+    }
+
+    .tumble-indicator.active {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .board.tower-board {
@@ -2622,6 +2741,10 @@
         max-height: 92px;
         overflow-y: auto;
       }
+
+      .win-meter .value {
+        font-size: 13px;
+      }
     }
   </style>
 </head>
@@ -2694,6 +2817,12 @@
             </div>
           </div>
 
+          <div class="win-meter" id="winMeter">
+            <span class="label">Win</span>
+            <span class="value" id="winMeterValue">0 WL</span>
+            <span class="mult" id="winMeterMult">0.00x</span>
+          </div>
+
           <div class="bonus-hud hidden" id="bonusHud">
             <span class="tag warn" id="bonusHudState">FREE SPINS</span>
             <span class="tag" id="bonusHudLeft">Left: 0</span>
@@ -2713,6 +2842,7 @@
             <div class="particles" id="particles"></div>
             <div class="premium-win-banner hidden" id="premiumWinBanner">WIN!</div>
             <div class="bonus-banner hidden" id="bonusBanner"></div>
+            <div class="tumble-indicator" id="tumbleIndicator">TUMBLE</div>
             <div class="bonus-overlay hidden" id="bonusOverlay">
               <h3 id="bonusOverlayTitle">FREE SPINS</h3>
               <p id="bonusOverlayText">You won free spins.</p>
@@ -2929,6 +3059,8 @@
   <script src="system/auth.js"></script>
   <script src="system/auth_storage.js"></script>
   <script src="economy/slots.js"></script>
+  <script src="ui/win_counter.js"></script>
+  <script src="ui/tumble_engine.js"></script>
   <script src="ui/gambling_slots.js"></script>
 </body>
 

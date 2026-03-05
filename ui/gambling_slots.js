@@ -63,9 +63,11 @@ window.GTModules = window.GTModules || {};
   const BONUS_PHASES = {
     BASE_IDLE: "BASE_IDLE",
     BASE_SPINNING: "BASE_SPINNING",
+    BASE_CASCADE: "BASE_CASCADE",
     BASE_RESOLVING: "BASE_RESOLVING",
     BONUS_INTRO: "BONUS_INTRO",
     BONUS_SPINNING: "BONUS_SPINNING",
+    BONUS_CASCADE: "BONUS_CASCADE",
     BONUS_RESOLVING: "BONUS_RESOLVING",
     BONUS_END: "BONUS_END"
   };
@@ -164,6 +166,8 @@ window.GTModules = window.GTModules || {};
   const authStorageModule = (window.GTModules && window.GTModules.authStorage) || {};
   const dbModule = (window.GTModules && window.GTModules.db) || {};
   const slotsModule = (window.GTModules && window.GTModules.slots) || {};
+  const winCounterModule = (window.GTModules && window.GTModules.winCounter) || {};
+  const tumbleEngineModule = (window.GTModules && window.GTModules.tumbleEngine) || {};
 
   const MACHINE_DEFS = buildMachineDefinitions();
   const LOCK_CURRENCIES = resolveLockCurrencies();
@@ -206,7 +210,9 @@ window.GTModules = window.GTModules || {};
     autoplay: { active: false, left: 0, total: 0, mode: "spin" },
     spinHistory: [],
     currentWinValue: 0,
+    currentWinBetValue: 1,
     lastPayoutValue: 0,
+    winCounterSkipUntil: 0,
     quickStopRequested: false,
     ephemeral: { rows: null, lineIds: [], lineWins: [], markedCells: [], cellMeta: {}, effectCells: {}, upgradeFlashes: {} },
     bonusFlow: {
@@ -299,6 +305,9 @@ window.GTModules = window.GTModules || {};
     premiumTopBar: document.getElementById("premiumTopbar"),
     premiumTopBet: document.getElementById("premiumTopBet"),
     premiumTopWin: document.getElementById("premiumTopWin"),
+    winMeter: document.getElementById("winMeter"),
+    winMeterValue: document.getElementById("winMeterValue"),
+    winMeterMult: document.getElementById("winMeterMult"),
     premiumAutoplayStatus: document.getElementById("premiumAutoplayStatus"),
     premiumSoundToggle: document.getElementById("premiumSoundToggle"),
     premiumSettingsBtn: document.getElementById("premiumSettingsBtn"),
@@ -319,6 +328,7 @@ window.GTModules = window.GTModules || {};
     premiumAutoplaySelect: document.getElementById("premiumAutoplaySelect"),
     premiumAutoplayBtn: document.getElementById("premiumAutoplayBtn"),
     premiumWinBanner: document.getElementById("premiumWinBanner"),
+    tumbleIndicator: document.getElementById("tumbleIndicator"),
     fairnessModal: document.getElementById("fairnessModal"),
     premiumFairnessClose: document.getElementById("premiumFairnessClose"),
     premiumSeedLabel: document.getElementById("premiumSeedLabel"),
@@ -340,7 +350,7 @@ window.GTModules = window.GTModules || {};
       le_bandit: { name: "Le Bandit", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 5, volatility: "high" },
       tower: { name: "Tower", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 8, volatility: "risk" },
       mines: { name: "Mines", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 25000, reels: 5, rows: 5, volatility: "risk" },
-      snoop_dogg_dollars: { name: "Snoop Dogg Dollars", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 8, volatility: "high" }
+      snoop_dogg_dollars: { name: "Snoop Dogg Dollars", minBet: 1, maxBet: 30000, maxPayoutMultiplier: 10000, reels: 6, rows: 8, volatility: "high", mechanic: "tumble", payMode: "cluster", clusterMin: 6 }
     };
     const out = {};
     GAME_IDS.forEach((id) => {
@@ -355,7 +365,11 @@ window.GTModules = window.GTModules || {};
         maxPayoutMultiplier: Math.max(1, Math.floor(Number(row.maxPayoutMultiplier) || base.maxPayoutMultiplier)),
         reels: Math.max(1, Math.floor(Number(layout.reels) || base.reels)),
         rows: Math.max(1, Math.floor(Number(layout.rows) || base.rows)),
-        volatility: String(row.volatility || base.volatility || "medium").trim().toLowerCase()
+        volatility: String(row.volatility || base.volatility || "medium").trim().toLowerCase(),
+        mechanic: String(row.mechanic || base.mechanic || "classic").trim().toLowerCase(),
+        payMode: String(row.payMode || base.payMode || "lines").trim().toLowerCase(),
+        clusterMin: Math.max(0, Math.floor(Number(row.clusterMin || base.clusterMin) || 0)),
+        symbolWeights: row.symbolWeights && typeof row.symbolWeights === "object" ? { ...row.symbolWeights } : {}
       };
     });
     // Apply UI-only aliases for display in the web UI
@@ -755,6 +769,38 @@ window.GTModules = window.GTModules || {};
     };
   }
 
+  function formatWinMultiplierText(winValue, betValue) {
+    const win = Math.max(0, Number(winValue) || 0);
+    const bet = Math.max(1, Number(betValue) || 1);
+    return (win / bet).toFixed(2) + "x";
+  }
+
+  function updateWinDisplays() {
+    if (els.premiumTopWin instanceof HTMLElement) {
+      els.premiumTopWin.innerHTML = "Win: " + formatLocksByDisplayUnitHtml(state.currentWinValue);
+    }
+    if (els.winMeterValue instanceof HTMLElement) {
+      els.winMeterValue.innerHTML = formatLocksByDisplayUnitHtml(state.currentWinValue);
+    }
+    if (els.winMeterMult instanceof HTMLElement) {
+      els.winMeterMult.textContent = formatWinMultiplierText(state.currentWinValue, state.currentWinBetValue);
+    }
+  }
+
+  function resolveWinTier(pay, stake) {
+    const payout = Math.max(0, Number(pay) || 0);
+    const bet = Math.max(1, Number(stake) || 1);
+    const mul = payout / bet;
+    if (mul >= 50) return { id: "epic", label: "EPIC WIN", className: "win-tier-big", sound: "win_big", durationScale: 1.3 };
+    if (mul >= 25) return { id: "mega", label: "MEGA WIN", className: "win-tier-big", sound: "win_big", durationScale: 1.15 };
+    if (mul >= 10) return { id: "big", label: "BIG WIN", className: "win-tier-medium", sound: "win_medium", durationScale: 1.05 };
+    if (mul > 0) return { id: "small", label: "WIN", className: "win-tier-small", sound: "win_small", durationScale: 1 };
+    return { id: "none", label: "", className: "", sound: "", durationScale: 1 };
+  }
+
+  let winCounter = null;
+  let tumbleAnimator = null;
+
   function createWinPresenter() {
     function clearWinTier() {
       if (!(els.stage instanceof HTMLElement)) return;
@@ -772,74 +818,64 @@ window.GTModules = window.GTModules || {};
       els.premiumWinBanner.classList.add("hidden");
     }
 
-    function setCurrentWinValue(value) {
+    function setCurrentWinValue(value, betValue) {
       state.currentWinValue = Math.max(0, Math.floor(Number(value) || 0));
-      if (els.premiumTopWin instanceof HTMLElement) {
-        els.premiumTopWin.innerHTML = "Win: " + formatLocksByDisplayUnitHtml(state.currentWinValue);
+      if (Number.isFinite(Number(betValue)) && Number(betValue) > 0) {
+        state.currentWinBetValue = Math.max(1, Math.floor(Number(betValue) || 1));
       }
+      updateWinDisplays();
     }
 
-    async function countTo(targetValue, durationMs) {
+    async function countTo(targetValue, betValue, options) {
       const target = Math.max(0, Math.floor(Number(targetValue) || 0));
       const start = Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
-      if (target <= start || durationMs <= 0) {
-        setCurrentWinValue(target);
-        return;
+      const stake = Math.max(1, Math.floor(Number(betValue) || 1));
+      const opts = options && typeof options === "object" ? options : {};
+      if (target <= start) {
+        setCurrentWinValue(target, stake);
+        return { skipped: false, finalValue: target };
       }
-      audioManager.play("countup_start");
-      const started = performance.now();
-      await new Promise((resolve) => {
-        function step(ts) {
-          const p = clamp01((ts - started) / durationMs);
-          const eased = easeOutCubic(p);
-          const nextVal = Math.floor(start + ((target - start) * eased));
-          setCurrentWinValue(nextVal);
-          if (p >= 1) {
-            setCurrentWinValue(target);
-            resolve();
-            return;
-          }
-          window.requestAnimationFrame(step);
-        }
-        window.requestAnimationFrame(step);
+      if (!winCounter || typeof winCounter.startCountUp !== "function") {
+        setCurrentWinValue(target, stake);
+        return { skipped: false, finalValue: target };
+      }
+      return await winCounter.startCountUp(start, target, {
+        bet: stake,
+        turbo: Boolean(state.uiSettings.turbo),
+        durationScale: Number.isFinite(Number(opts.durationScale)) ? Number(opts.durationScale) : 1
       });
-      audioManager.play("countup_end");
     }
 
-    async function presentWin(payout, bet) {
+    async function presentWin(payout, bet, options) {
+      const opts = options && typeof options === "object" ? options : {};
       const pay = Math.max(0, Math.floor(Number(payout) || 0));
       const stake = Math.max(1, Math.floor(Number(bet) || 1));
-      const tier = pay >= stake * BIG_WIN_MULTIPLIER ? "big" : (pay >= stake * 8 ? "medium" : (pay > 0 ? "small" : "none"));
+      const tier = resolveWinTier(pay, stake);
       clearWinTier();
       if (pay <= 0) {
         hideBanner();
-        setCurrentWinValue(0);
+        setCurrentWinValue(0, stake);
         return;
       }
-      if (tier === "big") {
-        if (els.stage instanceof HTMLElement) {
-          els.stage.classList.add("win-tier-big", "screen-shake");
+
+      if (els.stage instanceof HTMLElement && tier.className) {
+        els.stage.classList.add(tier.className);
+        if (tier.id === "epic" || tier.id === "mega") {
+          els.stage.classList.add("screen-shake");
           window.setTimeout(() => {
             if (els.stage instanceof HTMLElement) els.stage.classList.remove("screen-shake");
           }, 520);
         }
-        showBanner("BIG WIN");
-        audioManager.play("win_big");
-        safeVibrate(18);
-        await countTo(pay, state.uiSettings.turbo ? 520 : 1400);
-        return;
       }
-      if (tier === "medium") {
-        if (els.stage instanceof HTMLElement) els.stage.classList.add("win-tier-medium");
-        showBanner("WIN!");
-        audioManager.play("win_medium");
-        await countTo(pay, state.uiSettings.turbo ? 320 : 920);
-        return;
+      showBanner(tier.label || "WIN");
+      if (tier.sound) audioManager.play(tier.sound);
+      if (tier.id === "epic" || tier.id === "mega") safeVibrate(18);
+
+      if (!opts.alreadyCounted) {
+        await countTo(pay, stake, { durationScale: tier.durationScale });
+      } else {
+        setCurrentWinValue(pay, stake);
       }
-      if (els.stage instanceof HTMLElement) els.stage.classList.add("win-tier-small");
-      showBanner("HIT");
-      audioManager.play("win_small");
-      await countTo(pay, state.uiSettings.turbo ? 220 : 560);
     }
 
     return {
@@ -851,11 +887,27 @@ window.GTModules = window.GTModules || {};
   }
 
   const AudioManager = createAudioManager();
+  const audioManager = AudioManager;
+  winCounter = typeof winCounterModule.createWinCounter === "function"
+    ? winCounterModule.createWinCounter({
+      onUpdate: (value) => {
+        state.currentWinValue = Math.max(0, Math.floor(Number(value) || 0));
+        updateWinDisplays();
+      },
+      onCountLoopStart: () => audioManager.play("countup_start"),
+      onCountLoopStop: () => audioManager.play("countup_end")
+    })
+    : null;
   const ReelAnimator = createReelAnimator();
   const WinPresenter = createWinPresenter();
-  const audioManager = AudioManager;
   const reelAnimator = ReelAnimator;
   const winPresenter = WinPresenter;
+  tumbleAnimator = typeof tumbleEngineModule.createTumbleEngine === "function"
+    ? tumbleEngineModule.createTumbleEngine({
+      applyFrame: (payload) => applyTumbleFrame(payload),
+      setIndicator: (text) => setTumbleIndicator(text)
+    })
+    : null;
   const GameState = {
     get snapshot() { return state; },
     get isSpinning() { return Boolean(state.spinBusy); },
@@ -875,6 +927,17 @@ window.GTModules = window.GTModules || {};
   function showBonusHud(show) {
     if (!(els.bonusHud instanceof HTMLElement)) return;
     els.bonusHud.classList.toggle("hidden", !show);
+  }
+
+  function setTumbleIndicator(text) {
+    if (!(els.tumbleIndicator instanceof HTMLElement)) return;
+    const value = String(text || "").trim();
+    if (!value) {
+      els.tumbleIndicator.classList.remove("active");
+      return;
+    }
+    els.tumbleIndicator.textContent = value;
+    els.tumbleIndicator.classList.add("active");
   }
 
   function updateBonusHud(data) {
@@ -975,6 +1038,7 @@ window.GTModules = window.GTModules || {};
     state.bonusFlow.machineType = "";
     updateBonusHud({ spinsLeft: 0, bonusWin: 0, currentSpinWin: 0, stickyWilds: 0, multiplierCells: 0, mode: "FREE SPINS" });
     showBonusHud(false);
+    setTumbleIndicator("");
     showBonusBanner("");
     winPresenter.hideBanner();
     winPresenter.clearWinTier();
@@ -2244,6 +2308,112 @@ window.GTModules = window.GTModules || {};
     return [];
   }
 
+  function rowsFromTumbleInput(input, machineType) {
+    if (!Array.isArray(input) || !input.length) return [];
+    if (Array.isArray(input[0])) {
+      return input.map((row) => Array.isArray(row) ? row.map((cell) => normalizeToken(cell)) : ["?"]);
+    }
+    return rowsFromResult(input, machineType);
+  }
+
+  function sanitizeTumbleFrame(machineType, frame, index) {
+    const row = frame && typeof frame === "object" ? frame : {};
+    const beforeRows = rowsFromTumbleInput(row.beforeRows || row.beforeReels || row.reelsBefore || row.reels, machineType);
+    const afterRows = rowsFromTumbleInput(row.afterRows || row.afterReels || row.reelsAfter || row.reels, machineType);
+    const winningKeys = Array.isArray(row.winningKeys) ? row.winningKeys.map((v) => String(v || "")).filter(Boolean) : [];
+    const clearedKeys = Array.isArray(row.clearedKeys) ? row.clearedKeys.map((v) => String(v || "")).filter(Boolean) : winningKeys.slice();
+    const lineText = String(row.lineText || "Tumble " + index).trim();
+    if (!beforeRows.length && !afterRows.length) return null;
+    return {
+      index: Math.max(1, Math.floor(Number(row.index) || index)),
+      payout: Math.max(0, Math.floor(Number(row.payout) || Number(row.winPay) || Number(row.cascadePay) || 0)),
+      lineText: lineText || ("Tumble " + index),
+      beforeRows: beforeRows.length ? beforeRows : afterRows,
+      afterRows: afterRows.length ? afterRows : beforeRows,
+      winningKeys: winningKeys.slice(0, 256),
+      clearedKeys: clearedKeys.slice(0, 256),
+      markedCells: Array.isArray(row.markedCells) ? row.markedCells.slice(0, 256) : [],
+      beforeCellMeta: sanitizeCellMeta(row.beforeCellMeta),
+      afterCellMeta: sanitizeCellMeta(row.afterCellMeta),
+      effectCells: sanitizeEffectCells(row.effectCells)
+    };
+  }
+
+  function extractTumbleFrames(machineType, rawResult) {
+    const source = Array.isArray(rawResult && rawResult.tumbleFrames) ? rawResult.tumbleFrames : [];
+    if (!source.length) return [];
+    const out = [];
+    for (let i = 0; i < source.length; i++) {
+      const parsed = sanitizeTumbleFrame(machineType, source[i], i + 1);
+      if (!parsed) continue;
+      out.push(parsed);
+    }
+    return out.slice(0, 64);
+  }
+
+  function resolveSpinStartRows(machineType, rawResult, tumbleFrames, fallbackRows) {
+    const safeFallback = Array.isArray(fallbackRows) ? fallbackRows : [["?"]];
+    const startRaw = rowsFromResult(rawResult && rawResult.spinStartReels, machineType);
+    if (Array.isArray(startRaw) && startRaw.length) return startRaw;
+    if (Array.isArray(tumbleFrames) && tumbleFrames.length && Array.isArray(tumbleFrames[0].beforeRows) && tumbleFrames[0].beforeRows.length) {
+      return tumbleFrames[0].beforeRows;
+    }
+    return safeFallback;
+  }
+
+  async function applyTumbleFrame(payload) {
+    const row = payload && typeof payload === "object" ? payload : {};
+    const phase = String(row.phase || "").trim().toLowerCase();
+    state.ephemeral.rows = Array.isArray(row.rows) && row.rows.length ? row.rows : state.ephemeral.rows;
+    state.ephemeral.lineIds = [];
+    state.ephemeral.lineWins = [String(row.lineText || "Tumble step")];
+    state.ephemeral.markedCells = Array.isArray(row.markedCells) ? row.markedCells.slice(0, 256) : [];
+    state.ephemeral.cellMeta = sanitizeCellMeta(row.cellMeta);
+    const effectCells = sanitizeEffectCells(row.effectCells);
+    const winningKeys = Array.isArray(row.winningKeys) ? row.winningKeys : [];
+    for (let i = 0; i < winningKeys.length; i++) {
+      const key = String(winningKeys[i] || "");
+      if (!key) continue;
+      effectCells[key] = phase === "clear" ? "tumble-clear" : (phase === "drop" ? "tumble-drop" : "tumble-win");
+    }
+    state.ephemeral.effectCells = effectCells;
+    state.ephemeral.upgradeFlashes = {};
+    renderBoard();
+  }
+
+  async function runTumblePlayback(machine, tumbleFrames, betValue) {
+    const frames = Array.isArray(tumbleFrames) ? tumbleFrames : [];
+    if (!frames.length) return { steps: 0, totalWin: 0 };
+    const safeBet = Math.max(1, Math.floor(Number(betValue) || 1));
+    const totalWin = frames.reduce((sum, row) => sum + Math.max(0, Math.floor(Number(row && row.payout) || 0)), 0);
+    if (!tumbleAnimator || typeof tumbleAnimator.playSequence !== "function") {
+      if (totalWin > 0 && winCounter && typeof winCounter.startCountUp === "function") {
+        await winCounter.startCountUp(state.currentWinValue, state.currentWinValue + totalWin, {
+          bet: safeBet,
+          turbo: Boolean(state.uiSettings.turbo),
+          durationScale: 0.9
+        });
+      }
+      setTumbleIndicator("");
+      return { steps: frames.length, totalWin };
+    }
+
+    const result = await tumbleAnimator.playSequence(frames, {
+      turbo: Boolean(state.uiSettings.turbo),
+      onStepWin: async (step) => {
+        const add = Math.max(0, Math.floor(Number(step && step.payout) || 0));
+        if (add <= 0 || !winCounter || typeof winCounter.startCountUp !== "function") return;
+        await winCounter.startCountUp(state.currentWinValue, state.currentWinValue + add, {
+          bet: safeBet,
+          turbo: Boolean(state.uiSettings.turbo),
+          durationScale: 0.78
+        });
+      }
+    });
+    setTumbleIndicator("");
+    return result || { steps: frames.length, totalWin };
+  }
+
   function resolveLockCurrencies() {
     const fallback = [
       { id: 43, key: "ruby_lock", value: 1000000, short: "RL", icon: "./assets/blocks/special/ruby_lock.png" },
@@ -2519,9 +2689,7 @@ window.GTModules = window.GTModules || {};
     if (els.premiumTopBet instanceof HTMLElement) {
       els.premiumTopBet.innerHTML = "Bet: " + formatLocksByDisplayUnitHtml(bet);
     }
-    if (els.premiumTopWin instanceof HTMLElement) {
-      els.premiumTopWin.innerHTML = "Win: " + formatLocksByDisplayUnitHtml(state.currentWinValue);
-    }
+    updateWinDisplays();
     updateAutoplayStatusText();
     if (els.premiumSoundToggle instanceof HTMLButtonElement) {
       els.premiumSoundToggle.textContent = state.uiSettings.soundEnabled ? "Sound: On" : "Sound: Off";
@@ -3323,14 +3491,14 @@ window.GTModules = window.GTModules || {};
     return out;
   }
 
-  function startSpinFx(machine, isBonus) {
+  function startSpinFx(machine, isBonus, betForDisplay) {
     if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
     stopSpinFx();
     state.spinBusy = true;
     state.quickStopRequested = false;
     winPresenter.clearWinTier();
     winPresenter.hideBanner();
-    winPresenter.setCurrentWinValue(0);
+    winPresenter.setCurrentWinValue(0, Math.max(1, Math.floor(Number(betForDisplay) || Number(state.currentBetValue) || 1)));
     audioManager.play("spin_start");
     if (!state.bonusFlow.active) {
       setBonusPhase(BONUS_PHASES.BASE_SPINNING);
@@ -3670,9 +3838,10 @@ window.GTModules = window.GTModules || {};
     setBoardDimmed(false);
   }
 
-  async function runBonusPlayback(machine, bonusFrames) {
+  async function runBonusPlayback(machine, bonusFrames, betValue) {
     const frames = Array.isArray(bonusFrames) ? bonusFrames : [];
-    if (!frames.length) return { bonusTotal: 0, biggestSpinWin: 0, biggestCascadeWin: 0 };
+    if (!frames.length) return { bonusTotal: 0, biggestSpinWin: 0, biggestCascadeWin: 0, countedWin: 0 };
+    const safeBet = Math.max(1, Math.floor(Number(betValue) || 1));
     const bonusFx = bonusAnimTimings(machine.type);
     const isSnoop = machine.type === "snoop_dogg_dollars";
     const isSix = machine.type === "slots_v2";
@@ -3684,6 +3853,7 @@ window.GTModules = window.GTModules || {};
     let bonusTotal = 0;
     let biggestSpinWin = 0;
     let biggestCascadeWin = 0;
+    let countedWin = 0;
     let resolvedSpinCount = 0;
     setBonusPhase(BONUS_PHASES.BONUS_SPINNING);
     if (els.stage instanceof HTMLElement) els.stage.classList.add("bonus-live");
@@ -3726,6 +3896,19 @@ window.GTModules = window.GTModules || {};
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
       state.ephemeral.stoppedCols = machine.reels;
 
+      const frameFinalRows = rowsFromResult(frame.reels, machine.type);
+      const frameTumbleFrames = extractTumbleFrames(machine.type, { tumbleFrames: frame.tumbleFrames });
+      const frameStartRows = resolveSpinStartRows(machine.type, frame, frameTumbleFrames, frameFinalRows);
+      if (frameTumbleFrames.length) {
+        state.ephemeral.rows = frameStartRows;
+        state.ephemeral.lineIds = [];
+        state.ephemeral.lineWins = [String(frame.lineText || "Tumble sequence")];
+        state.ephemeral.markedCells = [];
+        state.ephemeral.cellMeta = sanitizeCellMeta(frame.cellMeta);
+        state.ephemeral.effectCells = {};
+        state.ephemeral.upgradeFlashes = {};
+        renderBoard();
+      }
       applyFrameToEphemeral(frame, machine.type);
       const sixLineIds = isSix ? state.ephemeral.lineIds.slice() : [];
       const sixLineWins = isSix ? state.ephemeral.lineWins.slice() : [];
@@ -3770,6 +3953,28 @@ window.GTModules = window.GTModules || {};
       if (isSix && els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
 
       const spinPay = Math.max(0, Math.floor(Number(frame.spinPay) || 0));
+      let tumbleCounted = 0;
+      if (frameTumbleFrames.length) {
+        setBonusPhase(BONUS_PHASES.BONUS_CASCADE);
+        const beforeTumbleValue = Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
+        const tumbleSummary = await runTumblePlayback(machine, frameTumbleFrames, safeBet);
+        tumbleCounted = Math.max(
+          0,
+          Math.floor(Number(state.currentWinValue) || 0) - beforeTumbleValue
+        );
+        state.ephemeral.rows = frameFinalRows;
+        state.ephemeral.lineIds = Array.isArray(frame.lineIds)
+          ? frame.lineIds.map((v) => Math.max(1, Math.floor(Number(v) || 0))).filter((v) => v > 0).slice(0, 24)
+          : [];
+        state.ephemeral.lineWins = Array.isArray(frame.lineWins) && frame.lineWins.length
+          ? frame.lineWins.map((v) => String(v || "").trim()).filter(Boolean).slice(0, 18)
+          : [String(frame.lineText || "Bonus step")];
+        state.ephemeral.markedCells = Array.isArray(frame.markedCells) ? frame.markedCells.slice(0, 256) : [];
+        state.ephemeral.cellMeta = sanitizeCellMeta(frame.cellMeta);
+        state.ephemeral.effectCells = sanitizeEffectCells(frame.effectCells);
+        state.ephemeral.upgradeFlashes = {};
+        renderBoard();
+      }
       bonusTotal += spinPay;
       if (spinPay > biggestSpinWin) biggestSpinWin = spinPay;
       if (frame && frame.summary && typeof frame.summary === "object") {
@@ -3808,6 +4013,20 @@ window.GTModules = window.GTModules || {};
       if (banner) showBonusBanner(banner);
       if (!banner && frame.lineText) showBonusBanner(String(frame.lineText).slice(0, 120));
       if (spinPay > 0) {
+        const frameCountedByTumble = Math.max(0, Math.min(spinPay, tumbleCounted));
+        const remaining = Math.max(0, spinPay - frameCountedByTumble);
+        countedWin += frameCountedByTumble;
+        if (remaining > 0 && winCounter && typeof winCounter.startCountUp === "function") {
+          await winCounter.startCountUp(state.currentWinValue, state.currentWinValue + remaining, {
+            bet: safeBet,
+            turbo: Boolean(state.uiSettings.turbo),
+            durationScale: 0.84
+          });
+          countedWin += remaining;
+        } else if (remaining > 0) {
+          winPresenter.setCurrentWinValue(state.currentWinValue + remaining, safeBet);
+          countedWin += remaining;
+        }
         audioManager.play("bonus_hit");
         if (spinPay >= (Math.max(1, machine.minBet || 1) * BIG_WIN_MULTIPLIER)) {
           pulseBonusFrameFx("epic");
@@ -3856,7 +4075,7 @@ window.GTModules = window.GTModules || {};
     audioManager.play("bonus_loop_end");
     if (els.stage instanceof HTMLElement) els.stage.classList.remove("bonus-live");
     setBonusPhase(BONUS_PHASES.BASE_IDLE);
-    return { bonusTotal, biggestSpinWin, biggestCascadeWin };
+    return { bonusTotal, biggestSpinWin, biggestCascadeWin, countedWin };
   }
 
   function spawnParticles(tone) {
@@ -4648,6 +4867,18 @@ window.GTModules = window.GTModules || {};
   }
 
   async function runSpin(mode) {
+    const nowMs = Date.now();
+    if (nowMs < Math.max(0, Math.floor(Number(state.winCounterSkipUntil) || 0))) return;
+    if (winCounter && typeof winCounter.isRunning === "function" && winCounter.isRunning()) {
+      if (typeof winCounter.skip === "function") winCounter.skip();
+      state.winCounterSkipUntil = Date.now() + 180;
+      return;
+    }
+    if (tumbleAnimator && typeof tumbleAnimator.isRunning === "function" && tumbleAnimator.isRunning()) {
+      if (typeof tumbleAnimator.skip === "function") tumbleAnimator.skip();
+      state.winCounterSkipUntil = Date.now() + 180;
+      return;
+    }
     if (state.spinBusy) {
       state.quickStopRequested = true;
       reelAnimator.requestQuickStop();
@@ -4707,7 +4938,7 @@ window.GTModules = window.GTModules || {};
       return;
     }
 
-    startSpinFx(machine, showBonusSpinText);
+    startSpinFx(machine, showBonusSpinText, bet);
 
     const debit = await adjustWallet(-wager);
     if (!debit.ok) {
@@ -4742,6 +4973,9 @@ window.GTModules = window.GTModules || {};
       const lines = Array.isArray(rawResult.lineWins) ? rawResult.lineWins.map((s) => String(s || "").trim()).filter(Boolean) : [];
       const lineIds = Array.isArray(rawResult.lineIds) ? rawResult.lineIds.map((n) => Math.max(1, Math.floor(Number(n) || 0))).filter((n) => n > 0) : [];
       const reels = Array.isArray(rawResult.reels) ? rawResult.reels : [];
+      const finalRows = rowsFromResult(reels, machine.type);
+      const tumbleFrames = extractTumbleFrames(machine.type, rawResult);
+      const spinStartRows = resolveSpinStartRows(machine.type, rawResult, tumbleFrames, finalRows);
 
       if (!lineIds.length && String(rawResult.gameId || machine.type || "") === "slots" && wanted > 0) {
         lineIds.push(1);
@@ -4754,7 +4988,9 @@ window.GTModules = window.GTModules || {};
       payout = wanted;
       resolved = {
         type: machine.type,
-        rows: rowsFromResult(reels, machine.type),
+        rows: finalRows,
+        spinStartRows: spinStartRows,
+        tumbleFrames: tumbleFrames,
         lineWins: lines,
         lineIds: lineIds,
         outcome: String(rawResult.outcome || "lose").slice(0, 24),
@@ -4770,7 +5006,7 @@ window.GTModules = window.GTModules || {};
         state.spinTimer = 0;
       }
       state.ephemeral.stoppedCols = 0;
-      await reelAnimator.animate(machine, resolved.rows, {
+      await reelAnimator.animate(machine, resolved.spinStartRows, {
         anticipation: resolved.outcome === "jackpot" || payout >= (bet * BIG_WIN_MULTIPLIER)
       });
       state.ephemeral.stoppedCols = Math.max(1, Math.floor(Number(machine.reels) || 1));
@@ -4788,12 +5024,14 @@ window.GTModules = window.GTModules || {};
       // If NOT a bonus, stop immediately. If bonus, stay busy!
       const bonusFrames = Array.isArray(resolved.bonusFrames) ? resolved.bonusFrames : [];
       const hasBonus = bonusFrames.length > 0;
+      let countedPayout = 0;
       if (!hasBonus) {
         stopSpinFx();
       }
 
+      const tumbleFramesSafe = Array.isArray(resolved.tumbleFrames) ? resolved.tumbleFrames : [];
       if (!state.bonusFlow.active) setBonusPhase(BONUS_PHASES.BASE_RESOLVING);
-      state.ephemeral.rows = resolved.rows;
+      state.ephemeral.rows = tumbleFramesSafe.length ? resolved.spinStartRows : resolved.rows;
       state.ephemeral.lineWins = resolved.lineWins;
       state.ephemeral.lineIds = resolved.lineIds;
       state.ephemeral.markedCells = [];
@@ -4802,9 +5040,32 @@ window.GTModules = window.GTModules || {};
       state.ephemeral.upgradeFlashes = {};
       renderBoard();
 
+      if (tumbleFramesSafe.length) {
+        setBonusPhase(BONUS_PHASES.BASE_CASCADE);
+        const beforeTumbleValue = Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
+        await runTumblePlayback(machine, tumbleFramesSafe, bet);
+        countedPayout += Math.max(
+          0,
+          Math.floor(Number(state.currentWinValue) || 0) - beforeTumbleValue
+        );
+        state.ephemeral.rows = resolved.rows;
+        state.ephemeral.lineWins = resolved.lineWins;
+        state.ephemeral.lineIds = resolved.lineIds;
+        state.ephemeral.markedCells = [];
+        state.ephemeral.cellMeta = sanitizeCellMeta(resolved.cellMeta);
+        state.ephemeral.effectCells = {};
+        state.ephemeral.upgradeFlashes = {};
+        renderBoard();
+      }
+
       // --- Bonus Playback Loop ---
       if (hasBonus) {
-        const bonusSummary = await runBonusPlayback(machine, bonusFrames);
+        const beforeBonusValue = Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
+        const bonusSummary = await runBonusPlayback(machine, bonusFrames, bet);
+        countedPayout += Math.max(
+          0,
+          Math.floor(Number(state.currentWinValue) || 0) - beforeBonusValue
+        );
         if (els.lastWinLabel && bonusSummary.bonusTotal > 0) {
           els.lastWinLabel.textContent = "Bonus: " + Math.floor(bonusSummary.bonusTotal) + " WL";
           els.lastWinLabel.classList.add("good");
@@ -4818,7 +5079,9 @@ window.GTModules = window.GTModules || {};
         payoutCredited = Boolean(creditOut && creditOut.ok);
       }
 
-      await winPresenter.presentWin(payout, bet);
+      await winPresenter.presentWin(payout, bet, {
+        alreadyCounted: countedPayout >= payout
+      });
       const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
       pushSpinHistory({
         game: machine.typeName || machine.type,
@@ -4887,6 +5150,9 @@ window.GTModules = window.GTModules || {};
           const lines = Array.isArray(rawResult.lineWins) ? rawResult.lineWins.map((s) => String(s || "").trim()).filter(Boolean) : [];
           const lineIds = Array.isArray(rawResult.lineIds) ? rawResult.lineIds.map((n) => Math.max(1, Math.floor(Number(n) || 0))).filter((n) => n > 0) : [];
           const reels = Array.isArray(rawResult.reels) ? rawResult.reels : [];
+          const finalRows = rowsFromResult(reels, current.type);
+          const tumbleFrames = extractTumbleFrames(current.type, rawResult);
+          const spinStartRows = resolveSpinStartRows(current.type, rawResult, tumbleFrames, finalRows);
           const nextAt = Date.now();
           if (!lineIds.length && String(rawResult.gameId || current.type || "") === "slots" && wanted > 0) {
             lineIds.push(1);
@@ -4912,7 +5178,9 @@ window.GTModules = window.GTModules || {};
           payout = wanted;
           resolved = {
             type: current.type,
-            rows: rowsFromResult(reels, current.type),
+            rows: finalRows,
+            spinStartRows: spinStartRows,
+            tumbleFrames: tumbleFrames,
             lineWins: lines,
             lineIds: lineIds,
             outcome: stats.lastOutcome,
@@ -4949,7 +5217,7 @@ window.GTModules = window.GTModules || {};
           state.spinTimer = 0;
         }
         state.ephemeral.stoppedCols = 0;
-        await reelAnimator.animate(machine, resolved.rows, {
+        await reelAnimator.animate(machine, resolved.spinStartRows, {
           anticipation: resolved.outcome === "jackpot" || payout >= (bet * BIG_WIN_MULTIPLIER)
         });
         state.ephemeral.stoppedCols = Math.max(1, Math.floor(Number(machine.reels) || 1));
@@ -4959,12 +5227,14 @@ window.GTModules = window.GTModules || {};
         // Defer stop if bonus
         const bonusFrames = Array.isArray(resolved.bonusFrames) ? resolved.bonusFrames : [];
         const hasBonus = bonusFrames.length > 0;
+        let countedPayout = 0;
         if (!hasBonus) {
           stopSpinFx();
         }
 
+        const tumbleFramesSafe = Array.isArray(resolved.tumbleFrames) ? resolved.tumbleFrames : [];
         if (!state.bonusFlow.active) setBonusPhase(BONUS_PHASES.BASE_RESOLVING);
-        state.ephemeral.rows = resolved.rows;
+        state.ephemeral.rows = tumbleFramesSafe.length ? resolved.spinStartRows : resolved.rows;
         state.ephemeral.lineWins = resolved.lineWins;
         state.ephemeral.lineIds = resolved.lineIds;
         state.ephemeral.markedCells = [];
@@ -4973,9 +5243,32 @@ window.GTModules = window.GTModules || {};
         state.ephemeral.upgradeFlashes = {};
         renderBoard();
 
+        if (tumbleFramesSafe.length) {
+          setBonusPhase(BONUS_PHASES.BASE_CASCADE);
+          const beforeTumbleValue = Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
+          await runTumblePlayback(machine, tumbleFramesSafe, bet);
+          countedPayout += Math.max(
+            0,
+            Math.floor(Number(state.currentWinValue) || 0) - beforeTumbleValue
+          );
+          state.ephemeral.rows = resolved.rows;
+          state.ephemeral.lineWins = resolved.lineWins;
+          state.ephemeral.lineIds = resolved.lineIds;
+          state.ephemeral.markedCells = [];
+          state.ephemeral.cellMeta = sanitizeCellMeta(resolved.cellMeta);
+          state.ephemeral.effectCells = {};
+          state.ephemeral.upgradeFlashes = {};
+          renderBoard();
+        }
+
         // --- Bonus Playback Loop (Hosted Machine) ---
         if (hasBonus) {
-          const bonusSummary = await runBonusPlayback(machine, bonusFrames);
+          const beforeBonusValue = Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
+          const bonusSummary = await runBonusPlayback(machine, bonusFrames, bet);
+          countedPayout += Math.max(
+            0,
+            Math.floor(Number(state.currentWinValue) || 0) - beforeBonusValue
+          );
           if (els.lastWinLabel && bonusSummary.bonusTotal > 0) {
             els.lastWinLabel.textContent = "Bonus: " + Math.floor(bonusSummary.bonusTotal) + " WL";
             els.lastWinLabel.classList.add("good");
@@ -4989,7 +5282,9 @@ window.GTModules = window.GTModules || {};
           payoutCredited = Boolean(creditOut && creditOut.ok);
         }
 
-        await winPresenter.presentWin(payout, bet);
+        await winPresenter.presentWin(payout, bet, {
+          alreadyCounted: countedPayout >= payout
+        });
         const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
         pushSpinHistory({
           game: machine.typeName || machine.type,
@@ -5191,11 +5486,28 @@ window.GTModules = window.GTModules || {};
         await runSpin("spin");
       });
     }
+    document.addEventListener("pointerdown", (event) => {
+      const skipCounter = winCounter && typeof winCounter.isRunning === "function" && winCounter.isRunning();
+      const skipTumble = tumbleAnimator && typeof tumbleAnimator.isRunning === "function" && tumbleAnimator.isRunning();
+      if (!skipCounter && !skipTumble) return;
+      if (skipCounter && typeof winCounter.skip === "function") winCounter.skip();
+      if (skipTumble && typeof tumbleAnimator.skip === "function") tumbleAnimator.skip();
+      state.winCounterSkipUntil = Date.now() + 180;
+      event.preventDefault();
+    }, true);
     window.addEventListener("keydown", async (event) => {
       if (event.key !== " " || event.repeat) return;
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
       event.preventDefault();
+      const skipCounter = winCounter && typeof winCounter.isRunning === "function" && winCounter.isRunning();
+      const skipTumble = tumbleAnimator && typeof tumbleAnimator.isRunning === "function" && tumbleAnimator.isRunning();
+      if (skipCounter || skipTumble) {
+        if (skipCounter && typeof winCounter.skip === "function") winCounter.skip();
+        if (skipTumble && typeof tumbleAnimator.skip === "function") tumbleAnimator.skip();
+        state.winCounterSkipUntil = Date.now() + 180;
+        return;
+      }
       await runSpin("spin");
     });
     const unlockAudio = () => { audioManager.unlock(); };
@@ -5245,7 +5557,7 @@ window.GTModules = window.GTModules || {};
         const key = String(item.dataset.machineKey || "");
         if (!key) return;
         state.selectedMachineKey = key;
-        winPresenter.setCurrentWinValue(0);
+        winPresenter.setCurrentWinValue(0, Math.max(1, Math.floor(Number(state.currentBetValue) || 1)));
         resetEphemeralVisuals();
         clearBonusUiState();
         renderAll();
