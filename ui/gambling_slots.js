@@ -174,6 +174,17 @@ window.GTModules = window.GTModules || {};
     { id: "table", label: "Table" },
     { id: "risk", label: "Risk" }
   ];
+  const UI_SETTINGS_KEY = "growtopia_slots_ui_settings_v2";
+  const DEFAULT_UI_SETTINGS = {
+    soundEnabled: true,
+    soundVolume: 0.8,
+    turbo: false,
+    autoplayCount: 0,
+    autoplayStopOnBigWin: true,
+    autoplayStopBalance: 0
+  };
+  const AUTOPLAY_COUNTS = [0, 10, 25, 50, 100];
+  const BIG_WIN_MULTIPLIER = 25;
 
   const state = {
     db: null,
@@ -191,6 +202,12 @@ window.GTModules = window.GTModules || {};
     currentBetValue: 1,
     lockDisplayIndex: 0,
     machineCategory: "all",
+    uiSettings: { ...DEFAULT_UI_SETTINGS },
+    autoplay: { active: false, left: 0, total: 0, mode: "spin" },
+    spinHistory: [],
+    currentWinValue: 0,
+    lastPayoutValue: 0,
+    quickStopRequested: false,
     ephemeral: { rows: null, lineIds: [], lineWins: [], markedCells: [], cellMeta: {}, effectCells: {}, upgradeFlashes: {} },
     bonusFlow: {
       phase: "BASE_IDLE",
@@ -279,6 +296,31 @@ window.GTModules = window.GTModules || {};
     statPlays: document.getElementById("statPlays"),
     statPayout: document.getElementById("statPayout"),
     userBalanceDisplay: document.getElementById("userBalanceDisplay"),
+    premiumTopBar: document.getElementById("premiumTopbar"),
+    premiumTopBet: document.getElementById("premiumTopBet"),
+    premiumTopWin: document.getElementById("premiumTopWin"),
+    premiumAutoplayStatus: document.getElementById("premiumAutoplayStatus"),
+    premiumSoundToggle: document.getElementById("premiumSoundToggle"),
+    premiumSettingsBtn: document.getElementById("premiumSettingsBtn"),
+    premiumHistoryBtn: document.getElementById("premiumHistoryBtn"),
+    premiumFairnessBtn: document.getElementById("premiumFairnessBtn"),
+    premiumSettingsPanel: document.getElementById("premiumSettingsPanel"),
+    premiumHistoryPanel: document.getElementById("premiumHistoryPanel"),
+    premiumHistoryList: document.getElementById("premiumHistoryList"),
+    premiumVolume: document.getElementById("premiumVolume"),
+    premiumTurboToggle: document.getElementById("premiumTurboToggle"),
+    premiumStopBigWin: document.getElementById("premiumStopBigWin"),
+    premiumStopBalance: document.getElementById("premiumStopBalance"),
+    premiumQuickBet: document.getElementById("premiumQuickBet"),
+    premiumBetMinus: document.getElementById("premiumBetMinus"),
+    premiumBetPlus: document.getElementById("premiumBetPlus"),
+    premiumMaxBet: document.getElementById("premiumMaxBet"),
+    premiumAutoplaySelect: document.getElementById("premiumAutoplaySelect"),
+    premiumAutoplayBtn: document.getElementById("premiumAutoplayBtn"),
+    premiumWinBanner: document.getElementById("premiumWinBanner"),
+    fairnessModal: document.getElementById("fairnessModal"),
+    premiumFairnessClose: document.getElementById("premiumFairnessClose"),
+    premiumSeedLabel: document.getElementById("premiumSeedLabel"),
     viewLogin: document.getElementById("viewLogin"),
     viewLobby: document.getElementById("viewLobby"),
     viewGame: document.getElementById("viewGame"),
@@ -373,6 +415,429 @@ window.GTModules = window.GTModules || {};
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
   function nextFrame() { return new Promise((resolve) => window.requestAnimationFrame(() => resolve())); }
+  function clamp01(value) { return Math.max(0, Math.min(1, Number(value) || 0)); }
+  function easeOutCubic(t) {
+    const x = clamp01(t);
+    return 1 - Math.pow(1 - x, 3);
+  }
+  function easeOutQuint(t) {
+    const x = clamp01(t);
+    return 1 - Math.pow(1 - x, 5);
+  }
+  function safeVibrate(ms) {
+    if (!("vibrate" in navigator)) return;
+    try { navigator.vibrate(Math.max(0, Math.floor(Number(ms) || 0))); } catch (_error) { /* no-op */ }
+  }
+
+  function loadUiSettings() {
+    try {
+      const raw = localStorage.getItem(UI_SETTINGS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return {
+        soundEnabled: parsed && parsed.soundEnabled !== undefined ? Boolean(parsed.soundEnabled) : DEFAULT_UI_SETTINGS.soundEnabled,
+        soundVolume: clamp01(parsed && parsed.soundVolume !== undefined ? Number(parsed.soundVolume) : DEFAULT_UI_SETTINGS.soundVolume),
+        turbo: parsed && parsed.turbo !== undefined ? Boolean(parsed.turbo) : DEFAULT_UI_SETTINGS.turbo,
+        autoplayCount: AUTOPLAY_COUNTS.indexOf(Math.max(0, Math.floor(Number(parsed && parsed.autoplayCount) || 0))) >= 0
+          ? Math.max(0, Math.floor(Number(parsed.autoplayCount) || 0))
+          : DEFAULT_UI_SETTINGS.autoplayCount,
+        autoplayStopOnBigWin: parsed && parsed.autoplayStopOnBigWin !== undefined ? Boolean(parsed.autoplayStopOnBigWin) : DEFAULT_UI_SETTINGS.autoplayStopOnBigWin,
+        autoplayStopBalance: Math.max(0, Math.floor(Number(parsed && parsed.autoplayStopBalance) || 0))
+      };
+    } catch (_error) {
+      return { ...DEFAULT_UI_SETTINGS };
+    }
+  }
+
+  function saveUiSettings() {
+    try {
+      localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify(state.uiSettings));
+    } catch (_error) {
+      // ignore storage failures
+    }
+  }
+
+  function createAudioManager() {
+    let audioCtx = null;
+    let masterGain = null;
+    let unlocked = false;
+    const loops = new Map();
+
+    function ensureContext() {
+      if (audioCtx) return audioCtx;
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = clamp01(state.uiSettings.soundVolume);
+      masterGain.connect(audioCtx.destination);
+      return audioCtx;
+    }
+
+    function setVolume(volume) {
+      state.uiSettings.soundVolume = clamp01(volume);
+      if (masterGain) masterGain.gain.value = state.uiSettings.soundEnabled ? state.uiSettings.soundVolume : 0;
+      saveUiSettings();
+    }
+
+    function setEnabled(enabled) {
+      state.uiSettings.soundEnabled = Boolean(enabled);
+      if (masterGain) masterGain.gain.value = state.uiSettings.soundEnabled ? state.uiSettings.soundVolume : 0;
+      saveUiSettings();
+      renderPremiumHud();
+    }
+
+    async function unlock() {
+      const ctx = ensureContext();
+      if (!ctx) return false;
+      try {
+        if (ctx.state === "suspended") await ctx.resume();
+        unlocked = true;
+        masterGain.gain.value = state.uiSettings.soundEnabled ? state.uiSettings.soundVolume : 0;
+        return true;
+      } catch (_error) {
+        return false;
+      }
+    }
+
+    function playTone(options) {
+      const ctx = ensureContext();
+      if (!ctx || !unlocked || !state.uiSettings.soundEnabled) return;
+      const opts = options && typeof options === "object" ? options : {};
+      const now = ctx.currentTime;
+      const duration = Math.max(0.02, Number(opts.duration) || 0.08);
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = String(opts.type || "triangle");
+      const startFreq = Math.max(40, Number(opts.freqStart) || 440);
+      const endFreq = Math.max(40, Number(opts.freqEnd) || startFreq);
+      const volume = Math.max(0.0001, Math.min(0.35, Number(opts.volume) || 0.08));
+      osc.frequency.setValueAtTime(startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+      gain.gain.setValueAtTime(volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now);
+      osc.stop(now + duration + 0.02);
+    }
+
+    function startLoop(id) {
+      const key = String(id || "");
+      if (!key || loops.has(key)) return;
+      const ctx = ensureContext();
+      if (!ctx || !unlocked || !state.uiSettings.soundEnabled) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(98, ctx.currentTime);
+      gain.gain.setValueAtTime(0.008, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start();
+      loops.set(key, { osc, gain });
+    }
+
+    function stopLoop(id) {
+      const key = String(id || "");
+      const row = loops.get(key);
+      if (!row) return;
+      loops.delete(key);
+      try {
+        row.gain.gain.exponentialRampToValueAtTime(0.0001, ensureContext().currentTime + 0.08);
+        row.osc.stop(ensureContext().currentTime + 0.1);
+      } catch (_error) {
+        // no-op
+      }
+    }
+
+    function stopAllLoops() {
+      const keys = Array.from(loops.keys());
+      for (let i = 0; i < keys.length; i++) stopLoop(keys[i]);
+    }
+
+    function play(eventName) {
+      const event = String(eventName || "").trim().toLowerCase();
+      if (event === "spin_start") {
+        startLoop("spin");
+        playTone({ freqStart: 170, freqEnd: 240, duration: 0.12, type: "square", volume: 0.06 });
+        return;
+      }
+      if (event === "reel_stop") {
+        playTone({ freqStart: 510, freqEnd: 340, duration: 0.09, type: "triangle", volume: 0.07 });
+        return;
+      }
+      if (event === "spin_end") {
+        stopLoop("spin");
+        return;
+      }
+      if (event === "countup_start") {
+        startLoop("countup");
+        return;
+      }
+      if (event === "countup_end") {
+        stopLoop("countup");
+        return;
+      }
+      if (event === "win_small") {
+        playTone({ freqStart: 330, freqEnd: 520, duration: 0.18, type: "triangle", volume: 0.08 });
+        return;
+      }
+      if (event === "win_medium") {
+        playTone({ freqStart: 280, freqEnd: 620, duration: 0.22, type: "triangle", volume: 0.11 });
+        window.setTimeout(() => playTone({ freqStart: 520, freqEnd: 760, duration: 0.18, type: "triangle", volume: 0.1 }), 90);
+        return;
+      }
+      if (event === "win_big") {
+        playTone({ freqStart: 180, freqEnd: 740, duration: 0.28, type: "sawtooth", volume: 0.14 });
+        window.setTimeout(() => playTone({ freqStart: 360, freqEnd: 960, duration: 0.22, type: "triangle", volume: 0.1 }), 110);
+      }
+    }
+
+    return {
+      unlock,
+      setEnabled,
+      setVolume,
+      play,
+      startLoop,
+      stopLoop,
+      stopAllLoops
+    };
+  }
+
+  function createReelAnimator() {
+    let activeRun = null;
+
+    function clearBoardClasses() {
+      if (!(els.boardWrap instanceof HTMLElement)) return;
+      els.boardWrap.classList.remove("reel-accelerate", "reel-decel", "reel-bounce");
+    }
+
+    async function animate(machine, finalRows, options) {
+      const m = machine || STANDALONE_MACHINE;
+      const rows = Math.max(1, Math.floor(Number(m.rows) || 1));
+      const cols = Math.max(1, Math.floor(Number(m.reels) || 1));
+      const finalGrid = Array.isArray(finalRows) && finalRows.length ? finalRows : randomRowsForMachine(m, 1);
+      const turbo = Boolean(state.uiSettings.turbo);
+      const opts = options && typeof options === "object" ? options : {};
+      const anticipation = Boolean(opts.anticipation);
+      const pool = SYMBOL_POOL[m.type] || SYMBOL_POOL.slots;
+      const startTs = performance.now();
+      const baseSpin = turbo ? 320 : 580;
+      const stagger = turbo ? 95 : 170;
+      const anticipationDelay = anticipation ? (turbo ? 120 : 260) : 0;
+      const stopTimes = [];
+      const stopped = [];
+      for (let c = 0; c < cols; c++) {
+        stopTimes[c] = startTs + baseSpin + (c * stagger) + (c === cols - 1 ? anticipationDelay : 0);
+        stopped[c] = false;
+      }
+
+      state.ephemeral.rows = randomRowsForMachine(m, 0);
+      state.ephemeral.lineIds = [];
+      state.ephemeral.lineWins = ["Spinning..."];
+      renderBoard();
+
+      if (els.boardWrap instanceof HTMLElement) {
+        els.boardWrap.classList.add("reel-accelerate");
+        els.boardWrap.classList.add("spinning");
+      }
+
+      const run = { cancelled: false, quickStop: false };
+      activeRun = run;
+
+      await new Promise((resolve) => {
+        function step(ts) {
+          if (run.cancelled) {
+            resolve();
+            return;
+          }
+          if (run.quickStop) {
+            for (let c = 0; c < cols; c++) {
+              if (stopped[c]) continue;
+              stopTimes[c] = Math.min(stopTimes[c], ts + 70 + (c * 36));
+            }
+          }
+
+          let allStopped = true;
+          for (let c = 0; c < cols; c++) {
+            if (stopped[c]) continue;
+            allStopped = false;
+            const t = ts - startTs;
+            const reelProgress = Math.max(0, (ts - (startTs + (c * 18))) / (stopTimes[c] - (startTs + (c * 18))));
+            const eased = reelProgress < 0.28
+              ? reelProgress / 0.28
+              : (reelProgress < 0.78 ? 1 : 1 - easeOutQuint((reelProgress - 0.78) / 0.22));
+            const stride = 1 + Math.floor((1 + (eased * 8)) + ((t / (turbo ? 42 : 56)) % Math.max(2, pool.length - 1)));
+            for (let r = 0; r < rows; r++) {
+              const idx = (Math.floor((t / (turbo ? 18 : 24)) + stride + (r * 3) + (c * 5)) % pool.length + pool.length) % pool.length;
+              state.ephemeral.rows[r][c] = pool[idx] || "?";
+            }
+            if (ts >= stopTimes[c]) {
+              stopped[c] = true;
+              for (let r = 0; r < rows; r++) {
+                if (!state.ephemeral.rows[r]) state.ephemeral.rows[r] = [];
+                state.ephemeral.rows[r][c] = normalizeToken(finalGrid[r] && finalGrid[r][c] ? finalGrid[r][c] : "?");
+              }
+              audioManager.play("reel_stop");
+              if (turbo) safeVibrate(5);
+              else safeVibrate(9);
+            }
+          }
+          renderBoard();
+          if (allStopped) {
+            resolve();
+            return;
+          }
+          window.requestAnimationFrame(step);
+        }
+        window.requestAnimationFrame(step);
+      });
+
+      activeRun = null;
+      if (els.boardWrap instanceof HTMLElement) {
+        els.boardWrap.classList.remove("reel-accelerate");
+        els.boardWrap.classList.add("reel-decel");
+      }
+      await sleep(turbo ? 70 : 130);
+      if (els.boardWrap instanceof HTMLElement) {
+        els.boardWrap.classList.remove("reel-decel");
+        els.boardWrap.classList.add("reel-bounce");
+      }
+      renderBoard();
+      await sleep(turbo ? 80 : 140);
+      if (els.boardWrap instanceof HTMLElement) {
+        els.boardWrap.classList.remove("reel-bounce");
+      }
+      clearBoardClasses();
+    }
+
+    function requestQuickStop() {
+      if (!activeRun) return false;
+      activeRun.quickStop = true;
+      return true;
+    }
+
+    function stop() {
+      if (activeRun) activeRun.cancelled = true;
+      clearBoardClasses();
+    }
+
+    return {
+      animate,
+      requestQuickStop,
+      stop
+    };
+  }
+
+  function createWinPresenter() {
+    function clearWinTier() {
+      if (!(els.stage instanceof HTMLElement)) return;
+      els.stage.classList.remove("win-tier-small", "win-tier-medium", "win-tier-big", "screen-shake");
+    }
+
+    function showBanner(text) {
+      if (!(els.premiumWinBanner instanceof HTMLElement)) return;
+      els.premiumWinBanner.textContent = String(text || "WIN!");
+      els.premiumWinBanner.classList.remove("hidden");
+    }
+
+    function hideBanner() {
+      if (!(els.premiumWinBanner instanceof HTMLElement)) return;
+      els.premiumWinBanner.classList.add("hidden");
+    }
+
+    function setCurrentWinValue(value) {
+      state.currentWinValue = Math.max(0, Math.floor(Number(value) || 0));
+      if (els.premiumTopWin instanceof HTMLElement) {
+        els.premiumTopWin.innerHTML = "Win: " + formatLocksByDisplayUnitHtml(state.currentWinValue);
+      }
+    }
+
+    async function countTo(targetValue, durationMs) {
+      const target = Math.max(0, Math.floor(Number(targetValue) || 0));
+      const start = Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
+      if (target <= start || durationMs <= 0) {
+        setCurrentWinValue(target);
+        return;
+      }
+      audioManager.play("countup_start");
+      const started = performance.now();
+      await new Promise((resolve) => {
+        function step(ts) {
+          const p = clamp01((ts - started) / durationMs);
+          const eased = easeOutCubic(p);
+          const nextVal = Math.floor(start + ((target - start) * eased));
+          setCurrentWinValue(nextVal);
+          if (p >= 1) {
+            setCurrentWinValue(target);
+            resolve();
+            return;
+          }
+          window.requestAnimationFrame(step);
+        }
+        window.requestAnimationFrame(step);
+      });
+      audioManager.play("countup_end");
+    }
+
+    async function presentWin(payout, bet) {
+      const pay = Math.max(0, Math.floor(Number(payout) || 0));
+      const stake = Math.max(1, Math.floor(Number(bet) || 1));
+      const tier = pay >= stake * BIG_WIN_MULTIPLIER ? "big" : (pay >= stake * 8 ? "medium" : (pay > 0 ? "small" : "none"));
+      clearWinTier();
+      if (pay <= 0) {
+        hideBanner();
+        setCurrentWinValue(0);
+        return;
+      }
+      if (tier === "big") {
+        if (els.stage instanceof HTMLElement) {
+          els.stage.classList.add("win-tier-big", "screen-shake");
+          window.setTimeout(() => {
+            if (els.stage instanceof HTMLElement) els.stage.classList.remove("screen-shake");
+          }, 520);
+        }
+        showBanner("BIG WIN");
+        audioManager.play("win_big");
+        safeVibrate(18);
+        await countTo(pay, state.uiSettings.turbo ? 520 : 1400);
+        return;
+      }
+      if (tier === "medium") {
+        if (els.stage instanceof HTMLElement) els.stage.classList.add("win-tier-medium");
+        showBanner("WIN!");
+        audioManager.play("win_medium");
+        await countTo(pay, state.uiSettings.turbo ? 320 : 920);
+        return;
+      }
+      if (els.stage instanceof HTMLElement) els.stage.classList.add("win-tier-small");
+      showBanner("HIT");
+      audioManager.play("win_small");
+      await countTo(pay, state.uiSettings.turbo ? 220 : 560);
+    }
+
+    return {
+      presentWin,
+      clearWinTier,
+      hideBanner,
+      setCurrentWinValue
+    };
+  }
+
+  const AudioManager = createAudioManager();
+  const ReelAnimator = createReelAnimator();
+  const WinPresenter = createWinPresenter();
+  const audioManager = AudioManager;
+  const reelAnimator = ReelAnimator;
+  const winPresenter = WinPresenter;
+  const GameState = {
+    get snapshot() { return state; },
+    get isSpinning() { return Boolean(state.spinBusy); },
+    setSpinning(next) { state.spinBusy = Boolean(next); },
+    getBet(machine) { return clampBetToMachine(machine || getSelectedMachine(), state.currentBetValue); },
+    setBet(next) { state.currentBetValue = Math.max(1, Math.floor(Number(next) || 1)); },
+    get settings() { return state.uiSettings; }
+  };
 
   function setBonusPhase(phase) {
     const next = String(phase || BONUS_PHASES.BASE_IDLE);
@@ -485,6 +950,8 @@ window.GTModules = window.GTModules || {};
     updateBonusHud({ spinsLeft: 0, bonusWin: 0, currentSpinWin: 0, stickyWilds: 0, multiplierCells: 0, mode: "FREE SPINS" });
     showBonusHud(false);
     showBonusBanner("");
+    winPresenter.hideBanner();
+    winPresenter.clearWinTier();
     setBoardDimmed(false);
     hideBonusOverlay();
   }
@@ -497,6 +964,8 @@ window.GTModules = window.GTModules || {};
     state.ephemeral.cellMeta = {};
     state.ephemeral.effectCells = {};
     state.ephemeral.upgradeFlashes = {};
+    winPresenter.hideBanner();
+    winPresenter.clearWinTier();
   }
 
   function normalizeTowerDifficultyId(value) {
@@ -1906,11 +2375,13 @@ window.GTModules = window.GTModules || {};
 
   function renderBetChipLabels() {
     const betBtns = document.querySelectorAll(".bet-btn");
+    const selectedValue = Math.max(1, Math.floor(Number(state.currentBetValue) || 1));
     betBtns.forEach((btn) => {
       if (!(btn instanceof HTMLElement)) return;
       const raw = Math.max(0, Math.floor(Number(btn.dataset.bet) || 0));
       if (raw <= 0) return;
       btn.textContent = formatLocksByDisplayUnit(raw);
+      btn.classList.toggle("active", raw === selectedValue);
     });
   }
 
@@ -1947,6 +2418,131 @@ window.GTModules = window.GTModules || {};
     if (els.vaultAmount instanceof HTMLInputElement) {
       els.vaultAmount.placeholder = "Amount (" + unit.short + " display)";
     }
+  }
+
+  function syncTurboSetting() {
+    window.GT_SETTINGS = window.GT_SETTINGS || {};
+    window.GT_SETTINGS.SLOTS_TURBO = Boolean(state.uiSettings.turbo);
+  }
+
+  function renderSpinHistory() {
+    if (!(els.premiumHistoryList instanceof HTMLElement)) return;
+    if (!state.spinHistory.length) {
+      els.premiumHistoryList.innerHTML = "<div class=\"premium-history-item\">No spins yet.</div>";
+      return;
+    }
+    els.premiumHistoryList.innerHTML = state.spinHistory.map((row) => {
+      const r = row && typeof row === "object" ? row : {};
+      const cls = ["premium-history-item"];
+      if (r.payout > 0) cls.push("win");
+      if (r.bigWin) cls.push("big");
+      const ts = r.time ? new Date(r.time).toLocaleTimeString([], { hour12: false }) : "--:--:--";
+      return (
+        "<div class=\"" + cls.join(" ") + "\">" +
+        "<div>" + escapeHtml(ts) + " | " + escapeHtml(String(r.game || "")) + "</div>" +
+        "<div>Bet: " + formatLocksByDisplayUnitHtml(Math.max(0, Math.floor(Number(r.bet) || 0))) + "</div>" +
+        "<div>Payout: " + formatLocksByDisplayUnitHtml(Math.max(0, Math.floor(Number(r.payout) || 0))) + (r.bigWin ? " <strong>(BIG)</strong>" : "") + "</div>" +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  function pushSpinHistory(row) {
+    const item = row && typeof row === "object" ? row : {};
+    state.spinHistory.unshift({
+      time: Date.now(),
+      game: String(item.game || ""),
+      bet: Math.max(0, Math.floor(Number(item.bet) || 0)),
+      payout: Math.max(0, Math.floor(Number(item.payout) || 0)),
+      bigWin: Boolean(item.bigWin)
+    });
+    state.spinHistory = state.spinHistory.slice(0, 10);
+    renderSpinHistory();
+  }
+
+  function updateAutoplayStatusText() {
+    if (!(els.premiumAutoplayStatus instanceof HTMLElement)) return;
+    if (!state.autoplay.active) {
+      els.premiumAutoplayStatus.textContent = "Autoplay: Off";
+      return;
+    }
+    els.premiumAutoplayStatus.textContent = "Autoplay: " + state.autoplay.left + "/" + state.autoplay.total;
+  }
+
+  function renderPremiumHud() {
+    const machine = getSelectedMachine();
+    const bet = clampBetToMachine(machine, state.currentBetValue);
+    if (els.premiumTopBet instanceof HTMLElement) {
+      els.premiumTopBet.innerHTML = "Bet: " + formatLocksByDisplayUnitHtml(bet);
+    }
+    if (els.premiumTopWin instanceof HTMLElement) {
+      els.premiumTopWin.innerHTML = "Win: " + formatLocksByDisplayUnitHtml(state.currentWinValue);
+    }
+    updateAutoplayStatusText();
+    if (els.premiumSoundToggle instanceof HTMLButtonElement) {
+      els.premiumSoundToggle.textContent = state.uiSettings.soundEnabled ? "Sound On" : "Sound Off";
+    }
+    if (els.premiumVolume instanceof HTMLInputElement) {
+      const nextVol = Math.round(clamp01(state.uiSettings.soundVolume) * 100);
+      if (Number(els.premiumVolume.value) !== nextVol) els.premiumVolume.value = String(nextVol);
+    }
+    if (els.premiumTurboToggle instanceof HTMLInputElement) els.premiumTurboToggle.checked = Boolean(state.uiSettings.turbo);
+    if (els.premiumStopBigWin instanceof HTMLInputElement) els.premiumStopBigWin.checked = Boolean(state.uiSettings.autoplayStopOnBigWin);
+    if (els.premiumStopBalance instanceof HTMLInputElement) {
+      const safe = Math.max(0, Math.floor(Number(state.uiSettings.autoplayStopBalance) || 0));
+      if (Number(els.premiumStopBalance.value) !== safe) els.premiumStopBalance.value = String(safe);
+    }
+    if (els.premiumAutoplaySelect instanceof HTMLSelectElement) {
+      const count = Math.max(0, Math.floor(Number(state.uiSettings.autoplayCount) || 0));
+      if (els.premiumAutoplaySelect.value !== String(count)) els.premiumAutoplaySelect.value = String(count);
+    }
+    if (els.premiumAutoplayBtn instanceof HTMLButtonElement) {
+      els.premiumAutoplayBtn.textContent = state.autoplay.active ? "Stop Auto" : "Start Auto";
+    }
+    renderSpinHistory();
+  }
+
+  function applyUiSettings(settings) {
+    const src = settings && typeof settings === "object" ? settings : DEFAULT_UI_SETTINGS;
+    state.uiSettings.soundEnabled = Boolean(src.soundEnabled);
+    state.uiSettings.soundVolume = clamp01(src.soundVolume);
+    state.uiSettings.turbo = Boolean(src.turbo);
+    state.uiSettings.autoplayCount = AUTOPLAY_COUNTS.indexOf(Math.max(0, Math.floor(Number(src.autoplayCount) || 0))) >= 0
+      ? Math.max(0, Math.floor(Number(src.autoplayCount) || 0))
+      : 0;
+    state.uiSettings.autoplayStopOnBigWin = Boolean(src.autoplayStopOnBigWin);
+    state.uiSettings.autoplayStopBalance = Math.max(0, Math.floor(Number(src.autoplayStopBalance) || 0));
+    syncTurboSetting();
+    audioManager.setVolume(state.uiSettings.soundVolume);
+    audioManager.setEnabled(state.uiSettings.soundEnabled);
+    saveUiSettings();
+    renderPremiumHud();
+  }
+
+  function setAutoplayActive(active, count) {
+    const next = Boolean(active);
+    if (!next) {
+      state.autoplay.active = false;
+      state.autoplay.left = 0;
+      state.autoplay.total = 0;
+      updateAutoplayStatusText();
+      renderPremiumHud();
+      return;
+    }
+    const n = Math.max(0, Math.floor(Number(count) || Number(state.uiSettings.autoplayCount) || 0));
+    if (n <= 0) {
+      state.autoplay.active = false;
+      state.autoplay.left = 0;
+      state.autoplay.total = 0;
+      updateAutoplayStatusText();
+      renderPremiumHud();
+      return;
+    }
+    state.autoplay.active = true;
+    state.autoplay.left = n;
+    state.autoplay.total = n;
+    updateAutoplayStatusText();
+    renderPremiumHud();
   }
 
   // UI helper: format bank value for display in lists when banks are considered infinite
@@ -2112,6 +2708,8 @@ window.GTModules = window.GTModules || {};
     if (state.refs.inventory && state.handlers.inventory) state.refs.inventory.off("value", state.handlers.inventory);
     state.refs.inventory = null;
     state.handlers.inventory = null;
+    setAutoplayActive(false);
+    audioManager.stopAllLoops();
     stopSpinFx();
   }
 
@@ -2258,6 +2856,7 @@ window.GTModules = window.GTModules || {};
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.classList.toggle("hidden", !state.user);
     if (els.openVaultBtn instanceof HTMLButtonElement) els.openVaultBtn.classList.toggle("hidden", !state.user);
     renderVaultPanel();
+    renderPremiumHud();
   }
 
   function buildRowsForRender(machine) {
@@ -2653,6 +3252,9 @@ window.GTModules = window.GTModules || {};
     }
 
     const lineWins = model.lineWins.length ? model.lineWins : (model.lineIds.length ? model.lineIds.map((id) => "Line " + id) : []);
+    if (els.boardWrap instanceof HTMLElement) {
+      els.boardWrap.classList.toggle("has-win", lineWins.length > 0);
+    }
     if (lineWins.length) {
       els.lineList.innerHTML = lineWins.slice(0, 18).map((line, index) => "<span class=\"line-badge hot\">#" + (index + 1) + " " + escapeHtml(line) + "</span>").join("");
     } else {
@@ -2680,6 +3282,11 @@ window.GTModules = window.GTModules || {};
     if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
     stopSpinFx();
     state.spinBusy = true;
+    state.quickStopRequested = false;
+    winPresenter.clearWinTier();
+    winPresenter.hideBanner();
+    winPresenter.setCurrentWinValue(0);
+    audioManager.play("spin_start");
     if (!state.bonusFlow.active) {
       setBonusPhase(BONUS_PHASES.BASE_SPINNING);
       showBonusHud(false);
@@ -2701,8 +3308,9 @@ window.GTModules = window.GTModules || {};
       cells.forEach(c => c.classList.remove('stopped', 'wheel-anim', 'hit'));
     }
     if (els.spinBtn instanceof HTMLButtonElement) {
-      els.spinBtn.disabled = true;
-      els.spinBtn.textContent = "Spinning...";
+      els.spinBtn.disabled = false;
+      els.spinBtn.textContent = "Quick Stop";
+      els.spinBtn.classList.add("spinning");
     }
     if (els.buyBonusBtn instanceof HTMLButtonElement) els.buyBonusBtn.disabled = true;
     let tick = 0;
@@ -2727,9 +3335,15 @@ window.GTModules = window.GTModules || {};
     }
     state.spinBusy = false;
     state.ephemeral.stoppedCols = null;
+    reelAnimator.stop();
+    audioManager.play("spin_end");
     if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
-    if (els.spinBtn instanceof HTMLButtonElement) els.spinBtn.textContent = "Spin";
+    if (els.spinBtn instanceof HTMLButtonElement) {
+      els.spinBtn.textContent = "Spin";
+      els.spinBtn.classList.remove("spinning");
+    }
     if (!state.bonusFlow.active) setBonusPhase(BONUS_PHASES.BASE_IDLE);
+    renderPremiumHud();
   }
 
   function bonusAnimTimings(machineType) {
@@ -3268,6 +3882,7 @@ window.GTModules = window.GTModules || {};
     const isTower = machine.type === "tower";
     const isMines = machine.type === "mines";
     const isSnoop = machine.type === "snoop_dogg_dollars";
+    const isSlotSpinGame = !isBlackjack && !isTower && !isMines;
     const bjState = machine.stats.blackjackState;
     const activeHand = (bjState && bjState.hands && bjState.hands[bjState.activeHandIndex]) || null;
     const towerRound = isTower ? getTowerRoundForMachine(machine) : null;
@@ -3340,6 +3955,16 @@ window.GTModules = window.GTModules || {};
       els.snoopBuyBtn.disabled = !canBet || state.webVaultLocks < buyCost;
     }
 
+    if (els.premiumAutoplaySelect instanceof HTMLSelectElement) {
+      els.premiumAutoplaySelect.classList.toggle("hidden", !isSlotSpinGame);
+      els.premiumAutoplaySelect.disabled = !isSlotSpinGame || state.spinBusy;
+    }
+    if (els.premiumAutoplayBtn instanceof HTMLButtonElement) {
+      els.premiumAutoplayBtn.classList.toggle("hidden", !isSlotSpinGame);
+      els.premiumAutoplayBtn.disabled = !isSlotSpinGame || (!state.autoplay.active && !canBet);
+    }
+    if (!isSlotSpinGame && state.autoplay.active) setAutoplayActive(false);
+
     if (isBlackjack) {
       const active = bjState && bjState.active;
       const canSplit = active && activeHand && activeHand.cards.length === 2 && activeHand.cards[0].value === activeHand.cards[1].value && state.webVaultLocks >= bjState.bet;
@@ -3376,6 +4001,12 @@ window.GTModules = window.GTModules || {};
       }
     }
 
+    if (state.spinBusy && isSlotSpinGame && els.spinBtn instanceof HTMLButtonElement) {
+      els.spinBtn.textContent = "Quick Stop";
+      els.spinBtn.disabled = false;
+      els.spinBtn.classList.add("spinning");
+    }
+
     const buyEnabled = machine.type === "slots_v2" || machine.type === "le_bandit";
     if (els.buyBonusBtn instanceof HTMLButtonElement) {
       els.buyBonusBtn.classList.toggle("hidden", !buyEnabled);
@@ -3392,6 +4023,7 @@ window.GTModules = window.GTModules || {};
     }
 
     renderBetChipLabels();
+    renderPremiumHud();
   }
 
   function renderAll(animCtx) {
@@ -3399,6 +4031,7 @@ window.GTModules = window.GTModules || {};
     renderMachineSelector();
     renderMachineStats();
     renderBoard(animCtx);
+    renderPremiumHud();
   }
 
   function switchView(viewName) {
@@ -3409,7 +4042,15 @@ window.GTModules = window.GTModules || {};
     if (viewName === "login" && els.viewLogin) els.viewLogin.classList.remove("hidden");
     if (viewName === "lobby" && els.viewLobby) els.viewLobby.classList.remove("hidden");
     if (viewName === "game" && els.viewGame) els.viewGame.classList.remove("hidden");
-    if (viewName !== "game") clearBonusUiState();
+    if (viewName !== "game") {
+      clearBonusUiState();
+      setAutoplayActive(false);
+      winPresenter.hideBanner();
+      winPresenter.clearWinTier();
+      if (els.premiumSettingsPanel instanceof HTMLElement) els.premiumSettingsPanel.classList.add("hidden");
+      if (els.premiumHistoryPanel instanceof HTMLElement) els.premiumHistoryPanel.classList.add("hidden");
+      if (els.fairnessModal instanceof HTMLElement) els.fairnessModal.classList.add("hidden");
+    }
   }
 
   async function resolveUserRole(accountId, username) {
@@ -3819,8 +4460,35 @@ window.GTModules = window.GTModules || {};
     return { ok: false, amount };
   }
 
+  async function maybeContinueAutoplay(result) {
+    if (!state.autoplay.active) return;
+    const row = result && typeof result === "object" ? result : {};
+    const payout = Math.max(0, Math.floor(Number(row.payout) || 0));
+    const bet = Math.max(1, Math.floor(Number(row.bet) || 1));
+    const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
+    state.autoplay.left = Math.max(0, state.autoplay.left - 1);
+    updateAutoplayStatusText();
+    renderPremiumHud();
+
+    const stopByBigWin = state.uiSettings.autoplayStopOnBigWin && isBigWin;
+    const stopByBalance = state.uiSettings.autoplayStopBalance > 0 && state.webVaultLocks < state.uiSettings.autoplayStopBalance;
+    const noSpinsLeft = state.autoplay.left <= 0;
+    if (stopByBigWin || stopByBalance || noSpinsLeft) {
+      setAutoplayActive(false);
+      return;
+    }
+
+    await sleep(state.uiSettings.turbo ? 130 : 260);
+    if (!state.autoplay.active || state.spinBusy) return;
+    await runSpin(state.autoplay.mode || "spin");
+  }
+
   async function runSpin(mode) {
-    if (state.spinBusy) return;
+    if (state.spinBusy) {
+      state.quickStopRequested = true;
+      reelAnimator.requestQuickStop();
+      return;
+    }
     if (!state.user) {
       return;
     }
@@ -3843,6 +4511,7 @@ window.GTModules = window.GTModules || {};
     }
 
     const modeText = String(mode || "spin").trim().toLowerCase();
+    if (modeText !== "spin" && state.autoplay.active) setAutoplayActive(false);
     const buyBonus = modeText === "buybonus" && (machine.type === "slots_v2" || machine.type === "le_bandit");
     const snoopBuyMatch = machine.type === "snoop_dogg_dollars" ? /^snoop_buy_([3-6])$/.exec(modeText) : null;
     const isSnoopHype = machine.type === "snoop_dogg_dollars" && modeText === "hype";
@@ -3870,6 +4539,7 @@ window.GTModules = window.GTModules || {};
 
     const wager = bet * wagerX;
     if (state.webVaultLocks < wager) {
+      if (state.autoplay.active) setAutoplayActive(false);
       return;
     }
 
@@ -3931,61 +4601,15 @@ window.GTModules = window.GTModules || {};
         bonusFrames: extractBonusFrames(machine.type, rawResult)
       };
 
-      // -- Asynchronous Sequential Stop Animation --
-      if (machine.type === "slots_v2" || machine.type === "le_bandit") {
-        // Stop background fast randomizing
-        if (state.spinTimer) window.clearInterval(state.spinTimer);
-        state.ephemeral.stoppedCols = 0;
-        state.ephemeral.rows = randomRowsForMachine(machine, 100); // stable baseline
-        renderBoard();
-
-        // Ensure spinning class is active
-        if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
-
-        for (let col = 0; col < machine.reels; col++) {
-          await sleep(col === 0 ? 500 : 350); // initial delay, then per reel
-
-          state.ephemeral.stoppedCols++;
-
-          // Overwrite the rendering row with finals for this col
-          for (let r = 0; r < machine.rows; r++) {
-            if (resolved.rows[r] && resolved.rows[r][col]) {
-              state.ephemeral.rows[r][col] = resolved.rows[r][col];
-            }
-          }
-
-          renderBoard();
-          if (els.boardWrap instanceof HTMLElement) {
-            const stoppedCells = els.boardWrap.querySelectorAll(".cell[data-col='" + col + "']");
-            stoppedCells.forEach(c => c.classList.add("stopped"));
-          }
-
-          // Check for Wheel (BLU_6 or RED_6)
-          let hasWheel = false;
-          for (let r = 0; r < machine.rows; r++) {
-            let s = state.ephemeral.rows[r][col];
-            if (s === "BLU_6" || s === "RED_6" || s === "BLU_WHEEL" || s === "RED_WHEEL") {
-              hasWheel = true;
-              if (els.boardWrap instanceof HTMLElement) {
-                const wc = els.boardWrap.querySelector(".cell[data-col='" + col + "'][data-row='" + r + "']");
-                if (wc) wc.classList.add("wheel-anim");
-              }
-            }
-          }
-
-          if (hasWheel) {
-            // Wait for the simulated "Wheel spin" to finish before stopping next reel
-            await sleep(1400);
-            if (els.boardWrap instanceof HTMLElement) {
-              const animCells = els.boardWrap.querySelectorAll(".wheel-anim");
-              animCells.forEach(c => c.classList.remove("wheel-anim"));
-            }
-          }
-        }
-      } else {
-        if (isPremiumSpin) await sleep(2000);
-        else await sleep(800);
+      if (state.spinTimer) {
+        window.clearInterval(state.spinTimer);
+        state.spinTimer = 0;
       }
+      state.ephemeral.stoppedCols = 0;
+      await reelAnimator.animate(machine, resolved.rows, {
+        anticipation: resolved.outcome === "jackpot" || payout >= (bet * BIG_WIN_MULTIPLIER)
+      });
+      state.ephemeral.stoppedCols = Math.max(1, Math.floor(Number(machine.reels) || 1));
 
       // Update local ephemeral stats
       machine.stats.plays++;
@@ -4030,6 +4654,15 @@ window.GTModules = window.GTModules || {};
         payoutCredited = Boolean(creditOut && creditOut.ok);
       }
 
+      await winPresenter.presentWin(payout, bet);
+      const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
+      pushSpinHistory({
+        game: machine.typeName || machine.type,
+        bet: wager,
+        payout,
+        bigWin: isBigWin
+      });
+
       if (els.lastWinLabel) {
         if (payout > 0) {
           els.lastWinLabel.textContent = payoutCredited
@@ -4051,6 +4684,11 @@ window.GTModules = window.GTModules || {};
         spawnParticles(payout >= bet * 50 ? "jackpot" : "win");
       }
       renderAll();
+      await maybeContinueAutoplay({
+        payout,
+        bet,
+        mode: "spin"
+      });
       return;
     } else {
       // Player-hosted machine handling (DB Transaction)
@@ -4142,6 +4780,16 @@ window.GTModules = window.GTModules || {};
           return;
         }
 
+        if (state.spinTimer) {
+          window.clearInterval(state.spinTimer);
+          state.spinTimer = 0;
+        }
+        state.ephemeral.stoppedCols = 0;
+        await reelAnimator.animate(machine, resolved.rows, {
+          anticipation: resolved.outcome === "jackpot" || payout >= (bet * BIG_WIN_MULTIPLIER)
+        });
+        state.ephemeral.stoppedCols = Math.max(1, Math.floor(Number(machine.reels) || 1));
+
         let payoutCredited = payout <= 0;
 
         // Defer stop if bonus
@@ -4177,6 +4825,15 @@ window.GTModules = window.GTModules || {};
           payoutCredited = Boolean(creditOut && creditOut.ok);
         }
 
+        await winPresenter.presentWin(payout, bet);
+        const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
+        pushSpinHistory({
+          game: machine.typeName || machine.type,
+          bet: wager,
+          payout,
+          bigWin: isBigWin
+        });
+
         if (els.lastWinLabel) {
           if (payout > 0) {
             els.lastWinLabel.textContent = payoutCredited
@@ -4199,6 +4856,11 @@ window.GTModules = window.GTModules || {};
           spawnParticles(payout >= bet * 50 ? "jackpot" : "win");
         }
         renderAll();
+        await maybeContinueAutoplay({
+          payout,
+          bet,
+          mode: "spin"
+        });
       } catch (error) {
         await adjustWallet(wager);
         stopSpinFx();
@@ -4213,6 +4875,131 @@ window.GTModules = window.GTModules || {};
   function bindEvents() {
     if (els.openGameBtn instanceof HTMLButtonElement) els.openGameBtn.addEventListener("click", () => { window.location.href = "index.html"; });
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.addEventListener("click", logout);
+    if (els.premiumSettingsBtn instanceof HTMLButtonElement && els.premiumSettingsPanel instanceof HTMLElement) {
+      els.premiumSettingsBtn.addEventListener("click", () => {
+        const next = els.premiumSettingsPanel.classList.contains("hidden");
+        els.premiumSettingsPanel.classList.toggle("hidden", !next);
+      });
+    }
+    if (els.premiumHistoryBtn instanceof HTMLButtonElement && els.premiumHistoryPanel instanceof HTMLElement) {
+      els.premiumHistoryBtn.addEventListener("click", () => {
+        const next = els.premiumHistoryPanel.classList.contains("hidden");
+        els.premiumHistoryPanel.classList.toggle("hidden", !next);
+      });
+    }
+    if (els.premiumFairnessBtn instanceof HTMLButtonElement && els.fairnessModal instanceof HTMLElement) {
+      els.premiumFairnessBtn.addEventListener("click", () => {
+        els.fairnessModal.classList.remove("hidden");
+      });
+    }
+    if (els.premiumFairnessClose instanceof HTMLButtonElement && els.fairnessModal instanceof HTMLElement) {
+      els.premiumFairnessClose.addEventListener("click", () => {
+        els.fairnessModal.classList.add("hidden");
+      });
+    }
+    if (els.premiumSoundToggle instanceof HTMLButtonElement) {
+      els.premiumSoundToggle.addEventListener("click", async () => {
+        await audioManager.unlock();
+        audioManager.setEnabled(!state.uiSettings.soundEnabled);
+      });
+    }
+    if (els.premiumVolume instanceof HTMLInputElement) {
+      els.premiumVolume.addEventListener("input", async () => {
+        await audioManager.unlock();
+        const next = clamp01((Number(els.premiumVolume.value) || 0) / 100);
+        audioManager.setVolume(next);
+        state.uiSettings.soundVolume = next;
+        saveUiSettings();
+        renderPremiumHud();
+      });
+    }
+    if (els.premiumTurboToggle instanceof HTMLInputElement) {
+      els.premiumTurboToggle.addEventListener("change", () => {
+        state.uiSettings.turbo = Boolean(els.premiumTurboToggle.checked);
+        syncTurboSetting();
+        saveUiSettings();
+        renderPremiumHud();
+      });
+    }
+    if (els.premiumStopBigWin instanceof HTMLInputElement) {
+      els.premiumStopBigWin.addEventListener("change", () => {
+        state.uiSettings.autoplayStopOnBigWin = Boolean(els.premiumStopBigWin.checked);
+        saveUiSettings();
+        renderPremiumHud();
+      });
+    }
+    if (els.premiumStopBalance instanceof HTMLInputElement) {
+      els.premiumStopBalance.addEventListener("change", () => {
+        state.uiSettings.autoplayStopBalance = Math.max(0, Math.floor(Number(els.premiumStopBalance.value) || 0));
+        saveUiSettings();
+        renderPremiumHud();
+      });
+    }
+    if (els.premiumQuickBet instanceof HTMLSelectElement) {
+      els.premiumQuickBet.addEventListener("change", () => {
+        const val = Math.max(0, Math.floor(Number(els.premiumQuickBet.value) || 0));
+        if (val > 0) {
+          state.currentBetValue = val;
+          renderMachineStats();
+          renderPremiumHud();
+        }
+      });
+    }
+    if (els.premiumBetMinus instanceof HTMLButtonElement) {
+      els.premiumBetMinus.addEventListener("click", () => {
+        const machine = getSelectedMachine();
+        const base = clampBetToMachine(machine, state.currentBetValue);
+        state.currentBetValue = Math.max(1, Math.floor(base * 0.5));
+        renderMachineStats();
+      });
+    }
+    if (els.premiumBetPlus instanceof HTMLButtonElement) {
+      els.premiumBetPlus.addEventListener("click", () => {
+        const machine = getSelectedMachine();
+        const base = clampBetToMachine(machine, state.currentBetValue);
+        state.currentBetValue = Math.max(1, Math.floor(base * 2));
+        renderMachineStats();
+      });
+    }
+    if (els.premiumMaxBet instanceof HTMLButtonElement) {
+      els.premiumMaxBet.addEventListener("click", () => {
+        const machine = getSelectedMachine();
+        if (!machine) return;
+        state.currentBetValue = Math.max(machine.minBet, Math.floor(Number(machine.maxBet) || state.currentBetValue || 1));
+        renderMachineStats();
+      });
+    }
+    if (els.premiumAutoplaySelect instanceof HTMLSelectElement) {
+      els.premiumAutoplaySelect.addEventListener("change", () => {
+        const val = Math.max(0, Math.floor(Number(els.premiumAutoplaySelect.value) || 0));
+        state.uiSettings.autoplayCount = AUTOPLAY_COUNTS.indexOf(val) >= 0 ? val : 0;
+        saveUiSettings();
+        renderPremiumHud();
+      });
+    }
+    if (els.premiumAutoplayBtn instanceof HTMLButtonElement) {
+      els.premiumAutoplayBtn.addEventListener("click", async () => {
+        if (state.autoplay.active) {
+          setAutoplayActive(false);
+          return;
+        }
+        const count = Math.max(0, Math.floor(Number(state.uiSettings.autoplayCount) || 0));
+        if (count <= 0) return;
+        setAutoplayActive(true, count);
+        state.autoplay.mode = "spin";
+        await runSpin("spin");
+      });
+    }
+    window.addEventListener("keydown", async (event) => {
+      if (event.key !== " " || event.repeat) return;
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
+      event.preventDefault();
+      await runSpin("spin");
+    });
+    const unlockAudio = () => { audioManager.unlock(); };
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
 
     if (els.authLoginBtn instanceof HTMLButtonElement) els.authLoginBtn.addEventListener("click", () => loginWithPassword(false));
     if (els.authCreateBtn instanceof HTMLButtonElement) els.authCreateBtn.addEventListener("click", () => loginWithPassword(true));
@@ -4257,6 +5044,7 @@ window.GTModules = window.GTModules || {};
         const key = String(item.dataset.machineKey || "");
         if (!key) return;
         state.selectedMachineKey = key;
+        winPresenter.setCurrentWinValue(0);
         resetEphemeralVisuals();
         clearBonusUiState();
         renderAll();
@@ -4440,8 +5228,15 @@ window.GTModules = window.GTModules || {};
   }
 
   async function init() {
+    if (document.body instanceof HTMLElement) document.body.classList.add("casino-premium");
     populateMinesCountSelect();
+    applyUiSettings(loadUiSettings());
     bindEvents();
+
+    if (els.premiumSeedLabel instanceof HTMLElement) {
+      const seed = "seed-" + Math.random().toString(36).slice(2, 12);
+      els.premiumSeedLabel.textContent = seed;
+    }
 
     const saved = loadSavedCredentials();
     if (els.authUsername instanceof HTMLInputElement && saved.username) els.authUsername.value = String(saved.username || "").slice(0, 20);
@@ -4455,6 +5250,8 @@ window.GTModules = window.GTModules || {};
         tileKey: "demo_" + type,
         type: type,
         typeName: def.name,
+        minBet: def.minBet,
+        maxBet: def.maxBet,
         volatility: String(def.volatility || "medium"),
         reels: def.reels,
         rows: def.rows,

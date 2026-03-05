@@ -2003,6 +2003,395 @@
     .bj-card.pop-in {
       animation: cardPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
+
+    /* Premium Casino Pass */
+    body.casino-premium {
+      background:
+        radial-gradient(circle at 20% 0%, rgba(255, 128, 128, 0.12), transparent 45%),
+        radial-gradient(circle at 80% 100%, rgba(90, 226, 255, 0.08), transparent 42%),
+        linear-gradient(180deg, #080708 0%, #12090d 45%, #1b0d12 100%);
+      animation: premiumBgDrift 18s ease-in-out infinite alternate;
+    }
+
+    .premium-topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid rgba(112, 165, 236, 0.38);
+      border-radius: 10px;
+      padding: 8px;
+      background: linear-gradient(180deg, rgba(9, 20, 36, 0.88), rgba(4, 10, 21, 0.9));
+      box-shadow: inset 0 0 0 1px rgba(220, 236, 255, 0.08);
+    }
+
+    .premium-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .premium-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .quick-btn {
+      border-color: rgba(120, 198, 255, 0.52);
+      background: linear-gradient(180deg, rgba(15, 37, 64, 0.88), rgba(8, 19, 35, 0.9));
+      color: #d9ecff;
+      box-shadow: 0 0 0 1px rgba(140, 206, 255, 0.12) inset;
+    }
+
+    .quick-btn:hover {
+      border-color: rgba(149, 218, 255, 0.86);
+      box-shadow: 0 0 12px rgba(110, 210, 255, 0.22);
+    }
+
+    .stage {
+      box-shadow:
+        inset 0 0 0 1px rgba(242, 164, 164, 0.16),
+        0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 50% -20%, rgba(255, 255, 255, 0.06), transparent 50%),
+        radial-gradient(circle at 50% 120%, rgba(0, 0, 0, 0.45), transparent 55%);
+      z-index: 0;
+    }
+
+    .stage>* {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cabinet-lights {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 10% 8%, rgba(255, 205, 94, 0.17), transparent 23%),
+        radial-gradient(circle at 90% 8%, rgba(101, 224, 255, 0.2), transparent 25%);
+      opacity: 0.38;
+      transition: opacity 220ms ease;
+      z-index: 0;
+    }
+
+    .board-wrap.spinning .cabinet-lights {
+      opacity: 0.95;
+      animation: cabinetLightPulse 620ms ease-in-out infinite alternate;
+    }
+
+    .premium-win-banner {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 224, 154, 0.78);
+      background: linear-gradient(180deg, rgba(75, 54, 18, 0.92), rgba(51, 36, 12, 0.92));
+      color: #ffe49b;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      box-shadow: 0 0 14px rgba(255, 208, 112, 0.35);
+      z-index: 5;
+      animation: premiumBannerIn 320ms ease-out;
+    }
+
+    .premium-controls {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      align-items: stretch;
+      justify-content: center;
+      background: linear-gradient(180deg, rgba(6, 18, 32, 0.9), rgba(3, 9, 18, 0.9));
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(112, 165, 236, 0.32);
+      box-shadow: inset 0 0 0 1px rgba(175, 218, 255, 0.08);
+    }
+
+    .premium-controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .premium-bet-readout {
+      font-size: 10px;
+      color: #d5e8ff;
+      min-width: 165px;
+      text-align: center;
+    }
+
+    #currentBetDisplay {
+      color: #ffe38f;
+      font-weight: 700;
+      font-size: 12px;
+      margin-left: 5px;
+    }
+
+    .premium-inline-wrap {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      border: 1px solid rgba(112, 165, 236, 0.35);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(4, 12, 23, 0.72);
+    }
+
+    #betChips {
+      justify-content: center;
+      max-height: 112px;
+      overflow-y: auto;
+      border: 1px solid rgba(112, 165, 236, 0.18);
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(2, 10, 20, 0.45);
+    }
+
+    .premium-spin-btn {
+      min-width: 92px !important;
+      width: 92px;
+      height: 92px;
+      border-radius: 999px;
+      border: 3px solid rgba(255, 226, 157, 0.85);
+      background:
+        radial-gradient(circle at 35% 28%, rgba(255, 238, 184, 0.42), transparent 30%),
+        radial-gradient(circle at 50% 120%, rgba(0, 0, 0, 0.62), transparent 50%),
+        linear-gradient(180deg, rgba(121, 83, 33, 0.95), rgba(64, 41, 15, 0.96));
+      color: #fff0c2;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      box-shadow:
+        0 0 0 3px rgba(0, 0, 0, 0.25),
+        0 0 20px rgba(255, 202, 98, 0.33),
+        inset 0 0 0 1px rgba(255, 248, 220, 0.3);
+      transition: transform 100ms ease, box-shadow 140ms ease;
+    }
+
+    .premium-spin-btn:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow:
+        0 0 0 3px rgba(0, 0, 0, 0.25),
+        0 0 26px rgba(255, 202, 98, 0.44),
+        inset 0 0 0 1px rgba(255, 248, 220, 0.36);
+    }
+
+    .premium-spin-btn:active {
+      transform: translateY(1px) scale(0.985);
+    }
+
+    .premium-spin-btn.spinning {
+      animation: spinButtonPulse 560ms ease-in-out infinite alternate;
+    }
+
+    .premium-settings,
+    .premium-history {
+      border: 1px solid rgba(112, 165, 236, 0.34);
+      border-radius: 10px;
+      background: rgba(4, 12, 25, 0.78);
+      padding: 9px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .premium-history-head {
+      font-size: 9px;
+      color: #cde8ff;
+    }
+
+    .premium-history-list {
+      display: grid;
+      gap: 6px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .premium-history-item {
+      border: 1px solid rgba(112, 165, 236, 0.28);
+      border-radius: 8px;
+      background: rgba(7, 21, 39, 0.82);
+      padding: 6px;
+      font-size: 8px;
+      color: #d8e9ff;
+      line-height: 1.5;
+    }
+
+    .premium-history-item.win {
+      border-color: rgba(100, 242, 168, 0.4);
+      color: #bff7da;
+    }
+
+    .premium-history-item.big {
+      border-color: rgba(255, 206, 106, 0.6);
+      color: #ffe7a7;
+      box-shadow: 0 0 10px rgba(255, 206, 106, 0.2);
+    }
+
+    .settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 8px;
+      color: #d5e8ff;
+    }
+
+    .settings-item input[type="range"] {
+      width: 170px;
+      accent-color: #68d8ff;
+    }
+
+    .stage.win-tier-small .board-wrap {
+      box-shadow: 0 0 18px rgba(100, 242, 168, 0.18);
+    }
+
+    .stage.win-tier-medium .board-wrap {
+      box-shadow: 0 0 24px rgba(255, 206, 106, 0.25);
+    }
+
+    .stage.win-tier-big .board-wrap {
+      box-shadow: 0 0 36px rgba(255, 160, 106, 0.34);
+    }
+
+    .stage.screen-shake {
+      animation: premiumShake 420ms linear;
+    }
+
+    .board-wrap.reel-accelerate .reel {
+      animation: reelPremiumRoll 120ms linear infinite;
+      filter: blur(0.6px);
+    }
+
+    .board-wrap.reel-decel .reel {
+      transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .board-wrap.reel-bounce .cell {
+      animation: reelCellBounce 220ms ease-out;
+    }
+
+    .board-wrap.has-win .cell:not(.hit) {
+      opacity: 0.45;
+      filter: saturate(0.8) brightness(0.72);
+      transition: opacity 180ms ease, filter 180ms ease;
+    }
+
+    .board-wrap.has-win .cell.hit {
+      transform: scale(1.02);
+      box-shadow: 0 0 16px rgba(255, 209, 122, 0.34), inset 0 0 0 1px rgba(255, 220, 158, 0.46);
+      animation: hitPop 340ms ease-out 2;
+    }
+
+    @keyframes premiumBgDrift {
+      0% { filter: saturate(0.98) brightness(0.98); }
+      100% { filter: saturate(1.08) brightness(1.05); }
+    }
+
+    @keyframes cabinetLightPulse {
+      0% { opacity: 0.55; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes premiumBannerIn {
+      0% { transform: translateX(-50%) translateY(-8px) scale(0.94); opacity: 0; }
+      100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+    }
+
+    @keyframes spinButtonPulse {
+      0% { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25), 0 0 16px rgba(255, 202, 98, 0.18), inset 0 0 0 1px rgba(255, 248, 220, 0.22); }
+      100% { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25), 0 0 30px rgba(255, 202, 98, 0.46), inset 0 0 0 1px rgba(255, 248, 220, 0.45); }
+    }
+
+    @keyframes premiumShake {
+      0% { transform: translateX(0); }
+      20% { transform: translateX(-3px); }
+      40% { transform: translateX(3px); }
+      60% { transform: translateX(-2px); }
+      80% { transform: translateX(2px); }
+      100% { transform: translateX(0); }
+    }
+
+    @keyframes reelPremiumRoll {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(5px); }
+    }
+
+    @keyframes reelCellBounce {
+      0% { transform: translateY(-4px); }
+      100% { transform: translateY(0); }
+    }
+
+    @media (max-width: 980px) {
+      .premium-topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .premium-actions {
+        justify-content: flex-start;
+      }
+
+      .premium-controls-row {
+        justify-content: flex-start;
+      }
+
+      .premium-bet-readout {
+        min-width: 0;
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(100vw, 100%);
+        margin: 8px auto;
+      }
+
+      .stage {
+        padding: 8px;
+        min-height: 0;
+      }
+
+      .board-wrap {
+        min-height: 310px;
+      }
+
+      .premium-spin-btn {
+        width: 78px;
+        height: 78px;
+      }
+
+      .chips#betChips {
+        max-height: 92px;
+      }
+
+      .premium-controls {
+        padding: 8px;
+      }
+
+      .line-list {
+        max-height: 92px;
+        overflow-y: auto;
+      }
+    }
   </style>
 </head>
 
@@ -2055,12 +2444,23 @@
           <button id="backToLobbyBtn" type="button" style="width:auto;">&laquo; Back to Lobby</button>
         </div>
         <div class="stage" id="stage">
-          <div class="stage-head">
-            <span class="tag" id="statBank">Bank: 0 WL</span>
-            <span class="tag" id="statMaxBet">Volatility: -</span>
-            <span class="tag" id="statPlays">Plays: 0</span>
-            <span class="tag" id="statPayout">Total Payout: 0 WL</span>
-            <span class="tag good" id="userBalanceDisplay">Balance: 0 WL</span>
+          <div class="stage-head premium-topbar" id="premiumTopbar">
+            <div class="premium-stats">
+              <span class="tag good" id="userBalanceDisplay">Balance: 0 WL</span>
+              <span class="tag" id="statBank">Bank: 0 WL</span>
+              <span class="tag" id="premiumTopBet">Bet: 1 WL</span>
+              <span class="tag" id="premiumTopWin">Win: 0 WL</span>
+              <span class="tag" id="premiumAutoplayStatus">Autoplay: Off</span>
+              <span class="tag" id="statMaxBet">Volatility: -</span>
+              <span class="tag" id="statPlays">Plays: 0</span>
+              <span class="tag" id="statPayout">Total Payout: 0 WL</span>
+            </div>
+            <div class="premium-actions">
+              <button id="premiumHistoryBtn" type="button" class="quick-btn">History</button>
+              <button id="premiumFairnessBtn" type="button" class="quick-btn">Fairness</button>
+              <button id="premiumSettingsBtn" type="button" class="quick-btn">Settings</button>
+              <button id="premiumSoundToggle" type="button" class="quick-btn">Sound On</button>
+            </div>
           </div>
 
           <div class="bonus-hud hidden" id="bonusHud">
@@ -2073,12 +2473,14 @@
           </div>
 
           <div class="board-wrap" id="boardWrap">
+            <div class="cabinet-lights" id="cabinetLights" aria-hidden="true"></div>
             <div class="slot-theme-logo" aria-hidden="true">666</div>
             <div class="slot-theme-art six-left" aria-hidden="true">&#9760;</div>
             <div class="slot-theme-art six-right" aria-hidden="true">&#9760;</div>
             <div class="board" id="slotBoard"></div>
             <svg class="overlay" id="slotOverlay" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
             <div class="particles" id="particles"></div>
+            <div class="premium-win-banner hidden" id="premiumWinBanner">WIN!</div>
             <div class="bonus-banner hidden" id="bonusBanner"></div>
             <div class="bonus-overlay hidden" id="bonusOverlay">
               <h3 id="bonusOverlayTitle">FREE SPINS</h3>
@@ -2090,9 +2492,49 @@
             </div>
           </div>
 
-          <div class="game-controls"
-            style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px;">
-            <div class="chips" id="betChips" style="justify-content: center;">
+          <div class="premium-settings hidden" id="premiumSettingsPanel">
+            <label class="settings-item">
+              <span>Volume</span>
+              <input id="premiumVolume" type="range" min="0" max="100" step="1" value="80">
+            </label>
+            <label class="settings-item">
+              <input id="premiumTurboToggle" type="checkbox">
+              <span>Turbo Mode</span>
+            </label>
+            <label class="settings-item">
+              <input id="premiumStopBigWin" type="checkbox" checked>
+              <span>Autoplay stop on big win</span>
+            </label>
+            <label class="settings-item">
+              <span>Autoplay stop balance</span>
+              <input id="premiumStopBalance" type="number" min="0" step="1" value="0">
+            </label>
+          </div>
+
+          <div class="premium-history hidden" id="premiumHistoryPanel">
+            <div class="premium-history-head">Last 10 Spins</div>
+            <div class="premium-history-list" id="premiumHistoryList"></div>
+          </div>
+
+          <div class="game-controls premium-controls">
+            <div class="premium-controls-row premium-bet-row">
+              <button id="premiumBetMinus" type="button" class="quick-btn">- Bet</button>
+              <span class="premium-bet-readout">Current Bet: <span id="currentBetDisplay">1 WL</span></span>
+              <button id="premiumBetPlus" type="button" class="quick-btn">+ Bet</button>
+              <select id="premiumQuickBet" title="Quick Bet">
+                <option value="">Quick Bet</option>
+                <option value="10">10 WL</option>
+                <option value="50">50 WL</option>
+                <option value="250">250 WL</option>
+                <option value="1000">1K WL</option>
+                <option value="10000">10K WL</option>
+                <option value="100000">100K WL</option>
+                <option value="1000000">1M WL</option>
+              </select>
+              <button id="premiumMaxBet" type="button" class="quick-btn">MAX BET</button>
+            </div>
+
+            <div class="chips" id="betChips">
               <span class="chip bet-btn" data-bet="5">5 WL</span>
               <span class="chip bet-btn" data-bet="10">10 WL</span>
               <span class="chip bet-btn" data-bet="50">50 WL</span>
@@ -2114,11 +2556,8 @@
               <span class="chip bet-btn" data-bet="50000000">50M WL</span>
             </div>
 
-            <div style="display: flex; gap: 10px; align-items: center;">
-              <span style="font-size: 10px; color: #ffcccc;">Current Bet: <span id="currentBetDisplay"
-                  style="color: #ffce6a; font-weight: bold; font-size: 12px; margin-right: 15px;">1 WL</span></span>
-
-              <span id="towerDifficultyWrap" class="hidden" style="display:flex; gap:6px; align-items:center;">
+            <div class="premium-controls-row premium-actions-row">
+              <span id="towerDifficultyWrap" class="hidden premium-inline-wrap">
                 <span style="font-size:8px; color:#cfe4ff;">Difficulty</span>
                 <select id="towerDifficultySelect" style="min-width:128px; padding:8px 10px;">
                   <option value="easy">Easy</option>
@@ -2128,7 +2567,7 @@
                 </select>
               </span>
 
-              <span id="minesCountWrap" class="hidden" style="display:flex; gap:6px; align-items:center;">
+              <span id="minesCountWrap" class="hidden premium-inline-wrap">
                 <span style="font-size:8px; color:#cfe4ff;">Mines</span>
                 <select id="minesCountSelect" style="min-width:90px; padding:8px 10px;">
                   <option value="1">1</option>
@@ -2143,7 +2582,7 @@
                 </select>
               </span>
 
-              <span id="snoopBuyWrap" class="hidden" style="display:flex; gap:6px; align-items:center;">
+              <span id="snoopBuyWrap" class="hidden premium-inline-wrap">
                 <span style="font-size:8px; color:#cfe4ff;">Buy FS</span>
                 <select id="snoopBuySelect" style="min-width:120px; padding:8px 10px;">
                   <option value="3">3 scatters</option>
@@ -2153,7 +2592,7 @@
                 </select>
               </span>
 
-              <button id="spinBtn" type="button" style="min-width: 80px; font-weight: bold;">SPIN</button>
+              <button id="spinBtn" type="button" class="premium-spin-btn">SPIN</button>
               <button id="towerCashoutBtn" type="button" class="hidden">Cash Out</button>
               <button id="minesCashoutBtn" type="button" class="hidden">Cash Out</button>
               <button id="snoopHypeBtn" type="button" class="hidden">Hype Spin</button>
@@ -2163,6 +2602,17 @@
               <button id="bjDoubleBtn" type="button" class="hidden">Double</button>
               <button id="bjSplitBtn" type="button" class="hidden">Split</button>
               <button id="buyBonusBtn" type="button" class="hidden">Bonus</button>
+              <label class="premium-inline-wrap" for="premiumAutoplaySelect">
+                <span style="font-size:8px; color:#cfe4ff;">Autoplay</span>
+                <select id="premiumAutoplaySelect">
+                  <option value="0">Off</option>
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button id="premiumAutoplayBtn" type="button" class="quick-btn">Start Auto</button>
               <span id="lastWinLabel" class="tag good hidden">Won: 0 WL</span>
             </div>
           </div>
@@ -2213,6 +2663,25 @@
 
       <div class="vault-footer">
         <button id="closeVaultBtn" type="button" style="width: auto;">Close</button>
+      </div>
+    </section>
+
+    <section id="fairnessModal" class="card center-view vault-modal hidden">
+      <div class="vault-head">
+        <h2 style="color: #9fd7ff; margin: 0;">Fairness & RNG</h2>
+        <div class="status">
+          Spins are resolved by deterministic slot logic in <code>economy/slots.js</code>. UI animations never alter the result.
+        </div>
+      </div>
+      <div class="status">
+        RNG uses JavaScript random sampling for symbols and feature events. Payouts use configured paylines, multipliers, and hard caps per game definition.
+      </div>
+      <div class="status">
+        Display Seed: <span id="premiumSeedLabel">session-local</span><br>
+        Method: weighted symbol pools + fixed payline evaluation.
+      </div>
+      <div class="vault-footer">
+        <button id="premiumFairnessClose" type="button">Close</button>
       </div>
     </section>
   </div>
