@@ -2039,6 +2039,11 @@
       flex-wrap: wrap;
       gap: 6px;
       justify-content: flex-end;
+      border: 1px solid rgba(120, 186, 255, 0.28);
+      border-radius: 10px;
+      padding: 5px;
+      background: linear-gradient(180deg, rgba(6, 17, 31, 0.82), rgba(4, 11, 22, 0.9));
+      box-shadow: inset 0 0 0 1px rgba(179, 221, 255, 0.07);
     }
 
     .quick-btn {
@@ -2046,11 +2051,45 @@
       background: linear-gradient(180deg, rgba(15, 37, 64, 0.88), rgba(8, 19, 35, 0.9));
       color: #d9ecff;
       box-shadow: 0 0 0 1px rgba(140, 206, 255, 0.12) inset;
+      position: relative;
+      overflow: hidden;
+      min-width: 96px;
+      text-align: center;
+      letter-spacing: 0.02em;
     }
 
     .quick-btn:hover {
       border-color: rgba(149, 218, 255, 0.86);
       box-shadow: 0 0 12px rgba(110, 210, 255, 0.22);
+    }
+
+    .quick-btn::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, 0.18) 50%, rgba(255, 255, 255, 0) 65%);
+      transform: translateX(-120%);
+      transition: transform 300ms ease;
+      pointer-events: none;
+    }
+
+    .quick-btn:hover::after {
+      transform: translateX(120%);
+    }
+
+    .quick-btn.active {
+      border-color: rgba(255, 208, 121, 0.92);
+      background: linear-gradient(180deg, rgba(91, 64, 28, 0.92), rgba(51, 34, 13, 0.95));
+      color: #ffe7ac;
+      box-shadow:
+        0 0 12px rgba(255, 201, 102, 0.25),
+        inset 0 0 0 1px rgba(255, 226, 159, 0.18);
+    }
+
+    #premiumSoundToggle.is-off {
+      border-color: rgba(255, 154, 154, 0.7);
+      color: #ffd1d1;
+      background: linear-gradient(180deg, rgba(69, 24, 24, 0.9), rgba(38, 13, 13, 0.92));
     }
 
     .stage {
@@ -2111,16 +2150,20 @@
 
     .premium-controls {
       margin-top: 8px;
-      display: flex;
-      flex-direction: column;
+      display: grid;
       gap: 9px;
       align-items: stretch;
       justify-content: center;
-      background: linear-gradient(180deg, rgba(6, 18, 32, 0.9), rgba(3, 9, 18, 0.9));
-      padding: 10px;
-      border-radius: 10px;
-      border: 1px solid rgba(112, 165, 236, 0.32);
-      box-shadow: inset 0 0 0 1px rgba(175, 218, 255, 0.08);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(100, 176, 255, 0.11), transparent 42%),
+        radial-gradient(circle at 90% 100%, rgba(255, 198, 112, 0.09), transparent 46%),
+        linear-gradient(180deg, rgba(6, 18, 32, 0.92), rgba(3, 9, 18, 0.94));
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(112, 165, 236, 0.36);
+      box-shadow:
+        inset 0 0 0 1px rgba(175, 218, 255, 0.1),
+        0 10px 24px rgba(0, 0, 0, 0.35);
     }
 
     .premium-controls-row {
@@ -2129,6 +2172,31 @@
       gap: 8px;
       align-items: center;
       justify-content: center;
+    }
+
+    .premium-bet-row,
+    .premium-actions-row {
+      position: relative;
+      border: 1px solid rgba(122, 189, 255, 0.22);
+      border-radius: 10px;
+      padding: 16px 8px 8px 8px;
+      background: rgba(5, 15, 28, 0.78);
+      box-shadow: inset 0 0 0 1px rgba(193, 226, 255, 0.05);
+    }
+
+    .premium-controls-row[data-row-title]::before {
+      content: attr(data-row-title);
+      position: absolute;
+      left: 8px;
+      top: -8px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(123, 196, 255, 0.38);
+      background: rgba(4, 12, 22, 0.95);
+      color: #bbddff;
+      font-size: 7px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
     }
 
     .premium-bet-readout {
@@ -2155,14 +2223,37 @@
       background: rgba(4, 12, 23, 0.72);
     }
 
+    .premium-inline-wrap.auto-wrap {
+      margin-left: auto;
+    }
+
     #betChips {
-      justify-content: center;
-      max-height: 112px;
-      overflow-y: auto;
+      justify-content: flex-start;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
       border: 1px solid rgba(112, 165, 236, 0.18);
       border-radius: 8px;
-      padding: 8px;
+      padding: 8px 10px;
       background: rgba(2, 10, 20, 0.45);
+    }
+
+    #betChips .chip {
+      flex: 0 0 auto;
+      min-width: 74px;
+      text-align: center;
+      border-color: rgba(137, 193, 255, 0.4);
+      background: linear-gradient(180deg, rgba(11, 32, 54, 0.88), rgba(7, 20, 36, 0.9));
+      color: #d6ebff;
+      box-shadow: inset 0 0 0 1px rgba(196, 232, 255, 0.05);
+    }
+
+    #betChips .chip.active {
+      border-color: rgba(255, 206, 106, 0.86);
+      background: linear-gradient(180deg, rgba(84, 61, 25, 0.94), rgba(48, 33, 11, 0.95));
+      color: #ffe8ad;
+      box-shadow: 0 0 14px rgba(255, 206, 106, 0.25);
     }
 
     .premium-spin-btn {
@@ -2204,16 +2295,40 @@
     .premium-settings,
     .premium-history {
       border: 1px solid rgba(112, 165, 236, 0.34);
-      border-radius: 10px;
-      background: rgba(4, 12, 25, 0.78);
-      padding: 9px;
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(8, 22, 40, 0.9), rgba(5, 14, 28, 0.92)),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.015) 0 1px, rgba(0, 0, 0, 0) 1px 8px);
+      padding: 10px;
       display: grid;
       gap: 8px;
+      box-shadow:
+        inset 0 0 0 1px rgba(177, 222, 255, 0.09),
+        0 10px 18px rgba(0, 0, 0, 0.3);
+      position: absolute;
+      right: 10px;
+      top: 66px;
+      width: min(420px, calc(100% - 20px));
+      max-height: 48vh;
+      overflow: auto;
+      z-index: 8;
+    }
+
+    .premium-drawer {
+      border-top: 2px solid rgba(156, 218, 255, 0.45);
+      box-shadow:
+        inset 0 0 0 1px rgba(177, 222, 255, 0.09),
+        0 10px 20px rgba(0, 0, 0, 0.34),
+        0 0 24px rgba(102, 190, 255, 0.12);
     }
 
     .premium-history-head {
       font-size: 9px;
       color: #cde8ff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
     }
 
     .premium-history-list {
@@ -2245,6 +2360,18 @@
       box-shadow: 0 0 10px rgba(255, 206, 106, 0.2);
     }
 
+    .premium-history-list::-webkit-scrollbar,
+    #betChips::-webkit-scrollbar {
+      height: 7px;
+      width: 7px;
+    }
+
+    .premium-history-list::-webkit-scrollbar-thumb,
+    #betChips::-webkit-scrollbar-thumb {
+      background: rgba(124, 192, 255, 0.4);
+      border-radius: 999px;
+    }
+
     .settings-item {
       display: flex;
       align-items: center;
@@ -2259,6 +2386,25 @@
       accent-color: #68d8ff;
     }
 
+    .premium-drawer .quick-btn {
+      min-width: 72px;
+      padding: 7px 10px;
+      font-size: 8px;
+    }
+
+    #fairnessModal {
+      border-color: rgba(136, 206, 255, 0.56);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(117, 196, 255, 0.12), transparent 46%),
+        linear-gradient(180deg, rgba(8, 26, 44, 0.95), rgba(6, 14, 28, 0.96));
+    }
+
+    #fairnessModal .status {
+      border-color: rgba(127, 193, 255, 0.38);
+      background: rgba(3, 14, 27, 0.8);
+      color: #cce8ff;
+    }
+
     .stage.win-tier-small .board-wrap {
       box-shadow: 0 0 18px rgba(100, 242, 168, 0.18);
     }
@@ -2269,6 +2415,57 @@
 
     .stage.win-tier-big .board-wrap {
       box-shadow: 0 0 36px rgba(255, 160, 106, 0.34);
+    }
+
+    .stage.bonus-live .board-wrap {
+      border-color: rgba(146, 212, 255, 0.44);
+      box-shadow:
+        inset 0 0 0 1px rgba(187, 228, 255, 0.11),
+        0 0 26px rgba(113, 198, 255, 0.2);
+    }
+
+    .stage.bonus-live .bonus-hud {
+      border-color: rgba(132, 208, 255, 0.46);
+      box-shadow: 0 0 18px rgba(89, 190, 255, 0.18);
+    }
+
+    .stage.bonus-live .bonus-hud .tag {
+      border-color: rgba(157, 220, 255, 0.46);
+      color: #e8f7ff;
+      background: rgba(5, 20, 36, 0.86);
+    }
+
+    .stage[data-bonus-phase="BONUS_INTRO"] .board-wrap {
+      box-shadow:
+        inset 0 0 0 1px rgba(165, 221, 255, 0.14),
+        0 0 24px rgba(118, 207, 255, 0.22);
+    }
+
+    .stage[data-bonus-phase="BONUS_SPINNING"] .cabinet-lights {
+      opacity: 1;
+      animation: cabinetLightPulse 360ms ease-in-out infinite alternate;
+    }
+
+    .stage[data-bonus-phase="BONUS_RESOLVING"] .board-wrap {
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 214, 145, 0.2),
+        0 0 24px rgba(255, 187, 111, 0.22);
+    }
+
+    .stage[data-bonus-phase="BONUS_END"] .board-wrap {
+      filter: saturate(1.08) brightness(1.04);
+    }
+
+    .board-wrap.bonus-frame-glow {
+      animation: bonusFrameGlow 440ms ease-out;
+    }
+
+    .board-wrap.bonus-frame-hit {
+      animation: bonusFrameHit 520ms ease-out;
+    }
+
+    .board-wrap.bonus-frame-epic {
+      animation: bonusFrameEpic 700ms ease-out;
     }
 
     .stage.screen-shake {
@@ -2339,6 +2536,24 @@
       100% { transform: translateY(0); }
     }
 
+    @keyframes bonusFrameGlow {
+      0% { box-shadow: 0 0 0 rgba(91, 203, 255, 0); }
+      50% { box-shadow: 0 0 20px rgba(91, 203, 255, 0.28); }
+      100% { box-shadow: 0 0 0 rgba(91, 203, 255, 0); }
+    }
+
+    @keyframes bonusFrameHit {
+      0% { box-shadow: 0 0 0 rgba(255, 208, 120, 0); transform: translateY(0); }
+      35% { box-shadow: 0 0 26px rgba(255, 208, 120, 0.32); transform: translateY(-1px); }
+      100% { box-shadow: 0 0 0 rgba(255, 208, 120, 0); transform: translateY(0); }
+    }
+
+    @keyframes bonusFrameEpic {
+      0% { box-shadow: 0 0 0 rgba(255, 151, 111, 0); transform: scale(1); }
+      35% { box-shadow: 0 0 38px rgba(255, 151, 111, 0.45); transform: scale(1.01); }
+      100% { box-shadow: 0 0 0 rgba(255, 151, 111, 0); transform: scale(1); }
+    }
+
     @media (max-width: 980px) {
       .premium-topbar {
         flex-direction: column;
@@ -2353,9 +2568,21 @@
         justify-content: flex-start;
       }
 
+      .premium-inline-wrap.auto-wrap {
+        margin-left: 0;
+      }
+
       .premium-bet-readout {
         min-width: 0;
         text-align: left;
+      }
+
+      .premium-settings,
+      .premium-history {
+        top: 112px;
+        right: 8px;
+        width: min(520px, calc(100% - 16px));
+        max-height: 42vh;
       }
     }
 
@@ -2379,8 +2606,12 @@
         height: 78px;
       }
 
+      .quick-btn {
+        min-width: 78px;
+      }
+
       .chips#betChips {
-        max-height: 92px;
+        max-height: none;
       }
 
       .premium-controls {
@@ -2456,10 +2687,10 @@
               <span class="tag" id="statPayout">Total Payout: 0 WL</span>
             </div>
             <div class="premium-actions">
-              <button id="premiumHistoryBtn" type="button" class="quick-btn">History</button>
-              <button id="premiumFairnessBtn" type="button" class="quick-btn">Fairness</button>
-              <button id="premiumSettingsBtn" type="button" class="quick-btn">Settings</button>
-              <button id="premiumSoundToggle" type="button" class="quick-btn">Sound On</button>
+              <button id="premiumHistoryBtn" type="button" class="quick-btn" data-quick-kind="history">History</button>
+              <button id="premiumFairnessBtn" type="button" class="quick-btn" data-quick-kind="fairness">Fairness</button>
+              <button id="premiumSettingsBtn" type="button" class="quick-btn" data-quick-kind="settings">Settings</button>
+              <button id="premiumSoundToggle" type="button" class="quick-btn" data-quick-kind="sound">Sound On</button>
             </div>
           </div>
 
@@ -2492,7 +2723,8 @@
             </div>
           </div>
 
-          <div class="premium-settings hidden" id="premiumSettingsPanel">
+          <div class="premium-settings premium-drawer hidden" id="premiumSettingsPanel">
+            <div class="premium-history-head">Settings</div>
             <label class="settings-item">
               <span>Volume</span>
               <input id="premiumVolume" type="range" min="0" max="100" step="1" value="80">
@@ -2511,13 +2743,13 @@
             </label>
           </div>
 
-          <div class="premium-history hidden" id="premiumHistoryPanel">
-            <div class="premium-history-head">Last 10 Spins</div>
+          <div class="premium-history premium-drawer hidden" id="premiumHistoryPanel">
+            <div class="premium-history-head">Last 10 Spins <button id="premiumHistoryClear" type="button" class="quick-btn">Clear</button></div>
             <div class="premium-history-list" id="premiumHistoryList"></div>
           </div>
 
           <div class="game-controls premium-controls">
-            <div class="premium-controls-row premium-bet-row">
+            <div class="premium-controls-row premium-bet-row" data-row-title="Betting">
               <button id="premiumBetMinus" type="button" class="quick-btn">- Bet</button>
               <span class="premium-bet-readout">Current Bet: <span id="currentBetDisplay">1 WL</span></span>
               <button id="premiumBetPlus" type="button" class="quick-btn">+ Bet</button>
@@ -2556,7 +2788,7 @@
               <span class="chip bet-btn" data-bet="50000000">50M WL</span>
             </div>
 
-            <div class="premium-controls-row premium-actions-row">
+            <div class="premium-controls-row premium-actions-row" data-row-title="Actions & Features">
               <span id="towerDifficultyWrap" class="hidden premium-inline-wrap">
                 <span style="font-size:8px; color:#cfe4ff;">Difficulty</span>
                 <select id="towerDifficultySelect" style="min-width:128px; padding:8px 10px;">
@@ -2602,7 +2834,7 @@
               <button id="bjDoubleBtn" type="button" class="hidden">Double</button>
               <button id="bjSplitBtn" type="button" class="hidden">Split</button>
               <button id="buyBonusBtn" type="button" class="hidden">Bonus</button>
-              <label class="premium-inline-wrap" for="premiumAutoplaySelect">
+              <label class="premium-inline-wrap auto-wrap" for="premiumAutoplaySelect">
                 <span style="font-size:8px; color:#cfe4ff;">Autoplay</span>
                 <select id="premiumAutoplaySelect">
                   <option value="0">Off</option>

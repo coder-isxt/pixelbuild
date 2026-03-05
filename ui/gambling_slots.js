@@ -307,6 +307,7 @@ window.GTModules = window.GTModules || {};
     premiumSettingsPanel: document.getElementById("premiumSettingsPanel"),
     premiumHistoryPanel: document.getElementById("premiumHistoryPanel"),
     premiumHistoryList: document.getElementById("premiumHistoryList"),
+    premiumHistoryClear: document.getElementById("premiumHistoryClear"),
     premiumVolume: document.getElementById("premiumVolume"),
     premiumTurboToggle: document.getElementById("premiumTurboToggle"),
     premiumStopBigWin: document.getElementById("premiumStopBigWin"),
@@ -590,6 +591,31 @@ window.GTModules = window.GTModules || {};
       if (event === "win_big") {
         playTone({ freqStart: 180, freqEnd: 740, duration: 0.28, type: "sawtooth", volume: 0.14 });
         window.setTimeout(() => playTone({ freqStart: 360, freqEnd: 960, duration: 0.22, type: "triangle", volume: 0.1 }), 110);
+        return;
+      }
+      if (event === "bonus_intro") {
+        playTone({ freqStart: 220, freqEnd: 480, duration: 0.22, type: "triangle", volume: 0.09 });
+        window.setTimeout(() => playTone({ freqStart: 360, freqEnd: 620, duration: 0.2, type: "triangle", volume: 0.08 }), 120);
+        return;
+      }
+      if (event === "bonus_tick") {
+        playTone({ freqStart: 420, freqEnd: 520, duration: 0.08, type: "square", volume: 0.06 });
+        return;
+      }
+      if (event === "bonus_hit") {
+        playTone({ freqStart: 260, freqEnd: 760, duration: 0.18, type: "sawtooth", volume: 0.1 });
+        return;
+      }
+      if (event === "bonus_loop_start") {
+        startLoop("bonus");
+        return;
+      }
+      if (event === "bonus_loop_end") {
+        stopLoop("bonus");
+        return;
+      }
+      if (event === "button_click") {
+        playTone({ freqStart: 500, freqEnd: 660, duration: 0.06, type: "triangle", volume: 0.04 });
       }
     }
 
@@ -2469,6 +2495,24 @@ window.GTModules = window.GTModules || {};
     els.premiumAutoplayStatus.textContent = "Autoplay: " + state.autoplay.left + "/" + state.autoplay.total;
   }
 
+  function syncTopPanelButtons() {
+    if (els.premiumSettingsBtn instanceof HTMLButtonElement) {
+      const open = els.premiumSettingsPanel instanceof HTMLElement && !els.premiumSettingsPanel.classList.contains("hidden");
+      els.premiumSettingsBtn.classList.toggle("active", open);
+    }
+    if (els.premiumHistoryBtn instanceof HTMLButtonElement) {
+      const open = els.premiumHistoryPanel instanceof HTMLElement && !els.premiumHistoryPanel.classList.contains("hidden");
+      els.premiumHistoryBtn.classList.toggle("active", open);
+    }
+    if (els.premiumFairnessBtn instanceof HTMLButtonElement) {
+      const open = els.fairnessModal instanceof HTMLElement && !els.fairnessModal.classList.contains("hidden");
+      els.premiumFairnessBtn.classList.toggle("active", open);
+    }
+    if (els.premiumSoundToggle instanceof HTMLButtonElement) {
+      els.premiumSoundToggle.classList.toggle("is-off", !state.uiSettings.soundEnabled);
+    }
+  }
+
   function renderPremiumHud() {
     const machine = getSelectedMachine();
     const bet = clampBetToMachine(machine, state.currentBetValue);
@@ -2480,7 +2524,7 @@ window.GTModules = window.GTModules || {};
     }
     updateAutoplayStatusText();
     if (els.premiumSoundToggle instanceof HTMLButtonElement) {
-      els.premiumSoundToggle.textContent = state.uiSettings.soundEnabled ? "Sound On" : "Sound Off";
+      els.premiumSoundToggle.textContent = state.uiSettings.soundEnabled ? "Sound: On" : "Sound: Off";
     }
     if (els.premiumVolume instanceof HTMLInputElement) {
       const nextVol = Math.round(clamp01(state.uiSettings.soundVolume) * 100);
@@ -2499,6 +2543,7 @@ window.GTModules = window.GTModules || {};
     if (els.premiumAutoplayBtn instanceof HTMLButtonElement) {
       els.premiumAutoplayBtn.textContent = state.autoplay.active ? "Stop Auto" : "Start Auto";
     }
+    syncTopPanelButtons();
     renderSpinHistory();
   }
 
@@ -3546,17 +3591,104 @@ window.GTModules = window.GTModules || {};
     setBoardDimmed(false);
   }
 
+  function clearBonusFrameFx() {
+    if (!(els.boardWrap instanceof HTMLElement)) return;
+    els.boardWrap.classList.remove("bonus-frame-glow", "bonus-frame-hit", "bonus-frame-epic");
+  }
+
+  function pulseBonusFrameFx(level) {
+    if (!(els.boardWrap instanceof HTMLElement)) return;
+    clearBonusFrameFx();
+    if (level === "epic") {
+      els.boardWrap.classList.add("bonus-frame-epic");
+      return;
+    }
+    if (level === "hit") {
+      els.boardWrap.classList.add("bonus-frame-hit");
+      return;
+    }
+    els.boardWrap.classList.add("bonus-frame-glow");
+  }
+
+  async function animateBonusHudTo(machineType, targetSpin, targetTotal, leftSpins, delayMs) {
+    const steps = Math.max(2, Math.min(10, Math.floor((Number(delayMs) || 240) / 45)));
+    const startSpin = Math.max(0, Math.floor(Number(state.bonusFlow.currentSpinWin) || 0));
+    const startTotal = Math.max(0, Math.floor(Number(state.bonusFlow.bonusWin) || 0));
+    for (let i = 1; i <= steps; i++) {
+      const p = i / steps;
+      const eased = easeOutCubic(p);
+      updateBonusHud({
+        mode: "FREE SPINS",
+        spinsLeft: Math.max(0, Math.floor(Number(leftSpins) || 0)),
+        bonusWin: Math.floor(startTotal + ((targetTotal - startTotal) * eased)),
+        currentSpinWin: Math.floor(startSpin + ((targetSpin - startSpin) * eased)),
+        stickyWilds: state.bonusFlow.stickyWilds,
+        multiplierCells: state.bonusFlow.multiplierCells
+      });
+      if (machineType === "slots_v2") {
+        // slots_v2 has dedicated HUD function; this keeps the generic animation additive
+        updateSixBonusHud({
+          mode: "FREE SPINS",
+          spinsLeft: Math.max(0, Math.floor(Number(leftSpins) || 0)),
+          bonusWin: Math.floor(startTotal + ((targetTotal - startTotal) * eased)),
+          currentSpinWin: Math.floor(startSpin + ((targetSpin - startSpin) * eased)),
+          activeMultiplier: Math.max(1, Number(state.bonusFlow.activeMultiplier) || 1)
+        });
+      }
+      await sleep(Math.max(12, Math.floor((Number(delayMs) || 240) / steps)));
+    }
+  }
+
+  async function runGenericBonusIntroFrame(machine, frame) {
+    const row = frame && typeof frame === "object" ? frame : {};
+    const awarded = Math.max(0, Math.floor(Number(row.awardedSpins) || Number(row.freeSpinsLeft) || 0));
+    state.bonusFlow.active = true;
+    state.bonusFlow.machineType = machine ? machine.type : "";
+    setBonusPhase(BONUS_PHASES.BONUS_INTRO);
+    setBoardDimmed(true);
+    showBonusHud(true);
+    updateBonusHud({
+      mode: "FEATURE",
+      spinsLeft: awarded,
+      bonusWin: 0,
+      currentSpinWin: 0,
+      stickyWilds: 0,
+      multiplierCells: 0
+    });
+    audioManager.play("bonus_intro");
+    await showBonusOverlay(
+      String(machine && machine.typeName ? machine.typeName : "Bonus Feature"),
+      awarded > 0 ? ("Feature started: " + awarded + " bonus spins") : "Feature activated",
+      String(row.lineText || "Bonus sequence"),
+      false
+    );
+    pulseBonusFrameFx("glow");
+    spawnParticles("win");
+    await sleep(620);
+    clearBonusFrameFx();
+    await hideBonusOverlay();
+    setBoardDimmed(false);
+  }
+
   async function runBonusPlayback(machine, bonusFrames) {
     const frames = Array.isArray(bonusFrames) ? bonusFrames : [];
     if (!frames.length) return { bonusTotal: 0, biggestSpinWin: 0, biggestCascadeWin: 0 };
     const bonusFx = bonusAnimTimings(machine.type);
     const isSnoop = machine.type === "snoop_dogg_dollars";
     const isSix = machine.type === "slots_v2";
-    const showHud = isSnoop || isSix;
+    const showHud = true;
+    const totalSpinFrames = frames.reduce((sum, row) => {
+      const t = String(row && row.frameType || "bonus_spin").trim().toLowerCase();
+      return sum + (t === "bonus_spin" ? 1 : 0);
+    }, 0);
     let bonusTotal = 0;
     let biggestSpinWin = 0;
     let biggestCascadeWin = 0;
+    let resolvedSpinCount = 0;
     setBonusPhase(BONUS_PHASES.BONUS_SPINNING);
+    if (els.stage instanceof HTMLElement) els.stage.classList.add("bonus-live");
+    audioManager.play("bonus_intro");
+    audioManager.play("bonus_loop_start");
     showBonusHud(showHud);
     const firstType = String(frames[0] && frames[0].frameType || "").trim().toLowerCase();
     await sleep(firstType === "bonus_intro" ? Math.min(180, bonusFx.intro) : bonusFx.intro);
@@ -3571,6 +3703,10 @@ window.GTModules = window.GTModules || {};
         await runSlotsV2BonusIntroFrame(machine, frame, bonusFx);
         continue;
       }
+      if (frameType === "bonus_intro") {
+        await runGenericBonusIntroFrame(machine, frame);
+        continue;
+      }
       if (frameType === "bonus_end") {
         const summary = frame.summary && typeof frame.summary === "object" ? frame.summary : {};
         bonusTotal = Math.max(bonusTotal, Math.max(0, Math.floor(Number(summary.bonusWin) || 0)));
@@ -3579,8 +3715,12 @@ window.GTModules = window.GTModules || {};
       }
 
       setBonusPhase(BONUS_PHASES.BONUS_SPINNING);
+      resolvedSpinCount += 1;
       state.ephemeral.stoppedCols = 0;
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
+      if (!isSix) showBonusBanner("Spin " + resolvedSpinCount + " / " + Math.max(1, totalSpinFrames));
+      pulseBonusFrameFx("glow");
+      audioManager.play("bonus_tick");
       renderBoard();
       await sleep(bonusFx.spin);
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
@@ -3605,6 +3745,7 @@ window.GTModules = window.GTModules || {};
           state.ephemeral.upgradeFlashes[key] = String(ev.resultLabel || "").trim() || "x";
           renderBoard();
           showBonusBanner((ev.color === "red" ? "Red" : "Blue") + " Wheel: " + (ev.resultLabel || ""));
+          safeVibrate(ev.color === "red" ? 12 : 8);
           updateSixBonusHud({
             mode: frame.hud && frame.hud.mode ? frame.hud.mode : "FREE SPINS",
             spinsLeft: Math.max(0, Math.floor(Number(frame.hud && frame.hud.spinsLeft) || 0)),
@@ -3649,36 +3790,55 @@ window.GTModules = window.GTModules || {};
           wheelRules: hud.wheelRules && typeof hud.wheelRules === "object" ? hud.wheelRules : {}
         });
       } else if (showHud) {
+        const leftSpins = Math.max(0, Math.floor(Number(hud.freeSpinsLeft) || Number(hud.spinsLeft) || 0));
+        const targetTotal = Math.max(0, Math.floor(Number(hud.bonusWin) || bonusTotal));
+        const targetSpin = Math.max(0, Math.floor(Number(hud.currentSpinWin) || spinPay));
         updateBonusHud({
           mode: "FREE SPINS",
-          spinsLeft: Math.max(0, Math.floor(Number(hud.freeSpinsLeft) || 0)),
-          bonusWin: Math.max(0, Math.floor(Number(hud.bonusWin) || bonusTotal)),
-          currentSpinWin: Math.max(0, Math.floor(Number(hud.currentSpinWin) || spinPay)),
+          spinsLeft: leftSpins,
+          bonusWin: targetTotal,
+          currentSpinWin: targetSpin,
           stickyWilds: Math.max(0, Math.floor(Number(hud.stickyWilds) || metaCounts.wilds)),
           multiplierCells: Math.max(0, Math.floor(Number(hud.multiplierCells) || metaCounts.multis))
         });
+        await animateBonusHudTo(machine.type, targetSpin, targetTotal, leftSpins, Math.max(120, Math.floor(Number(bonusFx.between) || 220)));
       }
 
       const banner = String(frame.banner || "").trim();
       if (banner) showBonusBanner(banner);
+      if (!banner && frame.lineText) showBonusBanner(String(frame.lineText).slice(0, 120));
+      if (spinPay > 0) {
+        audioManager.play("bonus_hit");
+        if (spinPay >= (Math.max(1, machine.minBet || 1) * BIG_WIN_MULTIPLIER)) {
+          pulseBonusFrameFx("epic");
+          spawnParticles("jackpot");
+          safeVibrate(18);
+        } else {
+          pulseBonusFrameFx("hit");
+          spawnParticles("win");
+          safeVibrate(10);
+        }
+      }
       if (frame && frame.fills) {
         setBonusPhase(BONUS_PHASES.BONUS_RESOLVING);
         if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("winfx");
         await sleep(bonusFx.fillFx);
         if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("winfx");
+        pulseBonusFrameFx("hit");
         await sleep(bonusFx.fillSettle);
       }
       await sleep(bonusFx.between);
+      clearBonusFrameFx();
     }
 
-    if (isSnoop || isSix) {
+    if (frames.length) {
       setBonusPhase(BONUS_PHASES.BONUS_END);
       setBoardDimmed(true);
       const subText = biggestCascadeWin > 0
         ? ("Biggest Spin: " + biggestSpinWin + " WL | Best Cascade: " + biggestCascadeWin + " WL")
         : ("Biggest Spin: " + biggestSpinWin + " WL");
       await showBonusOverlay(
-        "BONUS COMPLETE",
+        String(machine && machine.typeName ? machine.typeName : "BONUS COMPLETE"),
         "Total Bonus Win: " + bonusTotal + " WL",
         subText,
         true
@@ -3692,6 +3852,9 @@ window.GTModules = window.GTModules || {};
     state.ephemeral.effectCells = {};
     state.ephemeral.upgradeFlashes = {};
     showBonusHud(false);
+    clearBonusFrameFx();
+    audioManager.play("bonus_loop_end");
+    if (els.stage instanceof HTMLElement) els.stage.classList.remove("bonus-live");
     setBonusPhase(BONUS_PHASES.BASE_IDLE);
     return { bonusTotal, biggestSpinWin, biggestCascadeWin };
   }
@@ -4051,6 +4214,7 @@ window.GTModules = window.GTModules || {};
       if (els.premiumHistoryPanel instanceof HTMLElement) els.premiumHistoryPanel.classList.add("hidden");
       if (els.fairnessModal instanceof HTMLElement) els.fairnessModal.classList.add("hidden");
     }
+    syncTopPanelButtons();
   }
 
   async function resolveUserRole(accountId, username) {
@@ -4875,28 +5039,64 @@ window.GTModules = window.GTModules || {};
   function bindEvents() {
     if (els.openGameBtn instanceof HTMLButtonElement) els.openGameBtn.addEventListener("click", () => { window.location.href = "index.html"; });
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.addEventListener("click", logout);
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const clickable = target.closest("button, .chip, .machine-item, .machine-cat-btn, .vault-quick-btn");
+      if (!clickable) return;
+      audioManager.play("button_click");
+    });
     if (els.premiumSettingsBtn instanceof HTMLButtonElement && els.premiumSettingsPanel instanceof HTMLElement) {
       els.premiumSettingsBtn.addEventListener("click", () => {
         const next = els.premiumSettingsPanel.classList.contains("hidden");
         els.premiumSettingsPanel.classList.toggle("hidden", !next);
+        if (next && els.premiumHistoryPanel instanceof HTMLElement) els.premiumHistoryPanel.classList.add("hidden");
+        syncTopPanelButtons();
       });
     }
     if (els.premiumHistoryBtn instanceof HTMLButtonElement && els.premiumHistoryPanel instanceof HTMLElement) {
       els.premiumHistoryBtn.addEventListener("click", () => {
         const next = els.premiumHistoryPanel.classList.contains("hidden");
         els.premiumHistoryPanel.classList.toggle("hidden", !next);
+        if (next && els.premiumSettingsPanel instanceof HTMLElement) els.premiumSettingsPanel.classList.add("hidden");
+        syncTopPanelButtons();
+      });
+    }
+    if (els.premiumHistoryClear instanceof HTMLButtonElement) {
+      els.premiumHistoryClear.addEventListener("click", () => {
+        state.spinHistory = [];
+        renderSpinHistory();
       });
     }
     if (els.premiumFairnessBtn instanceof HTMLButtonElement && els.fairnessModal instanceof HTMLElement) {
       els.premiumFairnessBtn.addEventListener("click", () => {
         els.fairnessModal.classList.remove("hidden");
+        syncTopPanelButtons();
       });
     }
     if (els.premiumFairnessClose instanceof HTMLButtonElement && els.fairnessModal instanceof HTMLElement) {
       els.premiumFairnessClose.addEventListener("click", () => {
         els.fairnessModal.classList.add("hidden");
+        syncTopPanelButtons();
       });
     }
+    document.addEventListener("mousedown", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (els.premiumSettingsPanel instanceof HTMLElement && !els.premiumSettingsPanel.classList.contains("hidden")) {
+        const hitSettings = target.closest("#premiumSettingsPanel, #premiumSettingsBtn");
+        if (!hitSettings) els.premiumSettingsPanel.classList.add("hidden");
+      }
+      if (els.premiumHistoryPanel instanceof HTMLElement && !els.premiumHistoryPanel.classList.contains("hidden")) {
+        const hitHistory = target.closest("#premiumHistoryPanel, #premiumHistoryBtn");
+        if (!hitHistory) els.premiumHistoryPanel.classList.add("hidden");
+      }
+      if (els.fairnessModal instanceof HTMLElement && !els.fairnessModal.classList.contains("hidden")) {
+        const hitFairness = target.closest("#fairnessModal, #premiumFairnessBtn");
+        if (!hitFairness) els.fairnessModal.classList.add("hidden");
+      }
+      syncTopPanelButtons();
+    });
     if (els.premiumSoundToggle instanceof HTMLButtonElement) {
       els.premiumSoundToggle.addEventListener("click", async () => {
         await audioManager.unlock();
@@ -4943,6 +5143,7 @@ window.GTModules = window.GTModules || {};
           renderMachineStats();
           renderPremiumHud();
         }
+        els.premiumQuickBet.value = "";
       });
     }
     if (els.premiumBetMinus instanceof HTMLButtonElement) {
