@@ -1,0 +1,116 @@
+﻿PIXELBUILD STARTER ECONOMY (COMMUNITY BASELINE)
+
+Currency: World Locks (WL)
+Use this as a starting point only. Community supply/demand should decide final market prices.
+
+Notes:
+- Prices are per 1 item unless ratio format is shown (example: 300/1).
+- N/A means not intended for market trading.
+- Locks are priced by their lock value.
+- Calculation model v2: base tier + utility bonus + rarity scaling, then rounded for cleaner trading.
+
+[BLOCKS]
+ID  | KEY                    | NAME                        | START_WL
+----+------------------------+-----------------------------+---------
+  0 | air                    | Air                         |      N/A
+  1 | grass_block            | Grass                       |    500/1
+  2 | dirt_block             | Dirt                        |    500/1
+  3 | stone_block            | Stone                       |    350/1
+  4 | wood_block             | Wood                        |    400/1
+  5 | sand_block             | Sand                        |    500/1
+  6 | brick_block            | Brick                       |    250/1
+  7 | spawn_door             | Door                        |      N/A
+  8 | bedrock                | Bedrock                     |      N/A
+  9 | world_lock             | World Lock                  |     1.00
+ 10 | door_block             | Door Block                  |    200/1
+ 11 | water_block            | Water                       |    300/1
+ 12 | platform_block         | Platform                    |    250/1
+ 13 | stair_block            | Stairs                      |    220/1
+ 14 | stair_block_r1         | Stair NE                    |    220/1
+ 15 | stair_block_r2         | Stair SE                    |    220/1
+ 16 | stair_block_r3         | Stair SW                    |    220/1
+ 17 | vending_machine        | Vending Machine             |    32.00
+ 18 | sign_block             | Sign                        |    180/1
+ 19 | anti_gravity_generator | Anti Gravity Generator      |    26.00
+ 20 | camera_block           | Camera                      |    18.00
+ 21 | weather_machine        | Weather Machine             |    20.00
+ 22 | display_block          | Display Block               |     3.50
+ 23 | wood_plank             | Wooden Plank                |    250/1
+ 24 | obsidian_lock          | Obsidian Lock               |   100.00
+ 32 | gamble_machine         | Gambling Machine            |    48.00
+ 33 | spike_block            | Spikes NW                   |    180/1
+ 34 | donation_box           | Donation Box                |    18.00
+ 35 | leaf_block             | Leaf Block                  |    500/1
+ 36 | storage_chest          | Storage Chest               |    20.00
+ 37 | spike_block_r1         | Spikes NE                   |    180/1
+ 38 | spike_block_r2         | Spikes SE                   |    180/1
+ 39 | spike_block_r3         | Spikes SW                   |    180/1
+ 40 | spawn_mover            | Spawn Mover                 |     7.00
+ 41 | mystery_block          | Mystery Block               |    10.00
+ 43 | ruby_lock              | Ruby Lock                   | 1000000.00
+ 50 | emerald_lock           | Emerald Lock                | 10000.00
+ 51 | splicing_machine       | Splicing Machine            |    38.00
+ 52 | owner_tax_block        | Owner Tax Block             |    44.00
+ 53 | quest_npc              | Quest Interaction Block     |    55.00
+
+[FARMABLES]
+ID  | KEY                    | NAME                        | START_WL
+----+------------------------+-----------------------------+---------
+ 44 | star                   | Star                        |     2.00
+
+[COSMETICS]
+SLOT   | ID                     | NAME                       | RARITY     | START_WL
+-------+------------------------+----------------------------+------------+---------
+shirts | hoodie_blue            | Blue Hoodie                | rare       |    30.00
+shirts | cloth_tunic            | Cloth Tunic                | common     |     8.00
+shirts | armor_iron             | Iron Armor                 | epic       |    95.00
+shirts | oop_shirt              | OOP Shirt                  | rare       |    30.00
+shirts | oop_shirt_red          | Red OOP Shirt              | epic       |    95.00
+shirts | red_outline_shirt      | Red Outline Shirt          | epic       |    95.00
+shirts | sun_shirt              | Sun Shirt                  | epic       |    95.00
+pants  | cloth_pants            | Cloth Pants                | common     |     8.00
+pants  | red_outline_pants      | Red Outline Pants          | common     |     8.00
+pants  | test                   | test Pants                 | common     |     8.00
+shoes  | cloth_slippers         | Cloth Slippers             | common     |    20.00
+shoes  | jump_boots             | Jump Boots                 | epic       |   130.00
+shoes  | swift_sneakers         | Swift Sneakers             | rare       |    55.00
+hats   | basic_cap              | Basic Cap                  | common     |     8.00
+hats   | chinese                | Chinese                    | rare       |    30.00
+hats   | duck                   | Duck                       | common     |     8.00
+hats   | flatcap                | Flatcap                    | rare       |    30.00
+hats   | red_outline_flatcap    | Red Outline Flatcap        | rare       |    30.00
+hats   | silinter               | Silinter                   | common     |     8.00
+wings  | admin_wings            | Admin Wings                | mythic     |  2000.00
+wings  | angel_white            | Angel Wings                | rare       |    60.00
+wings  | bat_dark               | Bat Wings                  | rare       |    60.00
+wings  | black_outline_wings    | Black Outline Wings        | epic       |   130.00
+wings  | golden_angel_wings     | Golden Angel Wings         | legendary  |   420.00
+wings  | golden_evil_wings      | Golden Evil Wings          | epic       |   130.00
+wings  | leaf_green             | Leaf Wings                 | rare       |    60.00
+wings  | pink_baby_angels       | Pink Baby Angel Wings      | epic       |   130.00
+wings  | void_wings             | Void Wings                 | mythic     |   850.00
+swords | admin_pickaxe          | Admin Pickaxe              | mythic     |  2800.00
+swords | blue_dagger            | Blue Dagger                | epic       |   120.00
+swords | flame_saber            | Flame Saber                | epic       |   140.00
+swords | iron_sword             | Iron Sword                 | rare       |    55.00
+swords | red_outline_pickaxe    | Red Outline Pickaxe        | legendary  |   390.00
+swords | wood_blade             | Wood Blade                 | common     |    15.00
+
+[ITEMS]
+TYPE   | ID                     | NAME                       | START_WL
+-------+------------------------+----------------------------+---------
+tool   | fist                   | Fist                       |      N/A
+tool   | wrench                 | Wrench                     |     1.50
+title  | newcomer               | Newcomer                   |     0.00
+title  | builder                | Builder                    |    40.00
+title  | trader                 | Trader                     |    40.00
+title  | guardian               | Guardian                   |    40.00
+title  | legend                 | Legend                     |   130.00
+title  | secret                 | MAID                       |   280.00
+title  | aurora                 | Aurora                     |   210.00
+title  | nova                   | Nova                       |   210.00
+title  | prism                  | Prism                      |   210.00
+title  | novice                 | Novice                     |    20.00
+title  | big                    | BIG                        |    70.00
+title  | legendary              | {username} of Legend       |   360.00
+title  | is_hero                | {username} is Hero         |   500.00

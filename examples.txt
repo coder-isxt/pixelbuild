@@ -1,0 +1,257 @@
+GROWTOPIA TEST - QUEST / ACHIEVEMENT / QUEST WORLD EXAMPLES
+
+Files:
+- progression/quests.js
+- progression/achievements.js
+- economy/quest_world.js
+
+============================================================
+1) PROGRESSION QUESTS (GLOBAL)
+============================================================
+
+Defined in progression/quests.js:
+- DAILY_QUESTS
+- OTHER_QUESTS
+
+Supported progression quest event types:
+- break_block
+- place_block
+- tree_harvest
+- gems_earned
+- visit_world (unique world tracking supported)
+- trade_complete
+
+For break/place quests you can filter by:
+- blockId (number)
+- blockKey (string, recommended for readability)
+
+Event payload examples:
+- break_block: { count: 1, blockId: 4 }
+- place_block: { count: 1, blockId: 3 }
+- tree_harvest: { count: 1 }
+- gems_earned: { amount: 75 }
+- visit_world: { worldId: "START" }
+- trade_complete: { count: 1, tradeId: "abc123" }
+
+Supported progression quest reward keys:
+- Legacy:
+  - gems
+  - blockId/blockKey + blockAmount
+  - cosmeticId + cosmeticAmount
+  - titleId + titleAmount
+  - toolId/tool + toolAmount (fist/wrench drop rewards)
+- Generic:
+  - grants: [{ type, ... }]
+  - blocks/cosmetics/titles/tools maps
+  - items map with prefixes (block:/cosmetic:/title:/tool:)
+
+Example daily quest:
+{
+  id: "place_120_blocks",
+  label: "Place 120 blocks",
+  target: 120,
+  event: "place_block",
+  rewards: { gems: 120 }
+}
+
+Example block-key filtered quest:
+{
+  id: "break_wood_blocks",
+  label: "Break 60 wood blocks",
+  target: 60,
+  event: "break_block",
+  blockKey: "wood_block",
+  rewards: { gems: 90 }
+}
+
+Example global (other) quest:
+{
+  id: "harvest_500_trees_total",
+  label: "Harvest 500 trees",
+  target: 500,
+  event: "tree_harvest",
+  category: "other",
+  rewards: { gems: 300, titleId: "traveler", titleAmount: 1 }
+}
+
+Example progression quest reward using generic grants:
+{
+  id: "mixed_reward_test",
+  label: "Break 30 blocks",
+  target: 30,
+  event: "break_block",
+  rewards: {
+    grants: [
+      { type: "gems", amount: 200 },
+      { type: "block", blockKey: "wood_block", amount: 50 },
+      { type: "cosmetic", id: "sun_shirt", amount: 1 },
+      { type: "title", id: "traveler", amount: 1 },
+      { type: "tool", id: "wrench", amount: 1 }
+    ]
+  }
+}
+
+============================================================
+2) ACHIEVEMENTS
+============================================================
+
+Defined in progression/achievements.js (CATALOG).
+
+Supported achievement events:
+- trade_complete
+- world_lock_placed
+- break_block
+- place_block
+- tree_harvest
+- visit_world (unique world tracking)
+- gems_earned
+
+Metric notes:
+- blocksBroken is canonical (blocksBreaked kept for backward compatibility).
+- uniqueWorldsVisited uses visitedWorlds map.
+
+Example achievement:
+{
+  id: "place_20000_blocks",
+  label: "Place 20k blocks",
+  target: 20000,
+  metric: "blocksPlaced",
+  event: "place_block"
+}
+
+============================================================
+3) QUEST WORLD + QUEST PATHS (CHAIN SYSTEM)
+============================================================
+
+Defined in economy/quest_world.js.
+
+Rules:
+- World has one active quest path.
+- Player can accept/track/claim only the current chain quest.
+- Next quest unlocks after current quest is claimed.
+
+Quest-world objective types currently supported:
+- bring_block
+  fields: blockId, amount
+- bring_cosmetic
+  fields: cosmeticId, amount
+- break_block
+  fields: amount, optional blockId or blockKey (0/omitted = any block)
+- place_block
+  fields: amount, optional blockId or blockKey (0/omitted = any block)
+- tree_harvest
+  fields: amount
+- gems_earned
+  fields: amount
+- trade_complete
+  fields: amount
+
+Quest-world objective examples:
+{
+  id: "q_break_any",
+  title: "Break 50 blocks",
+  objective: { type: "break_block", amount: 50 },
+  reward: { gems: 60 }
+}
+
+{
+  id: "q_place_wood",
+  title: "Place 40 wood blocks",
+  objective: { type: "place_block", blockKey: "wood_block", amount: 40 },
+  reward: { gems: 80 }
+}
+
+{
+  id: "q_bring_cosmetic",
+  title: "Bring 1 Sun Shirt",
+  objective: { type: "bring_cosmetic", cosmeticId: "sun_shirt", amount: 1 },
+  reward: { gems: 120 }
+}
+
+{
+  id: "q_harvest",
+  title: "Harvest 10 trees",
+  objective: { type: "tree_harvest", amount: 10 },
+  reward: { cosmeticId: "sun_shirt", cosmeticAmount: 1 }
+}
+
+{
+  id: "q_gems",
+  title: "Earn 500 gems",
+  objective: { type: "gems_earned", amount: 500 },
+  reward: { titleId: "traveler", titleAmount: 1 }
+}
+
+{
+  id: "q_trade",
+  title: "Complete 3 trades",
+  objective: { type: "trade_complete", amount: 3 },
+  reward: { gems: 100 }
+}
+
+Quest-world reward keys:
+- Legacy:
+  - gems
+  - blockId/blockKey + blockAmount
+  - cosmeticId + cosmeticAmount
+  - titleId + titleAmount
+- Generic:
+  - grants: [{ type, ... }]
+  - blocks: { blockKeyOrId: amount }
+  - cosmetics: { cosmeticId: amount }
+  - titles: { titleId: amount }
+  - tools: { wrench|fist: amount }
+  - items: { "block:wood_block": 50, "cosmetic:sun_shirt": 1, "title:legendary": 1, "tool:wrench": 1 }
+
+Generic reward example:
+{
+  reward: {
+    grants: [
+      { type: "gems", amount: 500 },
+      { type: "block", blockKey: "wood_block", amount: 100 },
+      { type: "cosmetic", id: "sun_shirt", amount: 1 },
+      { type: "title", id: "traveler", amount: 1 },
+      { type: "tool", id: "wrench", amount: 1 }
+    ]
+  }
+}
+
+Default built-in quest paths include:
+- hero_reward_path
+- starter_path
+- builder_breaker_path
+- event_mastery_path
+
+============================================================
+4) OWNER QUEST WORLD COMMANDS
+============================================================
+
+Available owner commands:
+- /questworld
+- /questworldoff (or /normalworld)
+- /questpath
+- /questpath <path_id>
+- /questaddfetch <path_id|current> <block_key|block_id> <amount> <title>
+- /questaddfetchcosmetic <path_id|current> <cosmetic_id> <amount> <title>
+
+Note:
+- /questaddbreak and /questaddplace are intentionally not used.
+- For non-fetch objective types, add/edit quests directly in /quest-paths/{pathId} data.
+
+============================================================
+5) HOW TO ADD MORE QUESTS/REWARDS
+============================================================
+
+Add new progression quests:
+1) Edit progression/quests.js
+2) Add object to DAILY_QUESTS or OTHER_QUESTS
+3) Use supported event type and rewards
+
+Add new achievements:
+1) Edit progression/achievements.js CATALOG
+2) Ensure applyEvent updates the metric for that event type
+
+Add new quest-world chain quests:
+1) Edit /quest-paths/{pathId} quest list (or use /questaddfetch for bring_block, /questaddfetchcosmetic for bring_cosmetic)
+2) Set world path with /questpath <path_id>
+3) Ensure objective.type is one of supported quest-world types

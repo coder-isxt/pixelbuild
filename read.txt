@@ -1,0 +1,48 @@
+**PIXELBUILD - Key Features**
+
+**Core Gameplay**
+- **Browser-based 2D sandbox MMO** with **real-time multiplayer** worlds.
+- **Account system** (create/login/logout) with persistent progress.
+- **Block place + break loop** with drops, stacking, and pickup.
+- **Inventory + tools** (fist/wrench), plus equipment-based movement boosts.
+
+**World Systems**
+- Persistent tile worlds with **world locks**, owner/admin permissions, and door access control.
+- Special blocks: **signs**, **weather machine**, **camera logs**, **spawn blocks**, **anti-gravity**, hazards.
+- **Durability-based blocks**, separate **farmables**, and configurable **seed grow times**.
+
+**Economy**
+- **Vending machines**, **donation boxes**, and **storage chests**.
+- Gambling machines: **Reme Roulette**, **Blackjack**, **Slots** (multiple versions).
+- **Owner Tax Block**: world-wide tax on gambling machine earnings.
+- **Splicing Machine** for seed crafting with ingredient recipes.
+- **Gacha/Mystery Block** with weighted rewards (gems/items/cosmetics/titles).
+
+**Progression**
+- **Daily quests** + long-term quests with event-based tracking.
+- **Achievement system** with persistent stats.
+- **Quest World mode** with quest NPC block, one active path per world, and quest chains.
+- Flexible rewards: gems, blocks, cosmetics, titles, tools.
+
+**Cosmetics and Titles**
+- Cosmetic slots: **shirts, pants, shoes, hats, wings, swords**.
+- Shared render schema for easier cosmetic additions.
+- Wings include **double jump** support.
+- Advanced title styles: **glow**, **rainbow**, **gradient**, and mixed styles.
+
+**Social and Multiplayer**
+- **Global chat**, private messages (**/msg**, **/r**), and friend system.
+- **Player profiles**, wrench interactions, and **player trading**.
+- Discord verification flow integration.
+
+**Admin and Security**
+- Role-based admin system (**moderator/admin/manager/owner**).
+- Dashboard-style admin panel with action console, logs, and audit trail.
+- Anti-cheat anomaly logging and moderation commands.
+- Backend-backed admin writes through **Cloudflare Worker gateway**.
+
+**Tech and Quality**
+- **Firebase Realtime Database** persistence and world sync.
+- Background workers for **player sync** and **read processing**.
+- JSON **backup/export/import** support.
+- **Responsive UI** for desktop and mobile controls.

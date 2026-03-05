@@ -1,0 +1,919 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>PIXELBUILD Gambling Site</title>
+  <link rel="icon" href="assets/logo.ico" type="image/x-icon">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+  <style>
+    :root {
+      --bg: #050c1a;
+      --card: #0d1f3b;
+      --card-soft: #142946;
+      --line: rgba(91, 150, 225, 0.35);
+      --text: #f1f6ff;
+      --muted: #9eb4d4;
+      --good: #5ff1ad;
+      --warn: #ffd66b;
+      --danger: #ff7c7c;
+      --accent: #3bc8ff;
+      --accent-2: #2a8af5;
+      --gold: #ffcd5f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Press Start 2P", monospace;
+      background:
+        radial-gradient(circle at 10% 15%, rgba(59, 200, 255, 0.18), transparent 40%),
+        radial-gradient(circle at 90% 10%, rgba(255, 205, 95, 0.12), transparent 42%),
+        linear-gradient(180deg, #050c1a 0%, #07132b 48%, #08162f 100%);
+      color: var(--text);
+      min-height: 100vh;
+      cursor: default;
+    }
+
+    .page {
+      width: min(1300px, 96vw);
+      margin: 26px auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(14, 33, 62, 0.95), rgba(11, 23, 44, 0.95));
+      border: 2px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45) inset, 0 18px 36px rgba(0, 0, 0, 0.35);
+    }
+
+    .title {
+      font-size: 16px;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .sub {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .head-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button,
+    input,
+    select {
+      font-family: inherit;
+      font-size: 10px;
+      border-radius: 10px;
+      border: 2px solid rgba(255, 205, 95, 0.6);
+      background: linear-gradient(180deg, rgba(77, 63, 34, 0.7), rgba(52, 41, 22, 0.7));
+      color: var(--text);
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    button {
+      cursor: pointer;
+      transition: transform 90ms ease, filter 120ms ease;
+    }
+
+    button:hover {
+      filter: brightness(1.08);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    input,
+    select {
+      background: rgba(3, 14, 30, 0.9);
+      border-color: rgba(63, 189, 255, 0.5);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 14px;
+      min-height: calc(100vh - 170px);
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(19, 40, 71, 0.96), rgba(12, 27, 50, 0.96));
+      border: 2px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+    }
+
+    .card h2 {
+      margin: 0 0 12px 0;
+      font-size: 12px;
+      color: #b8dbff;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .row input {
+      flex: 1;
+      min-width: 110px;
+    }
+
+    .status {
+      min-height: 42px;
+      border: 1px solid rgba(63, 189, 255, 0.35);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 9px;
+      line-height: 1.6;
+      color: var(--muted);
+      background: rgba(4, 12, 24, 0.65);
+      word-break: break-word;
+    }
+
+    .status.error {
+      color: var(--danger);
+      border-color: rgba(255, 124, 124, 0.45);
+    }
+
+    .status.ok {
+      color: var(--good);
+      border-color: rgba(95, 241, 173, 0.45);
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .pill {
+      border: 1px solid rgba(111, 164, 235, 0.4);
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 9px;
+      color: #d8e8ff;
+      background: rgba(6, 17, 34, 0.75);
+      display: inline-flex;
+      gap: 7px;
+      align-items: center;
+      width: fit-content;
+      max-width: 100%;
+    }
+
+    .tag {
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(111, 164, 235, 0.45);
+      font-size: 8px;
+      color: #d5e8ff;
+      background: rgba(23, 47, 80, 0.85);
+    }
+
+    .tag.good {
+      border-color: rgba(95, 241, 173, 0.55);
+      color: var(--good);
+    }
+
+    .tag.warn {
+      border-color: rgba(255, 214, 107, 0.6);
+      color: var(--warn);
+    }
+
+    .tag.danger {
+      border-color: rgba(255, 124, 124, 0.65);
+      color: var(--danger);
+    }
+
+    .lock-amount-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .lock-amount-icon {
+      width: 13px;
+      height: 13px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.45));
+      flex: 0 0 auto;
+    }
+
+    .tag .lock-amount-icon,
+    .spec-tag .lock-amount-icon {
+      width: 11px;
+      height: 11px;
+    }
+
+    .content-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .content-head input {
+      min-width: 250px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .summary-box {
+      border: 1px solid rgba(111, 164, 235, 0.45);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(4, 13, 27, 0.55);
+    }
+
+    .summary-box .k {
+      color: var(--muted);
+      font-size: 8px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .summary-box .v {
+      color: #f0f6ff;
+      font-size: 11px;
+    }
+
+    .table-wrap {
+      border: 1px solid rgba(111, 164, 235, 0.4);
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(4, 12, 24, 0.65);
+      min-height: 420px;
+      max-height: calc(100vh - 340px);
+      overflow-y: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 820px;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid rgba(111, 164, 235, 0.2);
+      font-size: 9px;
+      vertical-align: middle;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      color: #afe1ff;
+      background: rgba(9, 25, 47, 0.98);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .machine-owner {
+      color: #d8e8ff;
+    }
+
+    .machine-owner.me {
+      color: var(--good);
+    }
+
+    .machine-bet {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .machine-bet input {
+      width: 110px;
+      padding: 7px 8px;
+      font-size: 9px;
+    }
+
+    .machine-bet button {
+      padding: 7px 10px;
+      font-size: 9px;
+    }
+
+    .machine-bank-controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .machine-bank-controls input {
+      width: 96px;
+      padding: 7px 8px;
+      font-size: 9px;
+    }
+
+    .machine-bank-controls button {
+      padding: 7px 10px;
+      font-size: 9px;
+    }
+
+    .machine-bank-controls .bank-muted {
+      color: var(--muted);
+      font-size: 8px;
+    }
+
+    .tax-controls {
+      border: 1px solid rgba(111, 164, 235, 0.4);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: rgba(4, 13, 27, 0.55);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .tax-controls input {
+      width: 92px;
+      padding: 8px;
+      font-size: 9px;
+    }
+
+    .tax-controls .tax-note {
+      color: var(--muted);
+      font-size: 8px;
+      line-height: 1.5;
+    }
+
+    .spectate {
+      border: 1px solid rgba(111, 164, 235, 0.4);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 10px;
+      background: rgba(4, 13, 27, 0.55);
+      min-height: 120px;
+    }
+
+    .play-console {
+      border: 1px solid rgba(111, 164, 235, 0.4);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 10px;
+      background: rgba(4, 13, 27, 0.55);
+    }
+
+    .play-title {
+      color: #afe1ff;
+      font-size: 10px;
+      margin-bottom: 8px;
+    }
+
+    .play-controls {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.3fr) minmax(110px, 140px) auto auto;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .play-controls button {
+      min-width: 92px;
+    }
+
+    .play-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .play-board {
+      min-height: 132px;
+      border: 1px solid rgba(111, 164, 235, 0.35);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(5, 15, 29, 0.78);
+      margin-bottom: 8px;
+    }
+
+    .spectate-title {
+      color: #afe1ff;
+      font-size: 10px;
+      margin-bottom: 8px;
+    }
+
+    .spectate-body {
+      color: #dbe9ff;
+      font-size: 9px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .spec-empty {
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .spec-head {
+      margin-bottom: 8px;
+    }
+
+    .spec-title {
+      color: #dcf0ff;
+      font-size: 10px;
+      margin-bottom: 6px;
+    }
+
+    .spec-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .spec-tag {
+      border: 1px solid rgba(111, 164, 235, 0.45);
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 8px;
+      color: #d8e8ff;
+      background: rgba(15, 36, 63, 0.76);
+    }
+
+    .spec-tag.live {
+      border-color: rgba(255, 214, 107, 0.6);
+      color: #ffde8d;
+      background: rgba(69, 49, 13, 0.65);
+    }
+
+    .spec-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(100px, 1fr));
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .spec-metric {
+      border: 1px solid rgba(111, 164, 235, 0.35);
+      border-radius: 8px;
+      padding: 7px;
+      background: rgba(8, 20, 38, 0.72);
+    }
+
+    .spec-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 7px;
+      margin-bottom: 4px;
+    }
+
+    .spec-metric strong {
+      font-size: 9px;
+      color: #f3f9ff;
+      font-weight: normal;
+    }
+
+    .spec-mode {
+      border: 1px solid rgba(111, 164, 235, 0.35);
+      border-radius: 9px;
+      padding: 8px;
+      background: rgba(8, 19, 36, 0.7);
+    }
+
+    .spec-mode-title {
+      font-size: 9px;
+      color: #9ed8ff;
+      margin-bottom: 7px;
+    }
+
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(90px, 1fr));
+      gap: 6px;
+    }
+
+    .spec-grid div {
+      border: 1px solid rgba(111, 164, 235, 0.28);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(4, 12, 24, 0.72);
+    }
+
+    .spec-grid span {
+      display: block;
+      color: var(--muted);
+      font-size: 7px;
+      margin-bottom: 3px;
+    }
+
+    .spec-grid strong {
+      color: #f2f8ff;
+      font-size: 9px;
+      font-weight: normal;
+    }
+
+    .spec-row {
+      margin-bottom: 6px;
+    }
+
+    .spec-row-head {
+      font-size: 8px;
+      color: #badfff;
+      margin-bottom: 5px;
+    }
+
+    .spec-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .spec-cards-empty {
+      color: var(--muted);
+      font-size: 8px;
+    }
+
+    .spec-card {
+      width: 46px;
+      min-height: 62px;
+      border: 1px solid rgba(111, 164, 235, 0.55);
+      border-radius: 7px;
+      background: linear-gradient(180deg, #f7fbff, #e8f1ff);
+      color: #12233d;
+      font-family: "Georgia", "Times New Roman", serif;
+      padding: 4px 5px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+    }
+
+    .spec-card.red {
+      color: #b22c2c;
+      border-color: rgba(255, 133, 133, 0.7);
+      background: linear-gradient(180deg, #fff9f9, #ffe9e9);
+    }
+
+    .spec-card.black {
+      color: #1c2f4f;
+    }
+
+    .spec-card-corner {
+      font-size: 7px;
+      letter-spacing: 0.2px;
+    }
+
+    .spec-card-center {
+      text-align: center;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .spec-card-suit {
+      text-align: right;
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .spec-note {
+      margin-top: 6px;
+      border: 1px solid rgba(111, 164, 235, 0.32);
+      border-radius: 8px;
+      padding: 6px 8px;
+      color: #d8e8ff;
+      font-size: 8px;
+      background: rgba(11, 24, 43, 0.72);
+    }
+
+    .spec-blackjack-table {
+      border: 1px solid rgba(111, 164, 235, 0.28);
+      border-radius: 10px;
+      padding: 8px;
+      background: radial-gradient(circle at 30% 20%, rgba(49, 120, 83, 0.35), rgba(14, 45, 36, 0.45));
+    }
+
+    .spec-bj-lane {
+      padding: 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(111, 164, 235, 0.2);
+      background: rgba(7, 17, 29, 0.5);
+      margin-bottom: 6px;
+    }
+
+    .spec-bj-lane.dealer {
+      border-color: rgba(255, 214, 107, 0.4);
+      background: rgba(49, 38, 12, 0.35);
+    }
+
+    .spec-bj-head {
+      font-size: 8px;
+      color: #d7ecff;
+      margin-bottom: 6px;
+    }
+
+    .spec-bj-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.2);
+      margin: 8px 2px;
+    }
+
+    .slotsv2-board {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(var(--slots-cols, 5), minmax(52px, 1fr));
+      gap: 6px;
+      padding: 7px;
+      border: 1px solid rgba(63, 189, 255, 0.35);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(11, 33, 61, 0.92), rgba(7, 22, 41, 0.92));
+      margin-bottom: 8px;
+    }
+
+    .slotsv2-reel {
+      display: grid;
+      grid-template-rows: repeat(var(--slots-rows, 3), 1fr);
+      gap: 6px;
+    }
+
+    .slotsv2-cell {
+      border: 1px solid rgba(147, 205, 255, 0.35);
+      border-radius: 8px;
+      min-height: 52px;
+      padding: 4px;
+      background: rgba(5, 15, 29, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .slotsv2-glyph {
+      font-size: 9px;
+      color: #e7f6ff;
+      line-height: 1.2;
+    }
+
+    .slotsv2-token {
+      font-size: 7px;
+      color: #95aaca;
+      line-height: 1.2;
+    }
+
+    .slotsv2-cell.wild {
+      border-color: rgba(193, 132, 255, 0.75);
+      background: linear-gradient(180deg, rgba(104, 49, 172, 0.45), rgba(49, 28, 87, 0.5));
+    }
+
+    .slotsv2-cell.scatter {
+      border-color: rgba(113, 255, 205, 0.75);
+      background: linear-gradient(180deg, rgba(25, 111, 90, 0.45), rgba(10, 58, 44, 0.55));
+    }
+
+    .slotsv2-cell.bonus {
+      border-color: rgba(255, 214, 107, 0.8);
+      background: linear-gradient(180deg, rgba(121, 85, 21, 0.55), rgba(70, 45, 10, 0.62));
+    }
+
+    .slotsv2-cell.dynamite {
+      border-color: rgba(255, 140, 107, 0.75);
+      background: linear-gradient(180deg, rgba(120, 42, 22, 0.52), rgba(61, 23, 13, 0.58));
+    }
+
+    .slotsv2-cell.gem {
+      border-color: rgba(126, 200, 255, 0.75);
+      background: linear-gradient(180deg, rgba(17, 72, 116, 0.52), rgba(13, 40, 66, 0.58));
+    }
+
+    .slotsv2-lines {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .slotsv2-line-badge {
+      border: 1px solid rgba(111, 164, 235, 0.45);
+      border-radius: 999px;
+      padding: 3px 7px;
+      font-size: 7px;
+      color: #d8e8ff;
+      background: rgba(14, 34, 58, 0.78);
+    }
+
+    .slotsv2-line-badge.muted {
+      opacity: 0.75;
+    }
+
+    .empty {
+      padding: 18px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 1040px) {
+      .grid {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+
+      .summary {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }
+
+      .content-head {
+        grid-template-columns: 1fr;
+      }
+
+      .content-head input {
+        min-width: 0;
+      }
+
+      .spec-metrics {
+        grid-template-columns: repeat(2, minmax(100px, 1fr));
+      }
+
+      .spec-grid {
+        grid-template-columns: repeat(2, minmax(90px, 1fr));
+      }
+
+      .play-controls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .play-controls button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <header class="head">
+      <div>
+        <div class="title">PIXELBUILD Gambling Site</div>
+        <div class="sub">Web dashboard for world gambling machines. Use Slots Site for animated web-play slots.</div>
+      </div>
+      <div class="head-actions">
+        <button id="openVaultBtn" type="button" class="hidden">Vault</button>
+        <button id="openSlotsSiteBtn" type="button">Slots Site</button>
+        <button id="openGameBtn" type="button">Open Game</button>
+        <button id="logoutBtn" type="button" class="hidden">Logout</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card" id="authCard">
+        <h2>Authorization</h2>
+        <div class="row">
+          <input id="authUsername" type="text" maxlength="20" placeholder="Username">
+        </div>
+        <div class="row">
+          <input id="authPassword" type="password" maxlength="64" placeholder="Password">
+        </div>
+        <div class="row">
+          <button id="authLoginBtn" type="button">Login</button>
+          <!-- <button id="authCreateBtn" type="button">Create</button> -->
+        </div>
+        <div id="authStatus" class="status">Login with your game account.</div>
+        <div class="meta">
+          <span class="pill">Session: <span id="sessionLabel">Not logged in</span></span>
+          <span class="pill">Scope: <span id="scopeLabel">No world selected</span></span>
+          <span class="pill">Lock Access: <span id="lockAccessLabel">Unknown</span></span>
+        </div>
+      </section>
+
+      <section class="card hidden" id="dashboardCard">
+        <div class="content-head">
+          <div class="row" style="margin:0;">
+            <input id="worldInput" type="text" maxlength="24" placeholder="Enter world name (e.g. casino)">
+            <button id="loadWorldBtn" type="button">Load World</button>
+            <button id="refreshBtn" type="button">Refresh</button>
+          </div>
+          <input id="machineSearch" type="text" maxlength="40" placeholder="Search by tile, owner, or machine type">
+        </div>
+
+        <div class="summary" id="summaryRow">
+          <div class="summary-box"><span class="k">Machines</span><span class="v" id="sumMachines">0</span></div>
+          <div class="summary-box"><span class="k">Total Bank</span><span class="v" id="sumBank">0 WL</span></div>
+          <div class="summary-box"><span class="k">Your Machines</span><span class="v" id="sumMine">0</span></div>
+          <div class="summary-box"><span class="k">Your WL</span><span class="v" id="sumWallet">0 WL</span></div>
+          <div class="summary-box"><span class="k">Owner Tax</span><span class="v" id="sumTax">0% / 0 WL</span></div>
+        </div>
+
+        <div class="tax-controls hidden" id="taxControls">
+          <span class="tax-note">World owner tax control:</span>
+          <input id="taxPercentInput" type="number" min="0" max="100" step="1" placeholder="Tax %">
+          <button id="saveTaxBtn" type="button">Save Tax</button>
+          <span class="tax-note">Applies to all gambling machine collections in this world.</span>
+        </div>
+
+        <div class="table-wrap" id="machineTableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tile</th>
+                <th>Type</th>
+                <th>Owner</th>
+                <th>Bank</th>
+                <th>State</th>
+                <th>Max Bet</th>
+                <th>Bank Actions</th>
+                <th>Spectate</th>
+              </tr>
+            </thead>
+            <tbody id="machineTbody"></tbody>
+          </table>
+          <div class="empty hidden" id="machineEmpty">No machines found in this world.</div>
+        </div>
+
+        <div class="spectate" id="spectatePanel">
+          <div class="spectate-title">Spectate</div>
+          <div class="spectate-body" id="spectateBody">Pick a machine to spectate.</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- VAULT MODAL -->
+    <section id="vaultModal" class="card center-view hidden"
+      style="position: absolute; top: 20%; left: 0; right: 0; z-index: 100; box-shadow: 0 0 50px rgba(0,0,0,0.8); max-width: 420px; margin: 0 auto;">
+      <h2 style="color: #64f2a8;">Web Vault</h2>
+      <div class="status" style="margin-bottom: 12px;">
+        Transfer WL between your in-game lock inventory and your gambling Web Vault.
+      </div>
+      <div class="row">
+        <input id="vaultAmount" type="number" min="1" placeholder="Amount of WL">
+      </div>
+      <div class="row">
+        <button id="vaultDepositBtn" type="button" style="color: #64f2a8; font-weight: bold;">Deposit (Game &rarr;
+          Vault)</button>
+        <button id="vaultWithdrawBtn" type="button" style="color: var(--danger); font-weight: bold;">Withdraw (Vault
+          &rarr; Game)</button>
+      </div>
+      <div class="row" style="justify-content: flex-end; margin-top: 10px;">
+        <button id="closeVaultBtn" type="button" style="width: auto;">Close</button>
+      </div>
+      <div id="vaultStatus" class="status" style="margin-top: 10px;">Ready.</div>
+    </section>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+
+  <script src="config/firebase-config.js"></script>
+  <script src="config/settings.js"></script>
+  <script src="items/catalog.js"></script>
+  <script src="system/db.js"></script>
+  <script src="system/auth.js"></script>
+  <script src="system/auth_storage.js"></script>
+  <script src="economy/slots.js"></script>
+  <script src="ui/gambling_site.js"></script>
+</body>
+
+</html>

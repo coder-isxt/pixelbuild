@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PIXELBUILD</title>
+  <link rel="icon" href="assets/logo.ico" type="image/x-icon">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-layout">
+      <div class="auth-card">
+        <h2>Authorization</h2>
+        <input id="authUsername" type="text" maxlength="20" placeholder="Username">
+        <input id="authPassword" type="password" maxlength="64" placeholder="Password">
+        <div class="auth-actions">
+          <button id="authCreateBtn" type="button">Create Account</button>
+          <button id="authLoginBtn" type="button">Login</button>
+        </div>
+        <div id="authStatus" class="auth-status">Create or login to continue.</div>
+        <div id="authMainNotice" class="main-page-notice hidden"></div>
+      </div>
+      <aside class="auth-side-panel" aria-label="Discord community">
+        <div class="auth-side-title">Discord</div>
+        <iframe
+          src="https://discord.com/widget?id=1437482897258053705&theme=dark"
+          width="350"
+          height="500"
+          allowtransparency="true"
+          frameborder="0"
+          sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"></iframe>
+      </aside>
+    </div>
+  </div>
+  <div id="gameShell" class="game-shell hidden">
+    <div id="legacyHudRefs" class="hidden" aria-hidden="true">
+      <span id="currentWorldLabel">menu</span>
+      <span id="networkState" class="danger">Offline</span>
+      <span id="onlineCount">1 world online</span>
+      <button id="friendsToggleBtn" type="button" class="hidden">Friends</button>
+      <button id="titlesToggleBtn" type="button" class="hidden">Titles</button>
+      <button id="questsToggleBtn" type="button" class="hidden">Quests</button>
+      <button id="achievementsToggleBtn" type="button" class="hidden">Achievements</button>
+      <button id="shopToggleBtn" type="button" class="hidden">Shop</button>
+      <button id="adminToggleBtn" type="button" class="hidden">Admin</button>
+      <button id="respawnBtn" type="button" class="hidden">Respawn</button>
+    </div>
+    <div id="menuScreen" class="menu-screen">
+      <div class="menu-card">
+        <h2 class="menu-title">World Menu</h2>
+        <div id="menuMainNotice" class="main-page-notice hidden"></div>
+        <div class="world-enter">
+          <input id="worldInput" type="text" placeholder="enter world name">
+          <button id="enterWorldBtn" type="button">Enter</button>
+        </div>
+        <div id="worldButtons" class="world-buttons"></div>
+      </div>
+      <div class="menu-footer">
+        <div class="menu-footer-links">
+          <button id="casinoBtn" type="button" onclick="window.location.href='gambling_slots.html'">Casino</button>
+          <button id="gambleBtn" type="button" onclick="window.location.href='gambling.html'">Gamble</button>
+        </div>
+        <div class="menu-footer-online">
+          <span id="totalOnlineCount">1 total online</span>
+        </div>
+        <div class="menu-footer-actions">
+          <button id="logoutBtn" type="button">Logout</button>
+          <button id="backToMainBtn" type="button" onclick="window.location.href='https://pixelbuild.gamer.gd'">Home</button>
+        </div>
+      </div>
+    </div>
+    <div id="canvasWrap" class="canvas-wrap hidden">
+      <canvas id="game" width="960" height="480" aria-label="Growtopia test game canvas"></canvas>
+      <!-- In-game UI overlay (Growtopia-like) -->
+      <div class="gt-game-overlay">
+        <div class="gt-panel gt-gem-hud">
+          <span class="gt-gem-icon" aria-hidden="true"></span>
+          <span class="gt-gem-label">GEMS</span>
+          <span id="gemsCount" class="gt-gem-count">0 gems</span>
+        </div>
+        <div id="gtQuickActions" class="gt-quick-actions hidden">
+          <div class="gt-quick-item">
+            <button id="gtMainMenuBtn" type="button" class="gt-quick-btn" aria-label="Open menu">
+              <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            </button>
+            <div id="gtMainMenuPopup" class="gt-quick-popup hidden">
+              <button id="gtMenuQuitBtn" type="button">Exit world</button>
+              <button id="gtMenuRespawnBtn" type="button">Respawn</button>
+              <button id="gtMenuAdminBtn" type="button" class="hidden">Admin Panel</button>
+              <button id="gtMenuAchievementsBtn" type="button">Achievements</button>
+              <button id="gtMenuTitlesBtn" type="button">Titles</button>
+              <button id="gtMenuResumeBtn" type="button">Resume</button>
+            </div>
+          </div>
+          <div class="gt-quick-item">
+            <button id="gtShopQuickBtn" type="button" class="gt-quick-btn" aria-label="Open shop">
+              <i class="fa-solid fa-shop" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="gt-quick-item">
+            <button id="gtSocialMenuBtn" type="button" class="gt-quick-btn" aria-label="Open social menu">
+              <i class="fa-solid fa-face-smile" aria-hidden="true"></i>
+            </button>
+            <div id="gtSocialMenuPopup" class="gt-quick-popup hidden">
+              <button id="gtSocialFriendsBtn" type="button">Friends</button>
+              <button id="gtSocialQuestsBtn" type="button">Quests</button>
+              <button id="gtSocialResumeBtn" type="button">Resume</button>
+            </div>
+          </div>
+        </div>
+
+        <div></div>
+
+        <div class="gt-panel gt-chat-hud">
+          <button id="chatToggleBtn" type="button" class="hidden">SHOP</button>
+        </div>
+      </div>
+    </div>
+    <div id="leftPanelResizeHandle" class="layout-resize-handle left-handle hidden" aria-label="Resize chat panel"></div>
+    <div id="rightPanelResizeHandle" class="layout-resize-handle right-handle hidden" aria-label="Resize inventory panel"></div>
+    <div id="chatPanel" class="chat-panel hidden">
+      <div id="chatMessages" class="chat-messages"></div>
+      <div id="chatInputRow" class="chat-input-row hidden">
+        <input id="chatInput" type="text" maxlength="120" placeholder="Type message...">
+        <button id="chatSendBtn" type="button">Send</button>
+      </div>
+    </div>
+    <button id="exitWorldBtn" type="button" class="hidden" style="display:none" aria-hidden="true">Exit World</button>
+    <div class="toolbar hidden" id="toolbar"></div>
+    <div id="mobileControls" class="mobile-controls hidden">
+      <div class="mobile-move">
+        <button id="mobileLeftBtn" type="button" aria-label="Move left">◀</button>
+        <button id="mobileJumpBtn" type="button" aria-label="Jump">▲</button>
+        <button id="mobileRightBtn" type="button" aria-label="Move right">▶</button>
+      </div>
+      <div class="mobile-actions">
+        <button id="mobilePrimaryBtn" type="button" class="active" aria-label="Primary action">Hit</button>
+        <button id="mobileSecondaryBtn" type="button" aria-label="Secondary action">Rotate</button>
+        <button id="mobileFistBtn" type="button" aria-label="Select fist">Fist</button>
+        <button id="mobileWrenchBtn" type="button" aria-label="Select wrench">Wrench</button>
+      </div>
+      <div class="mobile-panels">
+        <button id="mobilePlayModeBtn" type="button" aria-label="Toggle play mode">Play</button>
+        <button id="mobileChatBtn" type="button" aria-label="Toggle chat">Chat</button>
+        <button id="mobileInventoryBtn" type="button" aria-label="Toggle inventory">Inv</button>
+        <button id="mobileExitBtn" type="button" aria-label="Exit world">Exit</button>
+      </div>
+    </div>
+    <div id="adminPanel" class="admin-panel hidden">
+      <div class="admin-header">
+        <div class="admin-header-top">
+          <strong>Admin Dashboard</strong>
+          <div class="admin-header-actions">
+            <button id="adminForceReloadBtn" type="button" class="hidden">Update</button>
+            <button id="adminBackupDownloadBtn" type="button" class="hidden">Download JSON</button>
+            <button id="adminBackupUploadBtn" type="button" class="hidden">Upload JSON</button>
+            <input id="adminBackupUploadInput" type="file" accept="application/json,.json" class="hidden">
+            <button id="adminAuditExportBtn" type="button">Export Audit</button>
+            <button id="adminCloseBtn" type="button">Close</button>
+          </div>
+        </div>
+        <div class="admin-header-filters">
+          <input id="adminSearchInput" type="text" placeholder="Search player/account">
+          <select id="adminAuditActionFilter">
+            <option value="">All actions</option>
+          </select>
+          <input id="adminAuditActorFilter" type="text" placeholder="Audit actor">
+          <input id="adminAuditTargetFilter" type="text" placeholder="Audit target">
+        </div>
+      </div>
+      <div id="adminAccounts" class="admin-accounts"></div>
+    </div>
+    <div id="adminInventoryModal" class="admin-inventory-modal hidden">
+      <div class="admin-inventory-card">
+        <div class="admin-inventory-header">
+          <strong id="adminInventoryTitle">Inventory</strong>
+          <button id="adminInventoryCloseBtn" type="button">Close</button>
+        </div>
+        <div id="adminInventoryBody" class="admin-inventory-body"></div>
+      </div>
+    </div>
+    <div id="vendingModal" class="vending-modal hidden">
+      <div class="vending-card">
+        <div class="vending-header">
+          <strong id="vendingTitle">Vending Machine</strong>
+          <button id="vendingCloseBtn" type="button">Close</button>
+        </div>
+        <div id="vendingBody" class="vending-body"></div>
+        <div id="vendingActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="donationModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="donationTitle">Donation Box</strong>
+          <button id="donationCloseBtn" type="button">Close</button>
+        </div>
+        <div id="donationBody" class="vending-body"></div>
+        <div id="donationActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="chestModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="chestTitle">Storage Chest</strong>
+          <button id="chestCloseBtn" type="button">Close</button>
+        </div>
+        <div id="chestBody" class="vending-body"></div>
+        <div id="chestActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="gambleModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="gambleTitle">Gambling Machine</strong>
+          <button id="gambleCloseBtn" type="button">Close</button>
+        </div>
+        <div id="gambleBody" class="vending-body"></div>
+        <div id="gambleActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="signModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="signTitle">Sign</strong>
+          <button id="signCloseBtn" type="button">Close</button>
+        </div>
+        <div class="sign-body">
+          <textarea id="signTextInput" maxlength="120" placeholder="Enter sign text..."></textarea>
+          <div class="sign-hint">Shown when standing on top of this sign.</div>
+        </div>
+        <div class="vending-actions">
+          <button id="signSaveBtn" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+    <div id="worldLockModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="worldLockTitle">World Lock</strong>
+          <button id="worldLockCloseBtn" type="button">Close</button>
+        </div>
+        <div class="worldlock-body">
+          <div class="worldlock-add-row">
+            <input id="worldLockAdminInput" type="text" maxlength="16" placeholder="username">
+            <button id="worldLockAdminAddBtn" type="button">Add Admin</button>
+          </div>
+          <div id="worldLockAdmins" class="worldlock-admins"></div>
+          <div class="worldlock-add-row">
+            <input id="worldLockBanInput" type="text" maxlength="16" placeholder="username">
+            <button id="worldLockBan1hBtn" type="button">Ban 1h</button>
+            <button id="worldLockBanPermBtn" type="button">Perm Ban</button>
+          </div>
+          <div id="worldLockBans" class="worldlock-admins"></div>
+          <div class="sign-hint">World admins can edit the world, except world locks and vending machines.</div>
+        </div>
+      </div>
+    </div>
+    <div id="ownerTaxModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="ownerTaxTitle">Owner Tax Block</strong>
+          <button id="ownerTaxCloseBtn" type="button">Close</button>
+        </div>
+        <div class="worldlock-body">
+          <div class="sign-hint">Tax applies to all gambling machines in this world.</div>
+          <div class="worldlock-add-row">
+            <input id="ownerTaxPercentInput" type="number" min="0" max="100" step="1" placeholder="tax percent">
+            <button id="ownerTaxSaveBtn" type="button">Save Tax %</button>
+          </div>
+          <div class="sign-hint">Tax Bank: <strong id="ownerTaxBankLabel">0 WL</strong></div>
+        </div>
+        <div class="vending-actions">
+          <button id="ownerTaxCollectBtn" type="button">Collect Tax Bank</button>
+        </div>
+      </div>
+    </div>
+    <div id="doorModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="doorTitle">Door</strong>
+          <button id="doorCloseBtn" type="button">Close</button>
+        </div>
+        <div class="door-body">
+          <div class="sign-hint">Set who can walk through this door in a world-locked world.</div>
+        </div>
+        <div class="vending-actions">
+          <button id="doorPublicBtn" type="button">Public</button>
+          <button id="doorOwnerOnlyBtn" type="button">Owner Only</button>
+        </div>
+      </div>
+    </div>
+    <div id="cameraModal" class="vending-modal hidden">
+      <div class="vending-card camera-card">
+        <div class="vending-header">
+          <strong id="cameraTitle">Camera</strong>
+          <button id="cameraCloseBtn" type="button">Close</button>
+        </div>
+        <div class="camera-body">
+          <div class="camera-fields">
+            <label><input id="cameraEventJoin" type="checkbox"> Log player joining</label>
+            <label><input id="cameraEventLeave" type="checkbox"> Log player leaving</label>
+            <label><input id="cameraEventVending" type="checkbox"> Log vending purchases</label>
+            <label><input id="cameraFilterStaff" type="checkbox"> Filter out admins and owner</label>
+          </div>
+          <div class="camera-logs-wrap">
+            <div class="camera-logs-title">Camera Logs</div>
+            <div id="cameraLogsList" class="camera-logs-list"></div>
+          </div>
+        </div>
+        <div class="vending-actions">
+          <button id="cameraSaveBtn" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+    <div id="weatherModal" class="vending-modal hidden">
+      <div class="vending-card weather-card">
+        <div class="vending-header">
+          <strong id="weatherTitle">Weather Machine</strong>
+          <button id="weatherCloseBtn" type="button">Close</button>
+        </div>
+        <div class="weather-body">
+          <div class="weather-fields">
+            <label>
+              <span>Preset</span>
+              <select id="weatherPresetSelect"></select>
+            </label>
+            <label>
+              <span>Custom Image URL/Path</span>
+              <input id="weatherImageUrlInput" type="text" placeholder="./assets/weather/day.png">
+            </label>
+            <div id="weatherResolvedLabel" class="weather-resolved"></div>
+          </div>
+          <div class="weather-preview-wrap">
+            <img id="weatherPreviewImg" class="weather-preview-img hidden" alt="Weather preview">
+            <div id="weatherPreviewEmpty" class="weather-preview-empty">No image selected.</div>
+          </div>
+        </div>
+        <div class="vending-actions">
+          <button id="weatherClearBtn" type="button">Clear</button>
+          <button id="weatherSaveBtn" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+    <div id="updatingOverlay" class="updating-overlay hidden" aria-live="polite">
+      <div class="updating-card">
+        <div class="updating-title">Updating...</div>
+        <div class="updating-subtitle">New version is being applied. Please wait.</div>
+      </div>
+    </div>
+    <div id="announcementPopup" class="announcement-popup hidden" aria-live="polite">
+      <div class="announcement-card">
+        <div class="announcement-title">Announcement</div>
+        <div id="announcementText" class="announcement-text"></div>
+      </div>
+    </div>
+    <div id="tradeMenuModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="tradeMenuTitle">Player</strong>
+          <button id="tradeMenuCloseBtn" type="button">Close</button>
+        </div>
+        <div class="sign-hint">Trade with this player.</div>
+        <div class="vending-actions">
+          <button id="tradeStartBtn" type="button">Trade</button>
+          <button id="tradeCancelBtn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div id="tradeRequestModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong>Trade Request</strong>
+        </div>
+        <div id="tradeRequestText" class="sign-hint"></div>
+        <div class="vending-actions">
+          <button id="tradeAcceptBtn" type="button">Accept</button>
+          <button id="tradeDeclineBtn" type="button">Decline</button>
+        </div>
+      </div>
+    </div>
+    <div id="tradePanelModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="tradePanelTitle">Trade</strong>
+          <button id="tradePanelCloseBtn" type="button">Close</button>
+        </div>
+        <div id="tradePanelBody" class="trade-body"></div>
+        <div id="tradePanelActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="profileModal" class="vending-modal hidden">
+      <div class="vending-card sign-card">
+        <div class="vending-header">
+          <strong id="profileTitle">Profile</strong>
+          <button id="profileCloseBtn" type="button">Close</button>
+        </div>
+        <div id="profileBody" class="vending-body"></div>
+        <div id="profileActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="friendsModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="friendsTitle">Friends</strong>
+          <button id="friendsCloseBtn" type="button">Close</button>
+        </div>
+        <div id="friendsBody" class="vending-body"></div>
+        <div id="friendsActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="titlesModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="titlesTitle">Titles</strong>
+          <button id="titlesCloseBtn" type="button">Close</button>
+        </div>
+        <div id="titlesBody" class="vending-body"></div>
+        <div id="titlesActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="achievementsModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="achievementsTitle">Achievements</strong>
+          <button id="achievementsCloseBtn" type="button">Close</button>
+        </div>
+        <div id="achievementsBody" class="vending-body"></div>
+        <div id="achievementsActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="questsModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="questsTitle">Quests</strong>
+          <button id="questsCloseBtn" type="button">Close</button>
+        </div>
+        <div id="questsBody" class="vending-body"></div>
+        <div id="questsActions" class="vending-actions"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search || "");
+      const queryVersion = (params.get("v") || "").trim();
+      let assetVersion = queryVersion;
+      if (!assetVersion) {
+        try {
+          assetVersion = (localStorage.getItem("gt_asset_version") || "").trim();
+        } catch (error) {
+          assetVersion = "";
+        }
+      }
+      if (!assetVersion) {
+        assetVersion = "dev";
+      }
+      try {
+        localStorage.setItem("gt_asset_version", assetVersion);
+      } catch (error) {
+        // ignore localStorage write failures
+      }
+      window.GT_ASSET_VERSION = assetVersion;
+      const PREAUTH_HANDOFF_KEY = "gt_pending_auth_handoff_v1";
+      const versionedFiles = [
+        "config/firebase-config.js",
+        "config/settings.js",
+        "items/catalog.js",
+        "system/local_crypto.js",
+        "system/cloudflare_gateway.js",
+        "system/string_utils.js",
+        "system/db.js",
+        "system/backup.js",
+        "system/auth.js",
+        "admin/admin.js",
+        "admin/admins.js",
+        "progression/inventory.js",
+        "engine/blocks.js",
+        "engine/farmables.js",
+        "engine/seeds.js",
+        "engine/plants.js",
+        "engine/gems.js",
+        "engine/rewards.js",
+        "engine/textures.js",
+        "engine/block_keys.js",
+        "clothes/shirts.js",
+        "clothes/pants.js",
+        "clothes/shoes.js",
+        "clothes/hats.js",
+        "clothes/wings.js",
+        "clothes/swords.js",
+        "progression/titles.js",
+        "progression/progression.js",
+        "progression/quests.js",
+        "progression/achievements.js",
+        "progression/gacha.js",
+        "progression/items.js",
+        "progression/cosmetics.js",
+        "engine/player.js",
+        "system/auth_storage.js",
+        "engine/world.js",
+        "engine/physics.js",
+        "engine/animations.js",
+        "engine/particles.js",
+        "core/draw_utils.js",
+        "core/state.js",
+        "core/state_fallback.js",
+        "core/network.js",
+        "core/draw_impl_source.js",
+        "core/draw.js",
+        "core/events.js",
+        "core/input_utils.js",
+        "sync/remote_sync.js",
+        "sync/read_sync.js",
+        "sync/sync_player.js",
+        "sync/sync_blocks.js",
+        "sync/sync_worlds.js",
+        "sync/sync_hits.js",
+        "social/discord.js",
+        "admin/anticheat.js",
+        "social/messages.js",
+        "admin/commands.js",
+        "economy/vending.js",
+        "economy/slots.js",
+        "economy/gamble.js",
+        "economy/donation.js",
+        "economy/chest.js",
+        "social/friends.js",
+        "social/trade.js",
+        "economy/shop.js",
+        "economy/sign.js",
+        "economy/splicing.js",
+        "economy/quest_world.js",
+        "social/chat.js",
+        "ui/menu.js",
+        "engine/drops.js",
+        "admin/admin_panel.js",
+        "audio/sounds.js",
+        "core/game.js"
+      ];
+
+      const authCriticalFiles = [
+        "config/firebase-config.js",
+        "config/settings.js",
+        "system/local_crypto.js",
+        "system/db.js",
+        "system/auth.js",
+        "system/auth_storage.js"
+      ];
+
+      (function primeAuthUi() {
+        const authStatusEl = document.getElementById("authStatus");
+        const authCreateBtn = document.getElementById("authCreateBtn");
+        const authLoginBtn = document.getElementById("authLoginBtn");
+        if (authStatusEl instanceof HTMLElement) {
+          authStatusEl.textContent = "Loading login services...";
+          authStatusEl.classList.remove("danger");
+        }
+        if (authCreateBtn instanceof HTMLButtonElement) authCreateBtn.disabled = true;
+        if (authLoginBtn instanceof HTMLButtonElement) authLoginBtn.disabled = true;
+      })();
+
+      function loadScriptsSequential(files) {
+        const rows = Array.isArray(files) ? files.slice() : [];
+        if (!rows.length) return Promise.resolve({ failed: [] });
+        const failed = [];
+        return new Promise((resolve) => {
+          let index = 0;
+          const loadNext = function () {
+            if (index >= rows.length) {
+              resolve({ failed });
+              return;
+            }
+            const file = String(rows[index++] || "").trim();
+            if (!file) {
+              loadNext();
+              return;
+            }
+            const script = document.createElement("script");
+            script.src = file + "?v=" + encodeURIComponent(assetVersion);
+            script.async = false;
+            script.onload = loadNext;
+            script.onerror = function () {
+              failed.push(file);
+              loadNext();
+            };
+            document.body.appendChild(script);
+          };
+          loadNext();
+        });
+      }
+
+      function initEarlyAuthGate() {
+        const authUsernameEl = document.getElementById("authUsername");
+        const authPasswordEl = document.getElementById("authPassword");
+        const authCreateBtn = document.getElementById("authCreateBtn");
+        const authLoginBtn = document.getElementById("authLoginBtn");
+        const authStatusEl = document.getElementById("authStatus");
+        let active = true;
+        let busy = false;
+
+        function setStatus(text, isError) {
+          if (!(authStatusEl instanceof HTMLElement)) return;
+          authStatusEl.textContent = String(text || "");
+          authStatusEl.classList.toggle("danger", Boolean(isError));
+        }
+
+        function setBusy(nextBusy) {
+          busy = Boolean(nextBusy);
+          if (authCreateBtn instanceof HTMLButtonElement) authCreateBtn.disabled = busy;
+          if (authLoginBtn instanceof HTMLButtonElement) authLoginBtn.disabled = busy;
+          if (authUsernameEl instanceof HTMLInputElement) authUsernameEl.disabled = busy;
+          if (authPasswordEl instanceof HTMLInputElement) authPasswordEl.disabled = busy;
+        }
+
+        function normalizeUsername(value) {
+          return String(value || "").trim().toLowerCase();
+        }
+
+        function getAuthStorageModule() {
+          return (window.GTModules && window.GTModules.authStorage) || {};
+        }
+
+        function loadSavedCredentials() {
+          const authStorage = getAuthStorageModule();
+          if (typeof authStorage.loadCredentials === "function") {
+            return authStorage.loadCredentials("growtopia_saved_auth_v1");
+          }
+          try {
+            const raw = localStorage.getItem("growtopia_saved_auth_v1");
+            if (!raw) return { username: "", password: "" };
+            const parsed = JSON.parse(raw);
+            return {
+              username: String(parsed && parsed.username || ""),
+              password: String(parsed && parsed.password || "")
+            };
+          } catch (error) {
+            return { username: "", password: "" };
+          }
+        }
+
+        function saveCredentials(username, password) {
+          const authStorage = getAuthStorageModule();
+          if (typeof authStorage.saveCredentials === "function") {
+            authStorage.saveCredentials("growtopia_saved_auth_v1", username, password);
+            return;
+          }
+          try {
+            localStorage.setItem("growtopia_saved_auth_v1", JSON.stringify({
+              username: String(username || "").slice(0, 20),
+              password: String(password || "").slice(0, 64)
+            }));
+          } catch (error) {
+            // ignore storage failures
+          }
+        }
+
+        function applySavedCredentialsToForm() {
+          const saved = loadSavedCredentials();
+          if (authUsernameEl instanceof HTMLInputElement && !authUsernameEl.value && saved.username) {
+            authUsernameEl.value = String(saved.username || "").slice(0, 20);
+          }
+          if (authPasswordEl instanceof HTMLInputElement && !authPasswordEl.value && saved.password) {
+            authPasswordEl.value = String(saved.password || "").slice(0, 64);
+          }
+        }
+
+        function getAuthDbModule() {
+          return (window.GTModules && window.GTModules.db) || {};
+        }
+
+        function getAuthModule() {
+          return (window.GTModules && window.GTModules.auth) || {};
+        }
+
+        async function verifyAuth(createMode) {
+          if (!active || busy) return;
+          if (!(authUsernameEl instanceof HTMLInputElement) || !(authPasswordEl instanceof HTMLInputElement)) return;
+          const authModule = getAuthModule();
+          const dbModule = getAuthDbModule();
+          if (typeof dbModule.getOrInitAuthDb !== "function" || typeof authModule.sha256Hex !== "function") {
+            setStatus("Auth system still loading...", true);
+            return;
+          }
+
+          const username = normalizeUsername(authUsernameEl.value || "");
+          const password = String(authPasswordEl.value || "");
+          if (typeof authModule.validateCredentials === "function") {
+            const validation = authModule.validateCredentials(username, password);
+            if (validation) {
+              setStatus(validation, true);
+              return;
+            }
+          }
+
+          setBusy(true);
+          setStatus(createMode ? "Creating account..." : "Verifying login...", false);
+          try {
+            const network = {};
+            const db = await dbModule.getOrInitAuthDb({
+              network,
+              firebaseRef: window.firebase,
+              firebaseConfig: window.FIREBASE_CONFIG,
+              getFirebaseApiKey: window.getFirebaseApiKey
+            });
+            const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+            const firebaseRef = window.firebase;
+            const usernameRef = db.ref(basePath + "/usernames/" + username);
+
+            let accountId = "";
+            if (createMode) {
+              accountId = "acc_" + Math.random().toString(36).slice(2, 12);
+              const reserve = await usernameRef.transaction((current) => {
+                if (current) return;
+                return accountId;
+              });
+              if (!reserve || !reserve.committed) throw new Error("Username already exists.");
+              const passwordHashCreate = await authModule.sha256Hex(password);
+              await db.ref(basePath + "/accounts/" + accountId).set({
+                username,
+                passwordHash: passwordHashCreate,
+                createdAt: firebaseRef && firebaseRef.database ? firebaseRef.database.ServerValue.TIMESTAMP : Date.now()
+              });
+            } else {
+              const usernameSnap = await usernameRef.once("value");
+              accountId = String(usernameSnap.val() || "").trim();
+              if (!accountId) throw new Error("Account not found.");
+            }
+
+            const accountSnap = await db.ref(basePath + "/accounts/" + accountId).once("value");
+            const account = accountSnap.val() || {};
+            const passwordHash = await authModule.sha256Hex(password);
+            if (String(account.passwordHash || "") !== passwordHash) {
+              throw new Error("Invalid password.");
+            }
+
+            saveCredentials(username, password);
+            try {
+              sessionStorage.setItem(PREAUTH_HANDOFF_KEY, "1");
+            } catch (error) {
+              // ignore storage failures
+            }
+            setStatus("Login verified. Finishing game load...", false);
+          } catch (error) {
+            setStatus((error && error.message) || "Login failed.", true);
+            setBusy(false);
+            return;
+          }
+          setBusy(true);
+        }
+
+        function handleLoginClick(event) {
+          if (!active) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          verifyAuth(false);
+        }
+
+        function handleCreateClick(event) {
+          if (!active) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          verifyAuth(true);
+        }
+
+        function handlePasswordEnter(event) {
+          if (!active) return;
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          verifyAuth(false);
+        }
+
+        function deactivateGate() {
+          active = false;
+          let hasPendingHandoff = false;
+          try {
+            hasPendingHandoff = String(sessionStorage.getItem(PREAUTH_HANDOFF_KEY) || "").trim() !== "";
+          } catch (error) {
+            hasPendingHandoff = false;
+          }
+          const failedScripts = Array.isArray(window.GT_APP_SCRIPT_LOAD_FAILED)
+            ? window.GT_APP_SCRIPT_LOAD_FAILED
+            : [];
+          if (failedScripts.length) {
+            setBusy(false);
+            setStatus("Game scripts failed to load. Hard refresh and retry.", true);
+            if (hasPendingHandoff) {
+              try {
+                sessionStorage.removeItem(PREAUTH_HANDOFF_KEY);
+              } catch (error) {
+                // ignore storage failures
+              }
+            }
+            return;
+          }
+          if (!hasPendingHandoff) setBusy(false);
+        }
+
+        if (authLoginBtn instanceof HTMLButtonElement) {
+          authLoginBtn.addEventListener("click", handleLoginClick, true);
+        }
+        if (authCreateBtn instanceof HTMLButtonElement) {
+          authCreateBtn.addEventListener("click", handleCreateClick, true);
+        }
+        if (authPasswordEl instanceof HTMLInputElement) {
+          authPasswordEl.addEventListener("keydown", handlePasswordEnter, true);
+        }
+        window.addEventListener("gt-app-scripts-loaded", deactivateGate, { once: true });
+
+        applySavedCredentialsToForm();
+        setBusy(false);
+        setStatus("Login is ready. Remaining game scripts load in background...", false);
+      }
+
+      const criticalSet = new Set(authCriticalFiles);
+      const remainingFiles = versionedFiles.filter((file) => !criticalSet.has(file));
+      (async function bootstrapScriptLoading() {
+        const criticalResult = await loadScriptsSequential(authCriticalFiles);
+        if (criticalResult.failed.length) {
+          const authStatusEl = document.getElementById("authStatus");
+          if (authStatusEl instanceof HTMLElement) {
+            authStatusEl.textContent = "Failed to load login services. Hard refresh and retry.";
+            authStatusEl.classList.add("danger");
+          }
+          return;
+        }
+        initEarlyAuthGate();
+        window.dispatchEvent(new CustomEvent("gt-auth-ready"));
+        const remainingResult = await loadScriptsSequential(remainingFiles);
+        window.GT_APP_SCRIPT_LOAD_FAILED = remainingResult.failed.slice();
+        window.dispatchEvent(new CustomEvent("gt-app-scripts-loaded", {
+          detail: { failed: remainingResult.failed.slice() }
+        }));
+      })();
+    })();
+  </script>
+</body>
+</html>
+
+
