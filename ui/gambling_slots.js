@@ -189,6 +189,9 @@ window.GTModules = window.GTModules || {};
   };
   const AUTOPLAY_COUNTS = [0, 10, 25, 50, 100];
   const BIG_WIN_MULTIPLIER = 25;
+  const SESSION_NAV_TRANSFER_KEY = "gt_session_nav_transfer_v1";
+  const VAULT_BACKUP_KEY_PREFIX = "growtopia_slots_vault_backup_v1_";
+  const VAULT_CREDIT_ROLES = new Set(["admin", "manager", "owner"]);
 
   const state = {
     db: null,
@@ -233,7 +236,8 @@ window.GTModules = window.GTModules || {};
     mines: {
       roundsByMachine: {},
       minesByMachine: {}
-    }
+    },
+    vaultRecoveryInFlight: false
   };
 
   const els = {
@@ -245,6 +249,11 @@ window.GTModules = window.GTModules || {};
     vaultUnitHint: document.getElementById("vaultUnitHint"),
     vaultDepositBtn: document.getElementById("vaultDepositBtn"),
     vaultWithdrawBtn: document.getElementById("vaultWithdrawBtn"),
+    vaultAdminPanel: document.getElementById("vaultAdminPanel"),
+    vaultAdminTarget: document.getElementById("vaultAdminTarget"),
+    vaultAdminAmount: document.getElementById("vaultAdminAmount"),
+    vaultAdminCreditBtn: document.getElementById("vaultAdminCreditBtn"),
+    vaultAdminStatus: document.getElementById("vaultAdminStatus"),
     closeVaultBtn: document.getElementById("closeVaultBtn"),
     vaultStatus: document.getElementById("vaultStatus"),
     openDashboardBtn: document.getElementById("openDashboardBtn"),
@@ -574,11 +583,12 @@ window.GTModules = window.GTModules || {};
       const event = String(eventName || "").trim().toLowerCase();
       if (event === "spin_start") {
         startLoop("spin");
-        playTone({ freqStart: 170, freqEnd: 240, duration: 0.12, type: "square", volume: 0.06 });
+        playTone({ freqStart: 150, freqEnd: 230, duration: 0.11, type: "triangle", volume: 0.065 });
+        window.setTimeout(() => playTone({ freqStart: 300, freqEnd: 360, duration: 0.05, type: "sine", volume: 0.035 }), 38);
         return;
       }
       if (event === "reel_stop") {
-        playTone({ freqStart: 510, freqEnd: 340, duration: 0.09, type: "triangle", volume: 0.07 });
+        playTone({ freqStart: 460, freqEnd: 300, duration: 0.08, type: "triangle", volume: 0.065 });
         return;
       }
       if (event === "spin_end") {
@@ -620,6 +630,23 @@ window.GTModules = window.GTModules || {};
         playTone({ freqStart: 260, freqEnd: 760, duration: 0.18, type: "sawtooth", volume: 0.1 });
         return;
       }
+      if (event === "vault_deposit") {
+        playTone({ freqStart: 260, freqEnd: 590, duration: 0.16, type: "triangle", volume: 0.09 });
+        return;
+      }
+      if (event === "vault_withdraw") {
+        playTone({ freqStart: 520, freqEnd: 280, duration: 0.14, type: "triangle", volume: 0.085 });
+        return;
+      }
+      if (event === "admin_credit") {
+        playTone({ freqStart: 300, freqEnd: 820, duration: 0.2, type: "sawtooth", volume: 0.11 });
+        window.setTimeout(() => playTone({ freqStart: 520, freqEnd: 980, duration: 0.15, type: "triangle", volume: 0.085 }), 72);
+        return;
+      }
+      if (event === "wallet_recover") {
+        playTone({ freqStart: 210, freqEnd: 420, duration: 0.18, type: "sine", volume: 0.08 });
+        return;
+      }
       if (event === "bonus_loop_start") {
         startLoop("bonus");
         return;
@@ -629,7 +656,7 @@ window.GTModules = window.GTModules || {};
         return;
       }
       if (event === "button_click") {
-        playTone({ freqStart: 500, freqEnd: 660, duration: 0.06, type: "triangle", volume: 0.04 });
+        playTone({ freqStart: 420, freqEnd: 560, duration: 0.05, type: "triangle", volume: 0.035 });
       }
     }
 
@@ -2457,6 +2484,42 @@ window.GTModules = window.GTModules || {};
 
   function toCount(value) { return Math.max(0, Math.floor(Number(value) || 0)); }
 
+  function hasVaultBalanceField(raw) {
+    return Boolean(raw && typeof raw === "object" && Object.prototype.hasOwnProperty.call(raw, "web_vault_balance"));
+  }
+
+  function getVaultBackupStorageKey(accountId) {
+    const safe = String(accountId || "").trim();
+    if (!safe) return "";
+    return VAULT_BACKUP_KEY_PREFIX + safe;
+  }
+
+  function readVaultBackupForAccount(accountId) {
+    const key = getVaultBackupStorageKey(accountId);
+    if (!key) return 0;
+    try {
+      return toCount(localStorage.getItem(key));
+    } catch (_error) {
+      return 0;
+    }
+  }
+
+  function writeVaultBackupForAccount(accountId, value) {
+    const key = getVaultBackupStorageKey(accountId);
+    if (!key) return;
+    const safe = toCount(value);
+    try {
+      localStorage.setItem(key, String(safe));
+    } catch (_error) {
+      // ignore storage failures
+    }
+  }
+
+  function syncVaultBackupForCurrentUser(value) {
+    if (!state.user || !state.user.accountId) return;
+    writeVaultBackupForAccount(state.user.accountId, value);
+  }
+
   function toWallet(invRaw) {
     const inv = invRaw && typeof invRaw === "object" ? invRaw : {};
     const byId = {};
@@ -2613,6 +2676,10 @@ window.GTModules = window.GTModules || {};
     }
     if (els.vaultAmount instanceof HTMLInputElement) {
       els.vaultAmount.placeholder = "Amount (" + unit.short + " display)";
+    }
+    const canCredit = Boolean(state.user && VAULT_CREDIT_ROLES.has(String(state.user.role || "none").trim().toLowerCase()));
+    if (els.vaultAdminPanel instanceof HTMLElement) {
+      els.vaultAdminPanel.classList.toggle("hidden", !canCredit);
     }
   }
 
@@ -2921,6 +2988,7 @@ window.GTModules = window.GTModules || {};
     if (state.refs.inventory && state.handlers.inventory) state.refs.inventory.off("value", state.handlers.inventory);
     state.refs.inventory = null;
     state.handlers.inventory = null;
+    state.vaultRecoveryInFlight = false;
     setAutoplayActive(false);
     audioManager.stopAllLoops();
     stopSpinFx();
@@ -2972,6 +3040,7 @@ window.GTModules = window.GTModules || {};
       const nextVault = vault + d;
       if (nextVault < 0) return; // Halt transaction safely if insufficient funds.
       currentObj.web_vault_balance = nextVault;
+      currentObj.web_vault_balance_backup = nextVault;
       return currentObj;
     });
     if (!txn || !txn.committed) return { ok: false, reason: d < 0 ? "not-enough" : "rejected" };
@@ -2981,6 +3050,7 @@ window.GTModules = window.GTModules || {};
     state.walletLocks = wallet.total;
     state.webVaultLocks = wallet.vault;
     state.walletBreakdownText = walletText(wallet.byId);
+    syncVaultBackupForCurrentUser(wallet.vault);
     renderSession();
     return { ok: true, total: wallet.vault };
   }
@@ -2996,6 +3066,7 @@ window.GTModules = window.GTModules || {};
       const decomp = fromWallet(nextTotal, wallet.vault + d);
       for (let i = 0; i < LOCK_CURRENCIES.length; i++) currentObj[LOCK_CURRENCIES[i].id] = toCount(decomp[LOCK_CURRENCIES[i].id]);
       currentObj.web_vault_balance = decomp.web_vault_balance;
+      currentObj.web_vault_balance_backup = decomp.web_vault_balance;
       return currentObj;
     });
     if (!txn || !txn.committed) return { ok: false, reason: "rejected" };
@@ -3003,6 +3074,7 @@ window.GTModules = window.GTModules || {};
     state.walletLocks = wallet.total;
     state.webVaultLocks = wallet.vault;
     state.walletBreakdownText = walletText(wallet.byId);
+    syncVaultBackupForCurrentUser(wallet.vault);
     renderSession();
     return { ok: true, vault: wallet.vault };
   }
@@ -3018,6 +3090,7 @@ window.GTModules = window.GTModules || {};
       const decomp = fromWallet(nextTotal, wallet.vault - d);
       for (let i = 0; i < LOCK_CURRENCIES.length; i++) currentObj[LOCK_CURRENCIES[i].id] = toCount(decomp[LOCK_CURRENCIES[i].id]);
       currentObj.web_vault_balance = decomp.web_vault_balance;
+      currentObj.web_vault_balance_backup = decomp.web_vault_balance;
       return currentObj;
     });
     if (!txn || !txn.committed) return { ok: false, reason: "rejected" };
@@ -3025,8 +3098,54 @@ window.GTModules = window.GTModules || {};
     state.walletLocks = wallet.total;
     state.webVaultLocks = wallet.vault;
     state.walletBreakdownText = walletText(wallet.byId);
+    syncVaultBackupForCurrentUser(wallet.vault);
     renderSession();
     return { ok: true, vault: wallet.vault };
+  }
+
+  async function recoverMissingVaultBalance(rawInventory) {
+    if (state.vaultRecoveryInFlight) return;
+    if (!state.user || !state.user.accountId || !state.refs.inventory) return;
+    const raw = rawInventory && typeof rawInventory === "object" ? rawInventory : {};
+    const hasVault = hasVaultBalanceField(raw);
+    const rawVault = toCount(raw.web_vault_balance);
+    const backupField = toCount(raw.web_vault_balance_backup);
+    if (hasVault && rawVault > 0) return;
+    if (hasVault && backupField <= 0) return;
+    const backup = hasVault
+      ? backupField
+      : Math.max(readVaultBackupForAccount(state.user.accountId), backupField);
+    if (backup <= 0) return;
+    state.vaultRecoveryInFlight = true;
+    try {
+      const txn = await state.refs.inventory.transaction((currentRaw) => {
+        const currentObj = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+        const currentHasVault = hasVaultBalanceField(currentObj);
+        const currentVault = toCount(currentObj.web_vault_balance);
+        const currentBackup = toCount(currentObj.web_vault_balance_backup);
+        if (currentHasVault && currentVault > 0) return currentObj;
+        if (currentHasVault && currentBackup <= 0) return currentObj;
+        const recoverTo = currentHasVault ? currentBackup : Math.max(backup, currentBackup);
+        if (recoverTo <= 0) return currentObj;
+        currentObj.web_vault_balance = recoverTo;
+        currentObj.web_vault_balance_backup = recoverTo;
+        return currentObj;
+      });
+      if (txn && txn.committed) {
+        const wallet = toWallet(txn.snapshot && typeof txn.snapshot.val === "function" ? txn.snapshot.val() : {});
+        state.walletLocks = wallet.total;
+        state.webVaultLocks = wallet.vault;
+        state.walletBreakdownText = walletText(wallet.byId);
+        syncVaultBackupForCurrentUser(wallet.vault);
+        renderSession();
+        renderMachineStats();
+        audioManager.play("wallet_recover");
+      }
+    } catch (_error) {
+      // ignore auto-recovery failure
+    } finally {
+      state.vaultRecoveryInFlight = false;
+    }
   }
 
   function getMaxBetByBank(machine) {
@@ -4451,6 +4570,64 @@ window.GTModules = window.GTModules || {};
     return String(byName && typeof byName === "object" ? (byName[username] || "none") : "none").trim().toLowerCase();
   }
 
+  function consumeSessionNavigationTransfer() {
+    try {
+      const raw = sessionStorage.getItem(SESSION_NAV_TRANSFER_KEY);
+      if (!raw) return null;
+      sessionStorage.removeItem(SESSION_NAV_TRANSFER_KEY);
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      const issuedAt = Math.max(0, Math.floor(Number(parsed.issuedAt) || 0));
+      if (!issuedAt || Math.abs(Date.now() - issuedAt) > 30000) return null;
+      const target = String(parsed.target || "").trim().toLowerCase();
+      if (target && target !== "gambling_slots.html") return null;
+      const accountId = String(parsed.accountId || "").trim();
+      const sessionId = String(parsed.sessionId || "").trim();
+      const username = String(parsed.username || "").trim().toLowerCase();
+      if (!accountId || !sessionId) return null;
+      return { accountId, sessionId, username };
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  async function attemptSessionTransferResume() {
+    const transfer = consumeSessionNavigationTransfer();
+    if (!transfer) return false;
+    setStatus(els.authStatus, "Linking game session...");
+    try {
+      const db = await ensureDb();
+      const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+      const sessionSnap = await db.ref(basePath + "/account-sessions/" + transfer.accountId).once("value");
+      const session = sessionSnap && sessionSnap.val ? (sessionSnap.val() || {}) : {};
+      const liveSessionId = String(session.sessionId || "").trim();
+      const liveUsername = String(session.username || "").trim().toLowerCase();
+      if (!liveSessionId || liveSessionId !== transfer.sessionId) {
+        setStatus(els.authStatus, "Session transfer expired. Login required.");
+        return false;
+      }
+      const resolvedUsername = liveUsername || transfer.username;
+      if (!resolvedUsername) {
+        setStatus(els.authStatus, "Session transfer missing username.");
+        return false;
+      }
+      const role = await resolveUserRole(transfer.accountId, resolvedUsername);
+      state.user = {
+        accountId: transfer.accountId,
+        username: resolvedUsername,
+        role
+      };
+      renderSession();
+      setStatus(els.authStatus, "Session linked as @" + resolvedUsername + ".", "ok");
+      attachUserSession();
+      switchView("lobby");
+      return true;
+    } catch (_error) {
+      setStatus(els.authStatus, "Session transfer failed.");
+      return false;
+    }
+  }
+
   async function loginWithPassword(createMode, options) {
     const opts = options && typeof options === "object" ? options : {};
     const requireActiveSession = Boolean(opts.requireActiveSession);
@@ -4579,10 +4756,19 @@ window.GTModules = window.GTModules || {};
       state.refs.inventory = db.ref(basePath + "/player-inventories/" + state.user.accountId);
 
       state.handlers.inventory = (snap) => {
-        const wallet = toWallet(snap && typeof snap.val === "function" ? snap.val() : {});
+        const raw = snap && typeof snap.val === "function" ? (snap.val() || {}) : {};
+        const wallet = toWallet(raw);
         state.walletLocks = wallet.total;
         state.webVaultLocks = wallet.vault;
         state.walletBreakdownText = walletText(wallet.byId);
+        const backupField = toCount(raw && raw.web_vault_balance_backup);
+        if (hasVaultBalanceField(raw) && wallet.vault <= 0 && backupField > 0) {
+          void recoverMissingVaultBalance(raw);
+        } else if (hasVaultBalanceField(raw)) {
+          syncVaultBackupForCurrentUser(wallet.vault);
+        } else {
+          void recoverMissingVaultBalance(raw);
+        }
         renderSession();
         renderMachineStats(); // Re-render stats to update button disabled states
       };
@@ -5684,6 +5870,7 @@ window.GTModules = window.GTModules || {};
           els.vaultStatus.textContent = isDeposit
             ? ("Success! Deposited " + val + " WL.")
             : ("Success! Withdrew " + val + " WL.");
+          audioManager.play(isDeposit ? "vault_deposit" : "vault_withdraw");
           els.vaultAmount.value = "";
         } else {
           const reason = tx && tx.reason ? String(tx.reason) : "rejected";
@@ -5695,11 +5882,120 @@ window.GTModules = window.GTModules || {};
       renderMachineStats();
     }
 
+    function canUseVaultCreditAdmin() {
+      if (!state.user) return false;
+      const role = String(state.user.role || "none").trim().toLowerCase();
+      return VAULT_CREDIT_ROLES.has(role);
+    }
+
+    async function runAdminVaultCredit() {
+      if (!(els.vaultAdminStatus instanceof HTMLElement) || !(els.vaultAdminAmount instanceof HTMLInputElement)) return;
+      if (!state.user) {
+        els.vaultAdminStatus.textContent = "Login first.";
+        return;
+      }
+      if (!canUseVaultCreditAdmin()) {
+        els.vaultAdminStatus.textContent = "Admin permission required.";
+        return;
+      }
+      const amount = Math.max(0, Math.floor(Number(els.vaultAdminAmount.value)));
+      if (!amount) {
+        els.vaultAdminStatus.textContent = "Invalid credit amount.";
+        return;
+      }
+
+      const selfName = String(state.user.username || "").trim().toLowerCase();
+      const targetInput = (els.vaultAdminTarget instanceof HTMLInputElement)
+        ? String(els.vaultAdminTarget.value || "").trim().toLowerCase()
+        : "";
+      const targetName = targetInput || selfName;
+      let targetAccountId = "";
+      let targetDisplayName = targetName || selfName;
+
+      if (!targetName || targetName === selfName) {
+        targetAccountId = String(state.user.accountId || "").trim();
+      } else {
+        try {
+          const db = await ensureDb();
+          const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+          const userSnap = await db.ref(basePath + "/usernames/" + targetName).once("value");
+          targetAccountId = String(userSnap && userSnap.val ? (userSnap.val() || "") : "").trim();
+        } catch (_error) {
+          targetAccountId = "";
+        }
+      }
+      if (!targetAccountId) {
+        els.vaultAdminStatus.textContent = "Target user not found.";
+        return;
+      }
+
+      if (els.vaultAdminCreditBtn instanceof HTMLButtonElement) els.vaultAdminCreditBtn.disabled = true;
+      els.vaultAdminStatus.textContent = "Applying admin credit...";
+      try {
+        const db = await ensureDb();
+        const basePath = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+        const invRef = db.ref(basePath + "/player-inventories/" + targetAccountId);
+        const tx = await invRef.transaction((raw) => {
+          const currentObj = raw && typeof raw === "object" ? { ...raw } : {};
+          const vault = toCount(currentObj.web_vault_balance);
+          const nextVault = vault + amount;
+          currentObj.web_vault_balance = nextVault;
+          currentObj.web_vault_balance_backup = nextVault;
+          return currentObj;
+        });
+        if (!tx || !tx.committed) {
+          els.vaultAdminStatus.textContent = "Credit was rejected.";
+          return;
+        }
+
+        if (targetAccountId === String(state.user.accountId || "").trim()) {
+          const wallet = toWallet(tx.snapshot && typeof tx.snapshot.val === "function" ? tx.snapshot.val() : {});
+          state.walletLocks = wallet.total;
+          state.webVaultLocks = wallet.vault;
+          state.walletBreakdownText = walletText(wallet.byId);
+          syncVaultBackupForCurrentUser(wallet.vault);
+          renderSession();
+          renderMachineStats();
+        }
+
+        db.ref(basePath + "/admin-audit").push({
+          action: "vault_credit",
+          actorAccountId: String(state.user.accountId || "").trim(),
+          actorUsername: String(state.user.username || "admin").slice(0, 20),
+          targetAccountId: targetAccountId,
+          targetUsername: String(targetDisplayName || targetName || "").slice(0, 20),
+          amount: amount,
+          level: "warn",
+          createdAt: Date.now()
+        }).catch(() => {});
+
+        audioManager.play("admin_credit");
+        els.vaultAdminStatus.textContent = "Added " + amount + " WL to @" + String(targetDisplayName || targetName || "user") + ".";
+        els.vaultAdminAmount.value = "";
+      } catch (error) {
+        els.vaultAdminStatus.textContent = "Credit failed: " + ((error && error.message) || "unknown error");
+      } finally {
+        if (els.vaultAdminCreditBtn instanceof HTMLButtonElement) els.vaultAdminCreditBtn.disabled = false;
+      }
+    }
+
     if (els.openVaultBtn instanceof HTMLButtonElement) {
       els.openVaultBtn.addEventListener("click", () => {
         if (!state.user || !(els.vaultModal instanceof HTMLElement)) return;
         renderVaultPanel();
         if (els.vaultStatus instanceof HTMLElement) els.vaultStatus.textContent = "Ready.";
+        const canCredit = canUseVaultCreditAdmin();
+        if (els.vaultAdminPanel instanceof HTMLElement) {
+          els.vaultAdminPanel.classList.toggle("hidden", !canCredit);
+        }
+        if (canCredit && els.vaultAdminTarget instanceof HTMLInputElement && !els.vaultAdminTarget.value) {
+          els.vaultAdminTarget.value = String(state.user.username || "");
+        }
+        if (els.vaultAdminStatus instanceof HTMLElement) {
+          els.vaultAdminStatus.textContent = canCredit
+            ? "Admin wallet credit ready."
+            : "Admin wallet credit hidden.";
+        }
         els.vaultModal.classList.remove("hidden");
       });
     }
@@ -5719,6 +6015,18 @@ window.GTModules = window.GTModules || {};
         if (event.key !== "Enter") return;
         event.preventDefault();
         runVaultTransfer("deposit");
+      });
+    }
+    if (els.vaultAdminCreditBtn instanceof HTMLButtonElement) {
+      els.vaultAdminCreditBtn.addEventListener("click", async () => {
+        await runAdminVaultCredit();
+      });
+    }
+    if (els.vaultAdminAmount instanceof HTMLInputElement) {
+      els.vaultAdminAmount.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        runAdminVaultCredit();
       });
     }
     const quickVaultBtns = document.querySelectorAll("[data-vault-amount]");
@@ -5776,7 +6084,8 @@ window.GTModules = window.GTModules || {};
 
     setStatus(els.authStatus, "Login with your game account.");
 
-    const resumed = await attemptSavedSessionResume().catch(() => false);
+    const transferResumed = await attemptSessionTransferResume().catch(() => false);
+    const resumed = transferResumed ? true : await attemptSavedSessionResume().catch(() => false);
     if (!resumed) {
       switchView("login");
     }

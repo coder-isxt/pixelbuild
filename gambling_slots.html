@@ -2746,6 +2746,64 @@
         font-size: 13px;
       }
     }
+    .head {
+      position: sticky;
+      top: 8px;
+      z-index: 24;
+      backdrop-filter: blur(8px);
+      background:
+        linear-gradient(180deg, rgba(9, 22, 38, 0.94), rgba(6, 16, 30, 0.9));
+      border: 1px solid rgba(138, 207, 255, 0.16);
+      box-shadow:
+        0 10px 30px rgba(0, 0, 0, 0.34),
+        inset 0 0 0 1px rgba(192, 228, 255, 0.08);
+    }
+
+    .machine-item {
+      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .machine-item:hover {
+      transform: translateY(-2px);
+      border-color: rgba(147, 224, 255, 0.38);
+      box-shadow:
+        0 14px 24px rgba(0, 0, 0, 0.36),
+        inset 0 0 0 1px rgba(189, 231, 255, 0.1);
+    }
+
+    .vault-admin-panel {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 205, 132, 0.26);
+      background: linear-gradient(180deg, rgba(38, 22, 12, 0.56), rgba(28, 16, 8, 0.56));
+    }
+
+    .vault-admin-title {
+      margin-bottom: 8px;
+    }
+
+    .vault-admin-grid {
+      gap: 8px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .vault-admin-actions {
+      margin-top: 8px;
+    }
+
+    .vault-admin-status {
+      margin-top: 8px;
+    }
+
+    @media (max-width: 760px) {
+      .head {
+        top: 0;
+      }
+      .vault-admin-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 
@@ -3019,6 +3077,18 @@
       <div class="vault-actions">
         <button id="vaultDepositBtn" type="button" class="deposit">Game &rarr; Vault</button>
         <button id="vaultWithdrawBtn" type="button" class="withdraw">Vault &rarr; Game</button>
+      </div>
+
+      <div id="vaultAdminPanel" class="vault-admin-panel hidden">
+        <div class="status vault-admin-title">Admin wallet credit (adds WL to web vault).</div>
+        <div class="vault-input-wrap vault-admin-grid">
+          <input id="vaultAdminTarget" type="text" maxlength="20" placeholder="Target username (blank = self)">
+          <input id="vaultAdminAmount" type="number" min="1" placeholder="Credit amount (WL)">
+        </div>
+        <div class="vault-actions vault-admin-actions">
+          <button id="vaultAdminCreditBtn" type="button" class="deposit">Admin Add to Wallet</button>
+        </div>
+        <div id="vaultAdminStatus" class="status vault-admin-status">Admin wallet credit hidden.</div>
       </div>
 
       <div id="vaultStatus" class="status">Ready.</div>

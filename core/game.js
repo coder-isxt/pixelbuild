@@ -1924,6 +1924,45 @@
         return (value || "").trim().toLowerCase();
       }
 
+      const SESSION_NAV_TRANSFER_KEY = "gt_session_nav_transfer_v1";
+
+      function shouldPreserveSessionOnNavigation() {
+        try {
+          const raw = sessionStorage.getItem(SESSION_NAV_TRANSFER_KEY);
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== "object") return false;
+          const target = String(parsed.target || "").trim().toLowerCase();
+          if (target !== "gambling_slots.html" && target !== "gambling.html") return false;
+          const issuedAt = Math.max(0, Math.floor(Number(parsed.issuedAt) || 0));
+          if (!issuedAt) return false;
+          return Math.abs(Date.now() - issuedAt) <= 20000;
+        } catch (_error) {
+          return false;
+        }
+      }
+
+      function prepareSessionNavigation(targetPath) {
+        const target = String(targetPath || "").trim();
+        if (!target) return;
+        try {
+          sessionStorage.setItem(SESSION_NAV_TRANSFER_KEY, JSON.stringify({
+            target,
+            issuedAt: Date.now(),
+            accountId: String(playerProfileId || "").trim(),
+            username: String(playerName || "").trim().toLowerCase(),
+            sessionId: String(playerSessionId || "").trim()
+          }));
+        } catch (_error) {
+          // ignore sessionStorage errors
+        }
+        window.location.href = target;
+      }
+
+      if (typeof window !== "undefined") {
+        window.prepareSessionNavigation = prepareSessionNavigation;
+      }
+
       function saveCredentials(username, password) {
         if (typeof authStorageModule.saveCredentials === "function") {
           authStorageModule.saveCredentials(SAVED_AUTH_KEY, username, password);
@@ -15033,7 +15072,9 @@
         if (remotePlayerSyncController && typeof remotePlayerSyncController.dispose === "function") {
           remotePlayerSyncController.dispose();
         }
-        releaseAccountSession();
+        if (!shouldPreserveSessionOnNavigation()) {
+          releaseAccountSession();
+        }
       });
 
       function consumePendingAuthHandoffFlag() {
