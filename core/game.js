@@ -1763,7 +1763,6 @@
         const safeTy = Math.floor(Number(ty));
         if (!Number.isFinite(safeTx) || !Number.isFinite(safeTy)) return;
         addActionFeedbackEvent(safeTx, safeTy, "input", "action");
-        playActionTone("input", 0.42, "action tap");
       }
 
       function playActionTone(toneType, intensity, label) {
@@ -1796,7 +1795,6 @@
         worldTransitionToken = token;
         worldTransitionTarget = String(targetWorldId || "");
         worldTransitionStartedAt = performance.now();
-        playActionTone("input", 0.5, "world transition start");
         const safeStartedAt = worldTransitionStartedAt;
         window.setTimeout(() => {
           if (worldTransitionToken !== token) return;
@@ -1816,7 +1814,6 @@
           if (Number(worldTransitionToken) !== Number(token)) return;
           worldTransitionTarget = "";
           worldTransitionStartedAt = 0;
-          playActionTone("success", 0.56, "world transition end");
         };
         if (remainingMs > 0) {
           window.setTimeout(finalize, remainingMs);
