@@ -171,50 +171,50 @@ window.GTModules = window.GTModules || {};
   const BONUS_V2 = {
     normal: {
       respins: 3,
-      addChance: 0.33,
-      addChanceDecay: 0.02,
-      maxSpins: 60,
-      coinValues: [1, 1, 2, 2, 3, 4, 5, 8, 12],
-      coinWeights: [34, 26, 16, 12, 6, 3, 2, 1, 1],
+      addChance: 0.22,
+      addChanceDecay: 0.035,
+      maxSpins: 36,
+      coinValues: [1, 1, 1, 2, 2, 3, 4, 5, 8],
+      coinWeights: [36, 28, 18, 8, 5, 3, 1, 1, 1],
       specialWeights: {
-        coin: 76,
-        blank: 10,
-        multiplier: 5,
+        coin: 65,
+        blank: 21,
+        multiplier: 4,
         bomb: 4,
         jackpot: 1,
-        collect: 4
+        collect: 5
       },
       multiplierValues: [2, 3],
-      multiplierWeights: [82, 18],
-      bombValues: [4, 6, 8, 10, 12],
-      bombWeights: [30, 26, 20, 14, 10],
-      jackpotValues: [40, 60, 90],
-      jackpotWeights: [72, 20, 8],
-      fullScreenBonus: 90
+      multiplierWeights: [90, 10],
+      bombValues: [3, 4, 5, 6, 8],
+      bombWeights: [34, 26, 20, 12, 8],
+      jackpotValues: [25, 40, 60],
+      jackpotWeights: [80, 16, 4],
+      fullScreenBonus: 42
     },
     buy: {
       // Buy-bonus profile: lower EV, more variance, real bust chance.
       respins: 3,
-      addChance: 0.24,
-      addChanceDecay: 0.03,
-      maxSpins: 54,
-      coinValues: [1, 1, 1, 1, 2, 2, 3, 4, 6],
-      coinWeights: [32, 24, 18, 10, 7, 4, 3, 1, 1],
+      addChance: 0.14,
+      addChanceDecay: 0.04,
+      maxSpins: 30,
+      coinValues: [1, 1, 1, 1, 1, 2, 2, 3, 4],
+      coinWeights: [38, 26, 18, 8, 4, 3, 2, 1, 1],
       specialWeights: {
-        coin: 62,
-        blank: 22,
-        multiplier: 4,
-        bomb: 4,
+        coin: 50,
+        blank: 35,
+        multiplier: 3,
+        bomb: 3,
         jackpot: 1,
         collect: 7
       },
       multiplierValues: [2, 3],
-      multiplierWeights: [88, 12],
-      bombValues: [3, 4, 5, 6, 8],
-      bombWeights: [30, 24, 22, 14, 10],
-      jackpotValues: [25, 40, 60],
-      jackpotWeights: [75, 18, 7],
-      fullScreenBonus: 55
+      multiplierWeights: [93, 7],
+      bombValues: [2, 3, 4, 5, 6],
+      bombWeights: [36, 26, 18, 12, 8],
+      jackpotValues: [15, 25, 40],
+      jackpotWeights: [84, 13, 3],
+      fullScreenBonus: 24
     }
   };
 
@@ -231,16 +231,16 @@ window.GTModules = window.GTModules || {};
     blood: { 3: 12, 4: 28, 5: 66 }
   };
   const BONUS_V3 = {
-    initialFreeSpins: 10,
-    extraSpinsOnScatter: 2,
+    initialFreeSpins: 8,
+    extraSpinsOnScatter: 1,
     baseSpinMultiplierMin: 1,
-    baseSpinMultiplierMax: 3,
+    baseSpinMultiplierMax: 2,
     stackMultiplierValues: [2, 3],
-    stackMultiplierWeights: [78, 22],
-    stackMultiplierChanceOnWin: 0.36,
-    featureWildChance: 0.42,
-    featureUpgradeChance: 0.28,
-    maxFeatureSpins: 60
+    stackMultiplierWeights: [92, 8],
+    stackMultiplierChanceOnWin: 0.14,
+    featureWildChance: 0.24,
+    featureUpgradeChance: 0.12,
+    maxFeatureSpins: 36
   };
   const V4_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v4.layout.rows) || 3));
   const V4_REELS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v4.layout.reels) || 5));
@@ -254,16 +254,16 @@ window.GTModules = window.GTModules || {};
     forgotten: { 3: 13, 4: 31, 5: 78 }
   };
   const BONUS_V4 = {
-    initialFreeSpins: 10,
-    retriggerSpins: 2,
-    extraWildChance: 0.34,
-    expandingChance: 0.24,
+    initialFreeSpins: 8,
+    retriggerSpins: 1,
+    extraWildChance: 0.2,
+    expandingChance: 0.12,
     spinMultiplierMin: 1,
-    spinMultiplierMax: 3,
-    stackChance: 0.32,
+    spinMultiplierMax: 2,
+    stackChance: 0.12,
     stackValues: [2, 3],
-    stackWeights: [82, 18],
-    maxFeatureSpins: 70
+    stackWeights: [93, 7],
+    maxFeatureSpins: 40
   };
   const V6_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v6.layout.rows) || 3));
   const V6_REELS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v6.layout.reels) || 5));
@@ -277,14 +277,14 @@ window.GTModules = window.GTModules || {};
     relic: { 3: 10, 4: 25, 5: 62 }
   };
   const BONUS_V6 = {
-    initialFreeSpins: 8,
-    retriggerSpins: 2,
-    cascadeMultiplierStep: 0.5,
+    initialFreeSpins: 7,
+    retriggerSpins: 1,
+    cascadeMultiplierStep: 0.25,
     baseSpinMultiplierMin: 1,
-    baseSpinMultiplierMax: 3,
-    growthPerWinSpin: 0.35,
-    extraWildChance: 0.32,
-    maxFeatureSpins: 60
+    baseSpinMultiplierMax: 2,
+    growthPerWinSpin: 0.14,
+    extraWildChance: 0.18,
+    maxFeatureSpins: 35
   };
 
   const SNOOP_CFG = {
@@ -296,24 +296,24 @@ window.GTModules = window.GTModules || {};
     digUpChance: 0.08,
     fsDigUpChance: 0.04,
     digIconWeights: {
-      none: 91,
-      scatter: 5,
-      wild: 2,
+      none: 94,
+      scatter: 3,
+      wild: 1,
       weed: 1,
       skull: 1
     },
-    freeSpinsByScatters: { 3: 6, 4: 8, 5: 10, 6: 12 },
+    freeSpinsByScatters: { 3: 5, 4: 7, 5: 9, 6: 10 },
     buyBonusCosts: { 3: 80, 4: 140, 5: 220, 6: 320 },
     hypeCostX: 20,
     multiplierCellValue: 10,
     weedAddsMultiplierCells: 1,
     wildUpgradeStep: 10,
-    wildUpgradeMax: 60,
+    wildUpgradeMax: 50,
     wildMarkedStart: 10,
-    payoutMultiplierScale: 0.12,
-    maxAppliedPayoutMultiplier: 6,
-    featureDeadSpinChance: 0.68,
-    featureNoClusterAttempts: 24,
+    payoutMultiplierScale: 0.1,
+    maxAppliedPayoutMultiplier: 5,
+    featureDeadSpinChance: 0.76,
+    featureNoClusterAttempts: 30,
     houseEdge: 0.04,
     maxRoundWinX: 300,
     maxFeatureSpins: 120,
@@ -337,6 +337,13 @@ window.GTModules = window.GTModules || {};
   const SNOOP_DROP_SYMBOLS = SNOOP_CFG.symbols
     .map((row) => ({ id: row.id, icon: row.icon, weight: row.weight }))
     .concat(SNOOP_CFG.dropExtras.slice());
+  const PAYOUT_GUARDRAILS = {
+    slots_v2: { maxRoundX: 180, bonusScale: 0.58, buyBonusScale: 0.42 },
+    slots_v3: { maxRoundX: 220, bonusScale: 0.62 },
+    slots_v4: { maxRoundX: 240, bonusScale: 0.64 },
+    slots_v6: { maxRoundX: 260, bonusScale: 0.66 },
+    snoop_dogg_dollars: { maxRoundX: 280, bonusScale: 0.7, buyBonusScale: 0.56 }
+  };
   const SNOOP_KEY_LIST = (() => {
     const out = [];
     for (let r = 0; r < SNOOP_CFG.rows; r++) {
@@ -383,6 +390,33 @@ window.GTModules = window.GTModules || {};
       out[ids[i]] = cloneDef(GAME_DEFS[ids[i]]);
     }
     return out;
+  }
+
+  function applyBonusHouseEdge(gameId, payout, options) {
+    const safePayout = Math.max(0, Math.floor(Number(payout) || 0));
+    if (safePayout <= 0) return 0;
+    const cfg = PAYOUT_GUARDRAILS[String(gameId || "")] || {};
+    const opts = options && typeof options === "object" ? options : {};
+    const rawScale = opts.buy === true && Number.isFinite(Number(cfg.buyBonusScale))
+      ? Number(cfg.buyBonusScale)
+      : Number(cfg.bonusScale);
+    const scale = Number.isFinite(rawScale) ? Math.max(0.05, Math.min(1, rawScale)) : 1;
+    return Math.max(0, Math.floor(safePayout * scale));
+  }
+
+  function clampPayoutForGame(gameId, payout, bet, wagerRef) {
+    const safePayout = Math.max(0, Math.floor(Number(payout) || 0));
+    if (safePayout <= 0) return 0;
+    const gid = String(gameId || "");
+    const cfg = PAYOUT_GUARDRAILS[gid] || {};
+    const def = GAME_DEFS[gid] || {};
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const baseWager = Math.max(1, Math.floor(Number(wagerRef) || safeBet));
+    const cfgX = Math.max(1, Math.floor(Number(cfg.maxRoundX) || Number(def.maxPayoutMultiplier) || 1));
+    const defX = Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || cfgX));
+    const capX = Math.min(cfgX, defX);
+    const cap = Math.max(1, baseWager * capX);
+    return Math.min(safePayout, cap);
   }
 
   function pickWeighted(symbols) {
@@ -755,8 +789,9 @@ window.GTModules = window.GTModules || {};
     }
 
     const basePayout = Math.max(0, Math.floor(safeBet * totalMultiplier));
-    const bonusPayout = bonus && bonus.triggered ? Math.max(0, Math.floor(Number(bonus.payout) || 0)) : 0;
-    const payoutWanted = basePayout + bonusPayout;
+    const rawBonusPayout = bonus && bonus.triggered ? Math.max(0, Math.floor(Number(bonus.payout) || 0)) : 0;
+    const bonusPayout = applyBonusHouseEdge("slots_v2", rawBonusPayout, { buy: false });
+    const payoutWanted = clampPayoutForGame("slots_v2", basePayout + bonusPayout, safeBet, safeBet);
     const finalMultiplier = safeBet > 0 ? Number((payoutWanted / safeBet).toFixed(2)) : 0;
 
     let outcome = "lose";
@@ -809,6 +844,7 @@ window.GTModules = window.GTModules || {};
     if (boughtBonus) {
       const bonusRound = runMiningBonus({ bet: safeBet, triggerCount: 5, mode: "buy" });
       boughtBonusPayout = Math.max(0, Math.floor(Number(bonusRound && bonusRound.payout) || 0));
+      boughtBonusPayout = applyBonusHouseEdge("slots_v2", boughtBonusPayout, { buy: true });
       boughtBonusSummary = String(bonusRound && bonusRound.summary || "").slice(0, 220);
       boughtBonusView = bonusRound && bonusRound.bonusView ? bonusRound.bonusView : null;
       allLineWins.length = 0;
@@ -823,7 +859,7 @@ window.GTModules = window.GTModules || {};
       : (base && base.bonusView ? base.bonusView : null);
 
     const uncapped = Math.max(0, (boughtBonus ? boughtBonusPayout : Math.floor(Number(base.payoutWanted) || 0)));
-    const payoutWanted = Math.max(0, uncapped);
+    const payoutWanted = clampPayoutForGame("slots_v2", uncapped, safeBet, wager);
     const multiplierBase = boughtBonus ? safeBet : wager;
     const finalMultiplier = multiplierBase > 0 ? Number((payoutWanted / multiplierBase).toFixed(2)) : 0;
     const outcome = finalMultiplier >= 20 ? "jackpot" : (finalMultiplier > 0 ? "win" : "lose");
@@ -1007,11 +1043,14 @@ window.GTModules = window.GTModules || {};
     let fs = null;
     if (base.scatterCount >= 3) {
       fs = runFreeSpinsV3(safeBet, base.scatterCount);
-      payout += Math.max(0, Math.floor(Number(fs.payout) || 0));
+      const rawFsPayout = Math.max(0, Math.floor(Number(fs.payout) || 0));
+      const adjustedFsPayout = applyBonusHouseEdge("slots_v3", rawFsPayout, { buy: false });
+      fs.payout = adjustedFsPayout;
+      payout += adjustedFsPayout;
       summaryParts.push("BONUS TRIGGERED");
       summaryParts.push(fs.summary);
     }
-    payout = Math.max(0, payout);
+    payout = clampPayoutForGame("slots_v3", payout, safeBet, safeBet);
     const mult = safeBet > 0 ? Number((payout / safeBet).toFixed(2)) : 0;
     const outcome = mult >= 100 ? "jackpot" : (mult > 0 ? "win" : "lose");
     const lines = base.lineWins.slice(0, 12);
@@ -1204,11 +1243,14 @@ window.GTModules = window.GTModules || {};
     let fs = null;
     if (base.scatterCount >= 3) {
       fs = runFreeSpinsV4(safeBet, base.scatterCount);
-      payout += Math.max(0, Math.floor(Number(fs.payout) || 0));
+      const rawFsPayout = Math.max(0, Math.floor(Number(fs.payout) || 0));
+      const adjustedFsPayout = applyBonusHouseEdge("slots_v4", rawFsPayout, { buy: false });
+      fs.payout = adjustedFsPayout;
+      payout += adjustedFsPayout;
       summaryParts.push("BONUS TRIGGERED");
       summaryParts.push(fs.summary);
     }
-    payout = Math.max(0, payout);
+    payout = clampPayoutForGame("slots_v4", payout, safeBet, safeBet);
     const mult = safeBet > 0 ? Number((payout / safeBet).toFixed(2)) : 0;
     const outcome = mult >= 120 ? "jackpot" : (mult > 0 ? "win" : "lose");
     const lines = base.lineWins.slice(0, 12);
@@ -1415,11 +1457,14 @@ window.GTModules = window.GTModules || {};
     let fs = null;
     if (baseRun.scatterCount >= 3) {
       fs = runFreeSpinsV6(safeBet, baseRun.scatterCount);
-      payout += Math.max(0, Math.floor(Number(fs.payout) || 0));
+      const rawFsPayout = Math.max(0, Math.floor(Number(fs.payout) || 0));
+      const adjustedFsPayout = applyBonusHouseEdge("slots_v6", rawFsPayout, { buy: false });
+      fs.payout = adjustedFsPayout;
+      payout += adjustedFsPayout;
       summaryParts.push("BONUS TRIGGERED");
       summaryParts.push(fs.summary);
     }
-    payout = Math.max(0, payout);
+    payout = clampPayoutForGame("slots_v6", payout, safeBet, safeBet);
     const mult = safeBet > 0 ? Number((payout / safeBet).toFixed(2)) : 0;
     const outcome = mult >= 120 ? "jackpot" : (mult > 0 ? "win" : "lose");
     const lines = baseRun.lineWins.slice(0, 14);
@@ -2401,6 +2446,8 @@ window.GTModules = window.GTModules || {};
       const fs = runSnoopFeatureSpins(state, grid, freeSpinsAwarded);
       freeSpinsPlayed = Math.max(0, Math.floor(Number(fs.spinsPlayed) || 0));
       freeSpinPayout = Math.max(0, Math.floor(Number(fs.payout) || 0));
+      freeSpinPayout = applyBonusHouseEdge("snoop_dogg_dollars", freeSpinPayout, { buy: buyTrigger >= 3 });
+      fs.payout = freeSpinPayout;
       if (fs.biggestCascadeWin > biggestCascadeWin) biggestCascadeWin = fs.biggestCascadeWin;
       grid = fs.finalGrid;
       if (fs.timeline.length) lineWins.push("FS: " + fs.timeline.slice(0, 8).join(" / "));
@@ -2425,7 +2472,7 @@ window.GTModules = window.GTModules || {};
     }
 
     const uncapped = Math.max(0, basePayout + freeSpinPayout);
-    const payoutWanted = Math.max(0, uncapped);
+    const payoutWanted = clampPayoutForGame("snoop_dogg_dollars", uncapped, safeBet, wager);
     const multiplier = safeBet > 0 ? Number((payoutWanted / safeBet).toFixed(2)) : 0;
     const outcome = multiplier >= 300 ? "jackpot" : (multiplier > 0 ? "win" : "lose");
     const summary = lineWins.length
