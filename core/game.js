@@ -1804,10 +1804,7 @@
         suppressNextWorldTransitionTone = false;
         const transitionAtMs = Number.isFinite(worldTransitionStartedAt) ? worldTransitionStartedAt : performance.now();
         const suppressByAuthCooldown = transitionAtMs < (Number(suppressTransitionTonesUntilMs) || 0);
-        worldTransitionToneEnabled = Boolean(inWorld) && targetId !== "menu" && !suppressToneOnce && !suppressByAuthCooldown;
-        if (worldTransitionToneEnabled) {
-          playActionTone("input", 0.5, "world transition start");
-        }
+        worldTransitionToneEnabled = false;
         const safeStartedAt = worldTransitionStartedAt;
         window.setTimeout(() => {
           if (worldTransitionToken !== token) return;
@@ -13891,7 +13888,10 @@
             if (inWorld) {
               sendSystemWorldMessage(playerName + " left the world.");
             }
-            releaseAccountSession();
+            const preserveSessionForNavigation = shouldPreserveSessionOnNavigation();
+            if (!preserveSessionForNavigation) {
+              releaseAccountSession();
+            }
             if (network.globalPlayerRef) {
               network.globalPlayerRef.remove();
             }

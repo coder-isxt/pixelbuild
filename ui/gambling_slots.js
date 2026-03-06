@@ -656,7 +656,7 @@ window.GTModules = window.GTModules || {};
         return;
       }
       if (event === "button_click") {
-        playTone({ freqStart: 420, freqEnd: 560, duration: 0.05, type: "triangle", volume: 0.035 });
+        playTone({ freqStart: 330, freqEnd: 410, duration: 0.045, type: "sine", volume: 0.02 });
       }
     }
 
@@ -882,6 +882,12 @@ window.GTModules = window.GTModules || {};
       if (pay <= 0) {
         hideBanner();
         setCurrentWinValue(0, stake);
+        return;
+      }
+      const forceCounter = opts.forceCounter === true || opts.alreadyCounted === true;
+      if (!forceCounter && pay < (stake * 2)) {
+        hideBanner();
+        setCurrentWinValue(pay, stake);
         return;
       }
 
@@ -5525,6 +5531,8 @@ window.GTModules = window.GTModules || {};
       if (!(target instanceof HTMLElement)) return;
       const clickable = target.closest("button, .chip, .machine-item, .machine-cat-btn, .vault-quick-btn");
       if (!clickable) return;
+      if (!state.user) return;
+      if (clickable.id === "authLoginBtn" || clickable.id === "authCreateBtn") return;
       audioManager.play("button_click");
     });
     if (els.premiumSettingsBtn instanceof HTMLButtonElement && els.premiumSettingsPanel instanceof HTMLElement) {
