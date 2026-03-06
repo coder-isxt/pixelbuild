@@ -335,6 +335,7 @@
             const itemLabel = (raw.itemLabel || "item").toString().slice(0, 44);
             const totalItems = Math.max(1, Math.floor(Number(raw.totalItems) || 1));
             const totalPrice = Math.max(0, Math.floor(Number(raw.totalPrice) || 0));
+            playSfxEvent("vending_purchase", 0.58, "success", "vending purchase");
             logCameraEvent(
               "vending_purchase",
               buyerName + " bought " + totalItems + "x " + itemLabel + " for " + totalPrice + " WL.",
@@ -664,6 +665,15 @@
           getFriendsCloseBtnEl: () => friendsCloseBtn,
           getPresenceByAccountId,
           onWarpToFriend: (accountId) => warpToFriendAccount(accountId),
+          onFriendRequestSent: () => {
+            playSfxEvent("friend_request_sent", 0.5, "input", "friend request sent");
+          },
+          onFriendRequestAccepted: () => {
+            playSfxEvent("friend_request_accepted", 0.54, "success", "friend request accepted");
+          },
+          onFriendRequestReceived: () => {
+            playSfxEvent("friend_request_received", 0.52, "success", "friend request received");
+          },
           onOpenTrade: (accountId, name) => {
             const tradeCtrl = getTradeController();
             if (!tradeCtrl || typeof tradeCtrl.handleWrenchPlayer !== "function") return;
@@ -758,11 +768,24 @@
           getTradePanelCloseBtnEl: () => document.getElementById("tradePanelCloseBtn"),
           getToolbarEl: () => toolbarEl,
           getFriendsController: () => getFriendsController(),
+          onTradeAccepted: () => {
+            playSfxEvent("trade_accept", 0.56, "success", "trade accepted");
+          },
+          onTradeDeclined: () => {
+            playSfxEvent("trade_decline", 0.56, "deny", "trade declined");
+          },
+          onTradeRequestAccepted: () => {
+            playSfxEvent("trade_request_accept", 0.56, "success", "trade request accepted");
+          },
+          onTradeRequestDeclined: () => {
+            playSfxEvent("trade_request_decline", 0.56, "deny", "trade request declined");
+          },
           startInventoryDragFromTrade: (entry, event) => {
             startInventoryDrag(entry, event);
           },
           onTradeCompleted: (payload) => {
             const tradeId = payload && payload.tradeId ? String(payload.tradeId) : "";
+            playSfxEvent("trade_accept", 0.58, "success", "trade completed");
             applyQuestEvent("trade_complete", { tradeId, count: 1 });
             applyAchievementEvent("trade_complete", { tradeId });
             applyQuestWorldGameplayEvent("trade_complete", { tradeId, count: 1 });
@@ -812,7 +835,10 @@
           saveInventory,
           refreshToolbar,
           postLocalSystemChat,
-          showAnnouncementPopup
+          showAnnouncementPopup,
+          onPurchase: () => {
+            playSfxEvent("shop_buy", 0.54, "success", "shop buy");
+          }
         });
         return shopController;
       }
@@ -1252,6 +1278,10 @@
       let worldTransitionStartedAt = 0;
       let worldTransitionToken = 0;
       let hudExpanded = false;
+      let hasSeenFriendRequestsSnapshot = false;
+      let hasSeenFriendsSnapshot = false;
+      let lastFriendRequestCount = 0;
+      let lastFriendCount = 0;
       const CHAT_PANEL_POS_KEY = "gt_chat_panel_top_v1";
       const CHAT_PANEL_TOP_DEFAULT = 10;
       const CHAT_PANEL_TOP_MIN = 8;
@@ -1312,6 +1342,32 @@
         world_start: { wave: "triangle", from: 180, to: 320, duration: 0.1, gain: 0.3, cooldownMs: 130, harmonic: 2, harmonicGain: 0.18 },
         world_end: { wave: "sine", from: 420, to: 820, duration: 0.095, gain: 0.34, cooldownMs: 130, harmonic: 2, harmonicGain: 0.28 }
       };
+      const SFX_BASE_PATH = "sounds/";
+      const sfxTemplateByEvent = {};
+      const sfxUnavailableByEvent = {};
+      const sfxLastPlayAtByEvent = {};
+      let sfxAssetsPrimed = false;
+      const SFX_EVENT_CONFIG = {
+        hit: { file: "sfx_hit.mp3", fallbackTone: "success", fallbackLabel: "tile hit", volume: 0.42, cooldownMs: 34 },
+        place: { file: "sfx_place.mp3", fallbackTone: "success", fallbackLabel: "placed block", volume: 0.4, cooldownMs: 42 },
+        collect: { file: "sfx_collect.mp3", fallbackTone: "success", fallbackLabel: "collect", volume: 0.36, cooldownMs: 70 },
+        ui: { file: "sfx_ui.mp3", fallbackTone: "input", fallbackLabel: "ui", volume: 0.34, cooldownMs: 55 },
+        shop_buy: { file: "sfx_shop_buy.mp3", fallbackTone: "success", fallbackLabel: "shop buy", volume: 0.48, cooldownMs: 90 },
+        jump: { file: "sfx_jump.mp3", fallbackTone: "input", fallbackLabel: "jump", volume: 0.35, cooldownMs: 80 },
+        door: { file: "sfx_door.mp3", fallbackTone: "success", fallbackLabel: "door", volume: 0.38, cooldownMs: 75 },
+        drop: { file: "sfx_drop.mp3", fallbackTone: "warn", fallbackLabel: "drop", volume: 0.38, cooldownMs: 65 },
+        vending_purchase: { file: "sfx_vending_purchase.mp3", fallbackTone: "success", fallbackLabel: "vending purchase", volume: 0.5, cooldownMs: 120 },
+        chat_sent: { file: "sfx_chat_sent.mp3", fallbackTone: "input", fallbackLabel: "chat sent", volume: 0.3, cooldownMs: 44 },
+        pm_received: { file: "sfx_pm_received.mp3", fallbackTone: "success", fallbackLabel: "pm received", volume: 0.42, cooldownMs: 120 },
+        pm_sent: { file: "sfx_pm_sent.mp3", fallbackTone: "input", fallbackLabel: "pm sent", volume: 0.32, cooldownMs: 90 },
+        friend_request_sent: { file: "sfx_friend_request_sent.mp3", fallbackTone: "input", fallbackLabel: "friend request sent", volume: 0.34, cooldownMs: 110 },
+        friend_request_received: { file: "sfx_friend_request_received.mp3", fallbackTone: "success", fallbackLabel: "friend request received", volume: 0.4, cooldownMs: 140 },
+        friend_request_accepted: { file: "sfx_friend_request_accepted.mp3", fallbackTone: "success", fallbackLabel: "friend request accepted", volume: 0.42, cooldownMs: 140 },
+        trade_accept: { file: "sfx_trade_accept.mp3", fallbackTone: "success", fallbackLabel: "trade accepted", volume: 0.45, cooldownMs: 120 },
+        trade_decline: { file: "sfx_trade_decline.mp3", fallbackTone: "deny", fallbackLabel: "trade declined", volume: 0.42, cooldownMs: 120 },
+        trade_request_accept: { file: "sfx_trade_request_accept.mp3", fallbackTone: "success", fallbackLabel: "trade request accepted", volume: 0.45, cooldownMs: 120 },
+        trade_request_decline: { file: "sfx_trade_request_decline.mp3", fallbackTone: "deny", fallbackLabel: "trade request declined", volume: 0.42, cooldownMs: 120 }
+      };
 
       function getFeedbackAudioContext() {
         if (typeof window === "undefined") return null;
@@ -1342,6 +1398,83 @@
           feedbackNoiseBuffer = null;
         }
         return feedbackNoiseBuffer;
+      }
+
+      function primeSfxAssets() {
+        if (sfxAssetsPrimed) return;
+        if (typeof Audio === "undefined") return;
+        sfxAssetsPrimed = true;
+        Object.keys(SFX_EVENT_CONFIG).forEach((eventKey) => {
+          const cfg = SFX_EVENT_CONFIG[eventKey];
+          if (!cfg || !cfg.file) return;
+          try {
+            const template = new Audio(SFX_BASE_PATH + cfg.file);
+            template.preload = "auto";
+            template.volume = Math.max(0, Math.min(1, Number(cfg.volume) || 0.4));
+            template.addEventListener("error", () => {
+              sfxUnavailableByEvent[eventKey] = true;
+            });
+            template.load();
+            sfxTemplateByEvent[eventKey] = template;
+          } catch (error) {
+            sfxUnavailableByEvent[eventKey] = true;
+          }
+        });
+      }
+
+      function playSfxEvent(eventKey, intensity, fallbackTone, fallbackLabel) {
+        const key = String(eventKey || "").trim().toLowerCase();
+        if (!key) {
+          playActionTone(fallbackTone || "input", intensity, fallbackLabel || "sfx");
+          return false;
+        }
+        const cfg = SFX_EVENT_CONFIG[key] || null;
+        if (!cfg) {
+          playActionTone(fallbackTone || "input", intensity, fallbackLabel || key);
+          return false;
+        }
+        const now = performance.now();
+        const cooldownMs = Math.max(8, Math.floor(Number(cfg.cooldownMs) || 40));
+        const lastPlayAt = Number(sfxLastPlayAtByEvent[key]) || -9999;
+        if ((now - lastPlayAt) < cooldownMs) return false;
+        sfxLastPlayAtByEvent[key] = now;
+
+        const globalSound = (typeof window !== "undefined" && window && window.sound) ? window.sound : null;
+        if (globalSound && typeof globalSound.play === "function") {
+          try {
+            const fileId = String(cfg.file || "").replace(/\.[^/.]+$/, "");
+            if (fileId) {
+              globalSound.play(fileId);
+              return true;
+            }
+          } catch (error) {
+            // fall through to direct audio + synth fallback
+          }
+        }
+
+        primeSfxAssets();
+        const template = sfxTemplateByEvent[key];
+        const canPlayReal = template && !sfxUnavailableByEvent[key];
+        if (canPlayReal) {
+          try {
+            const clip = template.cloneNode();
+            const baseVolume = Math.max(0, Math.min(1, Number(cfg.volume) || 0.4));
+            const amp = Math.max(0.08, Math.min(1, Number(intensity) || 0.45));
+            clip.volume = Math.max(0, Math.min(1, baseVolume * (0.5 + amp * 0.6)));
+            const playPromise = clip.play();
+            if (playPromise && typeof playPromise.catch === "function") {
+              playPromise.catch(() => {
+                sfxUnavailableByEvent[key] = true;
+                playActionTone(cfg.fallbackTone || fallbackTone || "input", intensity, cfg.fallbackLabel || fallbackLabel || key);
+              });
+            }
+            return true;
+          } catch (error) {
+            sfxUnavailableByEvent[key] = true;
+          }
+        }
+        playActionTone(cfg.fallbackTone || fallbackTone || "input", intensity, cfg.fallbackLabel || fallbackLabel || key);
+        return false;
       }
 
       function resolveActionToneEvent(toneType, label) {
@@ -1377,6 +1510,98 @@
         if (kind === "warn") return "warn";
         if (kind === "success") return "success";
         return "tap";
+      }
+
+      function resolveActionSfxEvent(toneType, label) {
+        const kind = String(toneType || "input").toLowerCase();
+        const detail = String(label || "").toLowerCase();
+        if (
+          detail.indexOf("tile hit") !== -1 ||
+          detail.indexOf("block broken") !== -1 ||
+          detail.indexOf("harvested seed") !== -1
+        ) return "hit";
+        if (
+          detail.indexOf("placed block") !== -1 ||
+          detail.indexOf("world lock placed") !== -1 ||
+          detail.indexOf("spawn moved") !== -1
+        ) return "place";
+        if (detail.indexOf("door") !== -1) return "door";
+        if (
+          detail.indexOf("vending") !== -1 ||
+          detail.indexOf("world lock") !== -1 ||
+          detail.indexOf("gamble") !== -1 ||
+          detail.indexOf("donation box") !== -1 ||
+          detail.indexOf("chest") !== -1 ||
+          detail.indexOf("splicer") !== -1 ||
+          detail.indexOf("owner tax") !== -1 ||
+          detail.indexOf("sign") !== -1 ||
+          detail.indexOf("camera") !== -1 ||
+          detail.indexOf("weather") !== -1 ||
+          detail.indexOf("quest interaction") !== -1
+        ) return "ui";
+        if (kind === "deny" || kind === "warn") return "ui";
+        return "";
+      }
+
+      function resolveSystemMessageSfxEvent(text) {
+        const detail = String(text || "").toLowerCase();
+        if (!detail) return "";
+        if (detail.indexOf("[pm]") === 0) return "pm_received";
+        if (
+          detail.indexOf("private message sent") !== -1 ||
+          detail.indexOf("pm sent") !== -1
+        ) return "pm_sent";
+        if (detail.indexOf("trade request") !== -1) {
+          if (detail.indexOf("accept") !== -1) return "trade_request_accept";
+          if (
+            detail.indexOf("declin") !== -1 ||
+            detail.indexOf("reject") !== -1 ||
+            detail.indexOf("denied") !== -1
+          ) return "trade_request_decline";
+        }
+        if (detail.indexOf("trade") !== -1) {
+          if (detail.indexOf("accept") !== -1) return "trade_accept";
+          if (
+            detail.indexOf("declin") !== -1 ||
+            detail.indexOf("reject") !== -1 ||
+            detail.indexOf("cancel") !== -1
+          ) return "trade_decline";
+        }
+        if (detail.indexOf("friend request") !== -1) {
+          if (detail.indexOf("sent") !== -1) return "friend_request_sent";
+          if (detail.indexOf("accept") !== -1) return "friend_request_accepted";
+          if (detail.indexOf("received") !== -1 || detail.indexOf("from @") !== -1) return "friend_request_received";
+        }
+        if (detail.indexOf("collected ") !== -1) return "collect";
+        if (detail.indexOf("bought ") !== -1 && detail.indexOf(" wl") !== -1) return "vending_purchase";
+        if ((detail.indexOf("shop") !== -1 || detail.indexOf("store") !== -1) && (detail.indexOf("bought") !== -1 || detail.indexOf("purchased") !== -1)) {
+          return "shop_buy";
+        }
+        if (detail.indexOf("door ") !== -1) return "door";
+        return "";
+      }
+
+      function resolveTradeDecisionKind(value) {
+        const raw = value && typeof value === "object" ? value : {};
+        if (typeof raw.accepted === "boolean") return raw.accepted ? "accept" : "decline";
+        if (typeof raw.declined === "boolean" && raw.declined) return "decline";
+        const probe = [
+          raw.status,
+          raw.state,
+          raw.response,
+          raw.result,
+          raw.action,
+          raw.decision
+        ].map((row) => String(row || "").toLowerCase());
+        for (let i = 0; i < probe.length; i++) {
+          const text = probe[i];
+          if (!text) continue;
+          if (text.indexOf("accept") !== -1 || text === "ok" || text === "approved" || text === "true") return "accept";
+          if (text.indexOf("declin") !== -1 || text.indexOf("reject") !== -1 || text.indexOf("deny") !== -1 || text.indexOf("cancel") !== -1 || text === "false") {
+            return "decline";
+          }
+        }
+        return "";
       }
 
       function playOscillatorLayer(ctxAudio, when, preset, ampScale) {
@@ -1518,7 +1743,12 @@
           : 0;
         const baseIntensity = result === "success" ? 0.5 : 0.62;
         const toneIntensity = Math.max(0.2, Math.min(1, baseIntensity + (latencyRatio > 1 ? (latencyRatio - 1) * 0.08 : 0)));
-        playActionTone(tier, toneIntensity, label);
+        const sfxEvent = resolveActionSfxEvent(tier, label);
+        if (sfxEvent) {
+          playSfxEvent(sfxEvent, toneIntensity, tier, label);
+        } else {
+          playActionTone(tier, toneIntensity, label);
+        }
         return latencyMs;
       }
 
@@ -4842,10 +5072,15 @@
       }
 
       function postLocalSystemChat(text) {
+        const safeText = (text || "").toString().slice(0, SYSTEM_CHAT_TEXT_MAX);
+        const sfxEvent = resolveSystemMessageSfxEvent(safeText);
+        if (sfxEvent) {
+          playSfxEvent(sfxEvent, 0.45, "input", safeText);
+        }
         addChatMessage({
           name: "[System]",
           playerId: "",
-          text: (text || "").toString().slice(0, SYSTEM_CHAT_TEXT_MAX),
+          text: safeText,
           createdAt: Date.now()
         });
       }
@@ -6371,6 +6606,7 @@
         if (pickupInventoryFlushTimer) return;
         pickupInventoryFlushTimer = window.setTimeout(() => {
           pickupInventoryFlushTimer = 0;
+          playSfxEvent("collect", 0.5, "success", "collect");
           saveInventory(true);
           refreshToolbar();
         }, 70);
@@ -6736,19 +6972,25 @@
       function openShopMenuFromUi() {
         const ctrl = getShopController();
         if (!ctrl || typeof ctrl.openModal !== "function") return;
+        playSfxEvent("ui", 0.38, "input", "shop ui");
         ctrl.openModal();
       }
 
       function openFriendsMenuFromUi() {
         const ctrl = getFriendsController();
         if (!ctrl || typeof ctrl.openFriends !== "function") return;
+        playSfxEvent("ui", 0.36, "input", "friends ui");
         ctrl.openFriends();
       }
 
       function setQuickMenuMode(nextMode) {
+        const prevMode = gtQuickMenuMode;
         const allowed = inWorld ? String(nextMode || "").trim().toLowerCase() : "";
         const mode = (allowed === "main" || allowed === "social") ? allowed : "";
         gtQuickMenuMode = mode;
+        if (mode !== prevMode && mode) {
+          playSfxEvent("ui", 0.34, "input", "quick menu");
+        }
         if (gtMainMenuPopupEl) gtMainMenuPopupEl.classList.toggle("hidden", mode !== "main");
         if (gtSocialMenuPopupEl) gtSocialMenuPopupEl.classList.toggle("hidden", mode !== "social");
         if (gtMainMenuBtnEl) gtMainMenuBtnEl.classList.toggle("active", mode === "main");
@@ -7611,8 +7853,15 @@
         const raw = chatInputEl.value || "";
         const trimmed = raw.trim();
         if (!trimmed) return;
+        const lowerTrimmed = trimmed.toLowerCase();
+        const pmCommand = lowerTrimmed.startsWith("/pm ")
+          || lowerTrimmed.startsWith("/msg ")
+          || lowerTrimmed.startsWith("/w ");
         suppressChatOpenUntilMs = performance.now() + 300;
         if (handleAdminChatCommand(trimmed)) {
+          if (pmCommand) {
+            playSfxEvent("pm_sent", 0.45, "input", "pm sent");
+          }
           chatInputEl.value = "";
           setChatOpen(false);
           return;
@@ -7625,6 +7874,7 @@
         }
         const text = trimmed.slice(0, 120);
         if (!text) return;
+        playSfxEvent("chat_sent", 0.4, "input", "chat sent");
         const titlePayload = getEquippedTitlePayload();
         if (antiCheatController && typeof antiCheatController.onChatSend === "function") {
           antiCheatController.onChatSend(text);
@@ -9702,6 +9952,7 @@
           lastJumpAtMs = nowMs;
           airJumpsUsed = 0;
           triggerWingFlapPulse(0.9);
+          playSfxEvent("jump", 0.52, "input", "jump");
         } else if (
           jumpPressedThisFrame &&
           !player.grounded &&
@@ -9711,6 +9962,7 @@
           player.vy = jumpVelocityNow;
           lastAirJumpAtMs = nowMs;
           triggerWingFlapPulse(1.1);
+          playSfxEvent("jump", 0.56, "input", "jump");
         } else if (
           jumpPressedThisFrame &&
           !player.grounded &&
@@ -9722,6 +9974,7 @@
           lastAirJumpAtMs = nowMs;
           airJumpsUsed += 1;
           triggerWingFlapPulse(1.25);
+          playSfxEvent("jump", 0.6, "input", "jump");
         }
 
         player.vx = Math.max(-maxMoveSpeed, Math.min(maxMoveSpeed, player.vx));
@@ -11075,13 +11328,18 @@
       function dropInventoryEntry(entry, amount, dropX, dropY) {
         const ctrl = getDropsController();
         if (!ctrl || typeof ctrl.dropInventoryEntry !== "function") return false;
-        return ctrl.dropInventoryEntry(entry, amount, dropX, dropY, getTradeController());
+        const ok = ctrl.dropInventoryEntry(entry, amount, dropX, dropY, getTradeController());
+        if (ok) {
+          playSfxEvent("drop", 0.5, "warn", "drop");
+        }
+        return ok;
       }
 
       function dropSelectedInventoryItem() {
         const ctrl = getDropsController();
         if (!ctrl || typeof ctrl.dropSelectedInventoryItem !== "function") return;
         ctrl.dropSelectedInventoryItem(getTradeController());
+        playSfxEvent("drop", 0.5, "warn", "drop");
       }
 
       function tryPickupWorldDrop(drop) {
@@ -13182,6 +13440,7 @@
                 ? msgCtrl.getLastPrivateMessageFrom()
                 : null;
               lastPrivateMessageFrom = lastFrom && typeof lastFrom === "object" ? lastFrom : null;
+              playSfxEvent("pm_received", 0.5, "success", "pm received");
               return;
             }
             const value = snapshot.val() || {};
@@ -13195,17 +13454,32 @@
               accountId: fromAccountId,
               username: fromUsername
             };
+            playSfxEvent("pm_received", 0.5, "success", "pm received");
             postLocalSystemChat("[PM] @" + fromUsername + ": " + text);
           };
           network.handlers.myTradeRequest = (snapshot) => {
             const ctrl = getTradeController();
             if (!ctrl || typeof ctrl.onTradeRequest !== "function") return;
-            ctrl.onTradeRequest(snapshot.val() || {});
+            const payload = snapshot.val() || {};
+            const decision = resolveTradeDecisionKind(payload);
+            if (decision === "accept") {
+              playSfxEvent("trade_request_accept", 0.56, "success", "trade request accepted");
+            } else if (decision === "decline") {
+              playSfxEvent("trade_request_decline", 0.56, "deny", "trade request declined");
+            }
+            ctrl.onTradeRequest(payload);
           };
           network.handlers.myTradeResponse = (snapshot) => {
             const ctrl = getTradeController();
             if (!ctrl || typeof ctrl.onTradeResponse !== "function") return;
-            ctrl.onTradeResponse(snapshot.val() || {});
+            const payload = snapshot.val() || {};
+            const decision = resolveTradeDecisionKind(payload);
+            if (decision === "accept") {
+              playSfxEvent("trade_accept", 0.56, "success", "trade accepted");
+            } else if (decision === "decline") {
+              playSfxEvent("trade_decline", 0.56, "deny", "trade declined");
+            }
+            ctrl.onTradeResponse(payload);
           };
           network.handlers.myActiveTrade = (snapshot) => {
             const ctrl = getTradeController();
@@ -13215,12 +13489,26 @@
           network.handlers.myFriends = (snapshot) => {
             const ctrl = getFriendsController();
             if (!ctrl || typeof ctrl.setFriendsData !== "function") return;
-            ctrl.setFriendsData(snapshot.val() || {});
+            const raw = snapshot.val() || {};
+            const nextCount = raw && typeof raw === "object" ? Object.keys(raw).length : 0;
+            if (hasSeenFriendsSnapshot && nextCount > lastFriendCount) {
+              playSfxEvent("friend_request_accepted", 0.54, "success", "friend request accepted");
+            }
+            hasSeenFriendsSnapshot = true;
+            lastFriendCount = nextCount;
+            ctrl.setFriendsData(raw);
           };
           network.handlers.myFriendRequests = (snapshot) => {
             const ctrl = getFriendsController();
             if (!ctrl || typeof ctrl.setRequestsData !== "function") return;
-            ctrl.setRequestsData(snapshot.val() || {});
+            const raw = snapshot.val() || {};
+            const nextCount = raw && typeof raw === "object" ? Object.keys(raw).length : 0;
+            if (hasSeenFriendRequestsSnapshot && nextCount > lastFriendRequestCount) {
+              playSfxEvent("friend_request_received", 0.52, "success", "friend request received");
+            }
+            hasSeenFriendRequestsSnapshot = true;
+            lastFriendRequestCount = nextCount;
+            ctrl.setRequestsData(raw);
           };
 
           network.handlers.worldsIndex = (snapshot) => {
