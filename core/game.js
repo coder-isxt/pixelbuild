@@ -1921,6 +1921,7 @@
       const SESSION_NAV_TRANSFER_KEY = "gt_session_nav_transfer_v1";
       let pendingSessionTransferTarget = "";
       let pendingSessionTransferIssuedAt = 0;
+      let sessionValidationGraceUntilMs = 0;
 
       function normalizeSessionTransferTarget(value) {
         const raw = String(value || "").trim().toLowerCase();
@@ -1962,6 +1963,7 @@
         if (!target) return;
         pendingSessionTransferTarget = target;
         pendingSessionTransferIssuedAt = Date.now();
+        sessionValidationGraceUntilMs = Math.max(sessionValidationGraceUntilMs, pendingSessionTransferIssuedAt + 35000);
         try {
           sessionStorage.setItem(SESSION_NAV_TRANSFER_KEY, JSON.stringify({
             target,
@@ -7763,6 +7765,9 @@
       }
 
       function forceLogout(reason) {
+        if (shouldPreserveSessionOnNavigation()) {
+          return;
+        }
         saveInventoryToLocal();
         saveProgressionToLocal();
         saveAchievementsToLocal();
@@ -13288,6 +13293,7 @@
           hasSeenInitialTeleportCommandSnapshot = false;
           network.db = await getAuthDb();
           network.enabled = true;
+          sessionValidationGraceUntilMs = Date.now() + 12000;
           hasSeenAdminRoleSnapshot = false;
           directAdminRole = "none";
           network.connectedRef = network.db.ref(".info/connected");
@@ -13425,13 +13431,25 @@
           };
           network.handlers.mySession = (snapshot) => {
             const value = snapshot.val();
+            if (shouldPreserveSessionOnNavigation()) {
+              return;
+            }
+            const nowMs = Date.now();
             if (!value || !value.sessionId) {
+              if (nowMs < sessionValidationGraceUntilMs) {
+                return;
+              }
               forceLogout("You were kicked or your session expired.");
               return;
             }
             if (playerSessionId && value.sessionId !== playerSessionId) {
+              if (nowMs < sessionValidationGraceUntilMs) {
+                return;
+              }
               forceLogout("This account is active in another client.");
+              return;
             }
+            sessionValidationGraceUntilMs = nowMs + 1800;
           };
           network.handlers.myCommand = (snapshot) => {
             const value = snapshot.val();
@@ -13902,10 +13920,10 @@
             scheduleProgressionSave(true);
             scheduleAchievementsSave(true);
             scheduleQuestsSave(true);
-            if (inWorld) {
+            const preserveSessionForNavigation = shouldPreserveSessionOnNavigation();
+            if (inWorld && !preserveSessionForNavigation) {
               sendSystemWorldMessage(playerName + " left the world.");
             }
-            const preserveSessionForNavigation = shouldPreserveSessionOnNavigation();
             if (!preserveSessionForNavigation) {
               releaseAccountSession();
               if (network.globalPlayerRef) {
