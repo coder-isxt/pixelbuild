@@ -552,9 +552,15 @@ window.GTModules = window.GTModules || {};
       if (!ctx || !unlocked || !state.uiSettings.soundEnabled) return;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(98, ctx.currentTime);
-      gain.gain.setValueAtTime(0.008, ctx.currentTime);
+      if (key === "countup") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(168, ctx.currentTime);
+        gain.gain.setValueAtTime(0.0036, ctx.currentTime);
+      } else {
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(92, ctx.currentTime);
+        gain.gain.setValueAtTime(0.0048, ctx.currentTime);
+      }
       osc.connect(gain);
       gain.connect(masterGain);
       osc.start();
@@ -583,12 +589,12 @@ window.GTModules = window.GTModules || {};
       const event = String(eventName || "").trim().toLowerCase();
       if (event === "spin_start") {
         startLoop("spin");
-        playTone({ freqStart: 150, freqEnd: 230, duration: 0.11, type: "triangle", volume: 0.065 });
-        window.setTimeout(() => playTone({ freqStart: 300, freqEnd: 360, duration: 0.05, type: "sine", volume: 0.035 }), 38);
+        playTone({ freqStart: 170, freqEnd: 220, duration: 0.08, type: "sine", volume: 0.032 });
+        window.setTimeout(() => playTone({ freqStart: 220, freqEnd: 290, duration: 0.045, type: "triangle", volume: 0.02 }), 44);
         return;
       }
       if (event === "reel_stop") {
-        playTone({ freqStart: 460, freqEnd: 300, duration: 0.08, type: "triangle", volume: 0.065 });
+        playTone({ freqStart: 360, freqEnd: 300, duration: 0.045, type: "sine", volume: 0.03 });
         return;
       }
       if (event === "spin_end") {
@@ -604,30 +610,30 @@ window.GTModules = window.GTModules || {};
         return;
       }
       if (event === "win_small") {
-        playTone({ freqStart: 330, freqEnd: 520, duration: 0.18, type: "triangle", volume: 0.08 });
+        playTone({ freqStart: 280, freqEnd: 430, duration: 0.14, type: "triangle", volume: 0.05 });
         return;
       }
       if (event === "win_medium") {
-        playTone({ freqStart: 280, freqEnd: 620, duration: 0.22, type: "triangle", volume: 0.11 });
-        window.setTimeout(() => playTone({ freqStart: 520, freqEnd: 760, duration: 0.18, type: "triangle", volume: 0.1 }), 90);
+        playTone({ freqStart: 260, freqEnd: 520, duration: 0.18, type: "triangle", volume: 0.06 });
+        window.setTimeout(() => playTone({ freqStart: 420, freqEnd: 620, duration: 0.14, type: "triangle", volume: 0.052 }), 92);
         return;
       }
       if (event === "win_big") {
-        playTone({ freqStart: 180, freqEnd: 740, duration: 0.28, type: "sawtooth", volume: 0.14 });
-        window.setTimeout(() => playTone({ freqStart: 360, freqEnd: 960, duration: 0.22, type: "triangle", volume: 0.1 }), 110);
+        playTone({ freqStart: 170, freqEnd: 660, duration: 0.22, type: "triangle", volume: 0.076 });
+        window.setTimeout(() => playTone({ freqStart: 350, freqEnd: 840, duration: 0.16, type: "triangle", volume: 0.062 }), 102);
         return;
       }
       if (event === "bonus_intro") {
-        playTone({ freqStart: 220, freqEnd: 480, duration: 0.22, type: "triangle", volume: 0.09 });
-        window.setTimeout(() => playTone({ freqStart: 360, freqEnd: 620, duration: 0.2, type: "triangle", volume: 0.08 }), 120);
+        playTone({ freqStart: 210, freqEnd: 420, duration: 0.2, type: "sine", volume: 0.05 });
+        window.setTimeout(() => playTone({ freqStart: 320, freqEnd: 560, duration: 0.16, type: "triangle", volume: 0.045 }), 116);
         return;
       }
       if (event === "bonus_tick") {
-        playTone({ freqStart: 420, freqEnd: 520, duration: 0.08, type: "square", volume: 0.06 });
+        playTone({ freqStart: 300, freqEnd: 380, duration: 0.05, type: "sine", volume: 0.028 });
         return;
       }
       if (event === "bonus_hit") {
-        playTone({ freqStart: 260, freqEnd: 760, duration: 0.18, type: "sawtooth", volume: 0.1 });
+        playTone({ freqStart: 240, freqEnd: 620, duration: 0.16, type: "triangle", volume: 0.058 });
         return;
       }
       if (event === "vault_deposit") {
@@ -884,7 +890,8 @@ window.GTModules = window.GTModules || {};
         setCurrentWinValue(0, stake);
         return;
       }
-      const forceCounter = opts.forceCounter === true || opts.alreadyCounted === true;
+      const forceCounter = opts.forceCounter === true;
+      const replayFromZero = forceCounter && opts.replayFromZero === true;
       if (!forceCounter && pay < (stake * 2)) {
         hideBanner();
         setCurrentWinValue(pay, stake);
@@ -904,7 +911,11 @@ window.GTModules = window.GTModules || {};
       if (tier.sound) audioManager.play(tier.sound);
       if (tier.id === "epic" || tier.id === "mega") safeVibrate(18);
 
-      if (!opts.alreadyCounted) {
+      if (replayFromZero) {
+        setCurrentWinValue(0, stake);
+      }
+
+      if (!opts.alreadyCounted || replayFromZero) {
         await countTo(pay, stake, { durationScale: tier.durationScale });
       } else {
         setCurrentWinValue(pay, stake);
@@ -4580,17 +4591,21 @@ window.GTModules = window.GTModules || {};
     try {
       const raw = sessionStorage.getItem(SESSION_NAV_TRANSFER_KEY);
       if (!raw) return null;
-      sessionStorage.removeItem(SESSION_NAV_TRANSFER_KEY);
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object") return null;
       const issuedAt = Math.max(0, Math.floor(Number(parsed.issuedAt) || 0));
       if (!issuedAt || Math.abs(Date.now() - issuedAt) > 30000) return null;
-      const target = String(parsed.target || "").trim().toLowerCase();
+      const targetRaw = String(parsed.target || "").trim().toLowerCase();
+      const targetNoHash = targetRaw.split("#")[0];
+      const targetNoQuery = targetNoHash.split("?")[0];
+      const targetParts = targetNoQuery.replace(/\\/g, "/").split("/");
+      const target = String(targetParts[targetParts.length - 1] || targetNoQuery || "").trim().toLowerCase();
       if (target && target !== "gambling_slots.html") return null;
       const accountId = String(parsed.accountId || "").trim();
       const sessionId = String(parsed.sessionId || "").trim();
       const username = String(parsed.username || "").trim().toLowerCase();
-      if (!accountId || !sessionId) return null;
+      if (!accountId) return null;
+      sessionStorage.removeItem(SESSION_NAV_TRANSFER_KEY);
       return { accountId, sessionId, username };
     } catch (_error) {
       return null;
@@ -4608,7 +4623,7 @@ window.GTModules = window.GTModules || {};
       const session = sessionSnap && sessionSnap.val ? (sessionSnap.val() || {}) : {};
       const liveSessionId = String(session.sessionId || "").trim();
       const liveUsername = String(session.username || "").trim().toLowerCase();
-      if (!liveSessionId || liveSessionId !== transfer.sessionId) {
+      if (!liveSessionId) {
         setStatus(els.authStatus, "Session transfer expired. Login required.");
         return false;
       }
@@ -5271,8 +5286,11 @@ window.GTModules = window.GTModules || {};
         payoutCredited = Boolean(creditOut && creditOut.ok);
       }
 
+      const shouldShowCounter = hasBonus || payout >= (bet * 2);
       await winPresenter.presentWin(payout, bet, {
-        alreadyCounted: countedPayout >= payout
+        forceCounter: shouldShowCounter,
+        replayFromZero: shouldShowCounter,
+        alreadyCounted: shouldShowCounter ? false : (countedPayout >= payout)
       });
       const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
       pushSpinHistory({
@@ -5474,8 +5492,11 @@ window.GTModules = window.GTModules || {};
           payoutCredited = Boolean(creditOut && creditOut.ok);
         }
 
+        const shouldShowCounter = hasBonus || payout >= (bet * 2);
         await winPresenter.presentWin(payout, bet, {
-          alreadyCounted: countedPayout >= payout
+          forceCounter: shouldShowCounter,
+          replayFromZero: shouldShowCounter,
+          alreadyCounted: shouldShowCounter ? false : (countedPayout >= payout)
         });
         const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
         pushSpinHistory({

@@ -1825,9 +1825,6 @@
           if (Number(worldTransitionToken) !== Number(token)) return;
           worldTransitionTarget = "";
           worldTransitionStartedAt = 0;
-          if (worldTransitionToneEnabled) {
-            playActionTone("success", 0.56, "world transition end");
-          }
           worldTransitionToneEnabled = false;
         };
         if (remainingMs > 0) {
@@ -1922,18 +1919,39 @@
       }
 
       const SESSION_NAV_TRANSFER_KEY = "gt_session_nav_transfer_v1";
+      let pendingSessionTransferTarget = "";
+      let pendingSessionTransferIssuedAt = 0;
+
+      function normalizeSessionTransferTarget(value) {
+        const raw = String(value || "").trim().toLowerCase();
+        if (!raw) return "";
+        const noHash = raw.split("#")[0];
+        const noQuery = noHash.split("?")[0];
+        const cleaned = noQuery.replace(/\\/g, "/");
+        const parts = cleaned.split("/");
+        return String(parts[parts.length - 1] || cleaned || "").trim().toLowerCase();
+      }
+
+      function isSessionTransferTarget(value) {
+        const target = normalizeSessionTransferTarget(value);
+        return target === "gambling_slots.html" || target === "gambling.html";
+      }
 
       function shouldPreserveSessionOnNavigation() {
         try {
+          if (isSessionTransferTarget(pendingSessionTransferTarget)) {
+            const age = Math.abs(Date.now() - Math.max(0, Math.floor(Number(pendingSessionTransferIssuedAt) || 0)));
+            if (age <= 30000) return true;
+          }
           const raw = sessionStorage.getItem(SESSION_NAV_TRANSFER_KEY);
           if (!raw) return false;
           const parsed = JSON.parse(raw);
           if (!parsed || typeof parsed !== "object") return false;
-          const target = String(parsed.target || "").trim().toLowerCase();
-          if (target !== "gambling_slots.html" && target !== "gambling.html") return false;
+          const target = String(parsed.target || "");
+          if (!isSessionTransferTarget(target)) return false;
           const issuedAt = Math.max(0, Math.floor(Number(parsed.issuedAt) || 0));
           if (!issuedAt) return false;
-          return Math.abs(Date.now() - issuedAt) <= 20000;
+          return Math.abs(Date.now() - issuedAt) <= 30000;
         } catch (_error) {
           return false;
         }
@@ -1942,10 +1960,12 @@
       function prepareSessionNavigation(targetPath) {
         const target = String(targetPath || "").trim();
         if (!target) return;
+        pendingSessionTransferTarget = target;
+        pendingSessionTransferIssuedAt = Date.now();
         try {
           sessionStorage.setItem(SESSION_NAV_TRANSFER_KEY, JSON.stringify({
             target,
-            issuedAt: Date.now(),
+            issuedAt: pendingSessionTransferIssuedAt,
             accountId: String(playerProfileId || "").trim(),
             username: String(playerName || "").trim().toLowerCase(),
             sessionId: String(playerSessionId || "").trim()
@@ -7045,9 +7065,6 @@
         const allowed = inWorld ? String(nextMode || "").trim().toLowerCase() : "";
         const mode = (allowed === "main" || allowed === "social") ? allowed : "";
         gtQuickMenuMode = mode;
-        if (mode !== prevMode && mode) {
-          playSfxEvent("ui", 0.34, "input", "quick menu");
-        }
         if (gtMainMenuPopupEl) gtMainMenuPopupEl.classList.toggle("hidden", mode !== "main");
         if (gtSocialMenuPopupEl) gtSocialMenuPopupEl.classList.toggle("hidden", mode !== "social");
         if (gtMainMenuBtnEl) gtMainMenuBtnEl.classList.toggle("active", mode === "main");
@@ -13891,12 +13908,12 @@
             const preserveSessionForNavigation = shouldPreserveSessionOnNavigation();
             if (!preserveSessionForNavigation) {
               releaseAccountSession();
-            }
-            if (network.globalPlayerRef) {
-              network.globalPlayerRef.remove();
-            }
-            if (network.playerRef) {
-              network.playerRef.remove();
+              if (network.globalPlayerRef) {
+                network.globalPlayerRef.remove();
+              }
+              if (network.playerRef) {
+                network.playerRef.remove();
+              }
             }
           });
         } catch (error) {
