@@ -1278,6 +1278,7 @@
       let worldTransitionStartedAt = 0;
       let worldTransitionToken = 0;
       let worldTransitionToneEnabled = false;
+      let suppressNextWorldTransitionTone = false;
       let hudExpanded = false;
       let hasSeenFriendRequestsSnapshot = false;
       let hasSeenFriendsSnapshot = false;
@@ -1434,6 +1435,7 @@
           playActionTone(fallbackTone || "input", intensity, fallbackLabel || key);
           return false;
         }
+        const fallbackAllowed = key !== "hit" && key !== "place";
         const now = performance.now();
         const cooldownMs = Math.max(8, Math.floor(Number(cfg.cooldownMs) || 40));
         const lastPlayAt = Number(sfxLastPlayAtByEvent[key]) || -9999;
@@ -1467,7 +1469,9 @@
             if (playPromise && typeof playPromise.catch === "function") {
               playPromise.catch(() => {
                 sfxUnavailableByEvent[key] = true;
-                playActionTone(cfg.fallbackTone || fallbackTone || "input", intensity, cfg.fallbackLabel || fallbackLabel || key);
+                if (fallbackAllowed) {
+                  playActionTone(cfg.fallbackTone || fallbackTone || "input", intensity, cfg.fallbackLabel || fallbackLabel || key);
+                }
               });
             }
             return true;
@@ -1475,7 +1479,9 @@
             sfxUnavailableByEvent[key] = true;
           }
         }
-        playActionTone(cfg.fallbackTone || fallbackTone || "input", intensity, cfg.fallbackLabel || fallbackLabel || key);
+        if (fallbackAllowed) {
+          playActionTone(cfg.fallbackTone || fallbackTone || "input", intensity, cfg.fallbackLabel || fallbackLabel || key);
+        }
         return false;
       }
 
@@ -1746,8 +1752,6 @@
         const sfxEvent = resolveActionSfxEvent(tier, label);
         if (sfxEvent) {
           playSfxEvent(sfxEvent, toneIntensity, tier, label);
-        } else {
-          playActionTone(tier, toneIntensity, label);
         }
         return latencyMs;
       }
@@ -1795,7 +1799,9 @@
         worldTransitionTarget = String(targetWorldId || "");
         worldTransitionStartedAt = performance.now();
         const targetId = String(targetWorldId || "").trim().toLowerCase();
-        worldTransitionToneEnabled = Boolean(inWorld) && targetId !== "menu";
+        const suppressToneOnce = suppressNextWorldTransitionTone;
+        suppressNextWorldTransitionTone = false;
+        worldTransitionToneEnabled = Boolean(inWorld) && targetId !== "menu" && !suppressToneOnce;
         if (worldTransitionToneEnabled) {
           playActionTone("input", 0.5, "world transition start");
         }
@@ -5372,6 +5378,7 @@
         addClientLog("Authenticated as @" + username + ".");
         authScreenEl.classList.add("hidden");
         gameShellEl.classList.remove("hidden");
+        suppressNextWorldTransitionTone = true;
         authPasswordEl.value = "";
         if (!gameBootstrapped) {
           bootstrapGame();
