@@ -1294,6 +1294,24 @@
       const MAX_TICK_CATCHUP = 4;
       let feedbackAudioContext = null;
       let lastActionToneAtMs = -9999;
+      let feedbackNoiseBuffer = null;
+      const FEEDBACK_MASTER_GAIN = Math.max(0, Math.min(1, Number(SETTINGS.FEEDBACK_SFX_GAIN) || 0.2));
+      const feedbackToneLastByKey = {};
+      const ACTION_TONE_PRESETS = {
+        tap: { wave: "triangle", from: 620, to: 760, duration: 0.048, gain: 0.26, cooldownMs: 18, harmonic: 1.8, harmonicGain: 0.22 },
+        tap_soft: { wave: "sine", from: 520, to: 590, duration: 0.04, gain: 0.2, cooldownMs: 18, harmonic: 0, harmonicGain: 0 },
+        success: { wave: "sine", from: 760, to: 980, duration: 0.07, gain: 0.34, cooldownMs: 28, harmonic: 2, harmonicGain: 0.32 },
+        warn: { wave: "sawtooth", from: 520, to: 430, duration: 0.08, gain: 0.3, cooldownMs: 38, harmonic: 1.5, harmonicGain: 0.16 },
+        deny: { wave: "square", from: 280, to: 190, duration: 0.11, gain: 0.35, cooldownMs: 84, harmonic: 0, harmonicGain: 0 },
+        hit: { wave: "triangle", from: 240, to: 150, duration: 0.055, gain: 0.3, cooldownMs: 24, harmonic: 2.2, harmonicGain: 0.14, noiseGain: 0.22, noiseFreq: 1500 },
+        break: { wave: "triangle", from: 320, to: 110, duration: 0.085, gain: 0.36, cooldownMs: 42, harmonic: 1.6, harmonicGain: 0.18, noiseGain: 0.3, noiseFreq: 1200 },
+        place: { wave: "triangle", from: 440, to: 560, duration: 0.06, gain: 0.28, cooldownMs: 28, harmonic: 2.1, harmonicGain: 0.16, noiseGain: 0.12, noiseFreq: 1800 },
+        rotate: { wave: "triangle", from: 500, to: 720, duration: 0.055, gain: 0.26, cooldownMs: 24, harmonic: 2.2, harmonicGain: 0.2 },
+        ui_open: { wave: "sine", from: 560, to: 680, duration: 0.07, gain: 0.3, cooldownMs: 60, harmonic: 2, harmonicGain: 0.22 },
+        harvest: { wave: "sine", from: 760, to: 1100, duration: 0.12, gain: 0.36, cooldownMs: 88, harmonic: 1.5, harmonicGain: 0.35 },
+        world_start: { wave: "triangle", from: 180, to: 320, duration: 0.1, gain: 0.3, cooldownMs: 130, harmonic: 2, harmonicGain: 0.18 },
+        world_end: { wave: "sine", from: 420, to: 820, duration: 0.095, gain: 0.34, cooldownMs: 130, harmonic: 2, harmonicGain: 0.28 }
+      };
 
       function getFeedbackAudioContext() {
         if (typeof window === "undefined") return null;
@@ -1303,6 +1321,156 @@
           feedbackAudioContext = new AudioContextClass();
         }
         return feedbackAudioContext;
+      }
+
+      function getFeedbackNoiseBuffer(ctxAudio) {
+        if (!ctxAudio) return null;
+        if (feedbackNoiseBuffer) return feedbackNoiseBuffer;
+        try {
+          const sampleRate = Math.max(8000, Math.floor(Number(ctxAudio.sampleRate) || 44100));
+          const durationSeconds = 0.14;
+          const frameCount = Math.max(1, Math.floor(sampleRate * durationSeconds));
+          const buffer = ctxAudio.createBuffer(1, frameCount, sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < frameCount; i++) {
+            const t = i / frameCount;
+            const decay = 1 - t;
+            data[i] = (Math.random() * 2 - 1) * decay * decay;
+          }
+          feedbackNoiseBuffer = buffer;
+        } catch (error) {
+          feedbackNoiseBuffer = null;
+        }
+        return feedbackNoiseBuffer;
+      }
+
+      function resolveActionToneEvent(toneType, label) {
+        const kind = String(toneType || "input").toLowerCase();
+        const detail = String(label || "").toLowerCase();
+        if (detail.indexOf("world transition start") !== -1) return "world_start";
+        if (detail.indexOf("world transition end") !== -1) return "world_end";
+        if (detail.indexOf("cooldown") !== -1) return "tap_soft";
+        if (detail.indexOf("tile hit") !== -1) return "hit";
+        if (detail.indexOf("block broken") !== -1) return "break";
+        if (detail.indexOf("harvested seed") !== -1) return "harvest";
+        if (detail.indexOf("placed block") !== -1 || detail.indexOf("world lock placed") !== -1 || detail.indexOf("spawn moved") !== -1) {
+          return "place";
+        }
+        if (detail.indexOf("rotated") !== -1) return "rotate";
+        if (
+          detail.indexOf("world lock") !== -1 ||
+          detail.indexOf("vending") !== -1 ||
+          detail.indexOf("gamble") !== -1 ||
+          detail.indexOf("donation box") !== -1 ||
+          detail.indexOf("chest") !== -1 ||
+          detail.indexOf("splicer") !== -1 ||
+          detail.indexOf("owner tax") !== -1 ||
+          detail.indexOf("sign") !== -1 ||
+          detail.indexOf("door") !== -1 ||
+          detail.indexOf("camera") !== -1 ||
+          detail.indexOf("weather") !== -1 ||
+          detail.indexOf("quest interaction") !== -1
+        ) {
+          return "ui_open";
+        }
+        if (kind === "deny") return "deny";
+        if (kind === "warn") return "warn";
+        if (kind === "success") return "success";
+        return "tap";
+      }
+
+      function playOscillatorLayer(ctxAudio, when, preset, ampScale) {
+        try {
+          const fromFreq = Math.max(40, Number(preset.from) || 440);
+          const toFreq = Math.max(40, Number(preset.to) || fromFreq);
+          const duration = Math.max(0.03, Number(preset.duration) || 0.06);
+          const wave = String(preset.wave || "triangle");
+          const gainAmount = Math.max(0.0002, Number(preset.gain) || 0.25) * ampScale;
+          const attack = 0.004;
+
+          const osc = ctxAudio.createOscillator();
+          const gain = ctxAudio.createGain();
+          osc.type = wave;
+          osc.frequency.setValueAtTime(fromFreq, when);
+          osc.frequency.exponentialRampToValueAtTime(toFreq, when + duration);
+          gain.gain.setValueAtTime(0.0001, when);
+          gain.gain.exponentialRampToValueAtTime(gainAmount, when + attack);
+          gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+          osc.connect(gain);
+          gain.connect(ctxAudio.destination);
+          osc.start(when);
+          osc.stop(when + duration + 0.02);
+          osc.onended = () => {
+            try {
+              osc.disconnect();
+              gain.disconnect();
+            } catch (error) {
+              // ignore cleanup errors
+            }
+          };
+
+          const harmonicRatio = Number(preset.harmonic) || 0;
+          const harmonicGain = Math.max(0, Number(preset.harmonicGain) || 0);
+          if (harmonicRatio > 0 && harmonicGain > 0.001) {
+            const harmOsc = ctxAudio.createOscillator();
+            const harmGain = ctxAudio.createGain();
+            harmOsc.type = wave === "square" ? "triangle" : "sine";
+            harmOsc.frequency.setValueAtTime(Math.max(40, fromFreq * harmonicRatio), when);
+            harmOsc.frequency.exponentialRampToValueAtTime(Math.max(40, toFreq * harmonicRatio), when + duration);
+            harmGain.gain.setValueAtTime(0.0001, when);
+            harmGain.gain.exponentialRampToValueAtTime(gainAmount * harmonicGain, when + attack);
+            harmGain.gain.exponentialRampToValueAtTime(0.0001, when + duration * 0.92);
+            harmOsc.connect(harmGain);
+            harmGain.connect(ctxAudio.destination);
+            harmOsc.start(when);
+            harmOsc.stop(when + duration + 0.02);
+            harmOsc.onended = () => {
+              try {
+                harmOsc.disconnect();
+                harmGain.disconnect();
+              } catch (error) {
+                // ignore cleanup errors
+              }
+            };
+          }
+        } catch (error) {
+          // ignore synthesis failures
+        }
+      }
+
+      function playNoiseLayer(ctxAudio, when, preset, ampScale) {
+        const noiseGainAmount = Math.max(0, Number(preset.noiseGain) || 0);
+        if (noiseGainAmount <= 0.001) return;
+        const buffer = getFeedbackNoiseBuffer(ctxAudio);
+        if (!buffer) return;
+        try {
+          const duration = Math.max(0.03, Number(preset.duration) || 0.06);
+          const noiseSource = ctxAudio.createBufferSource();
+          noiseSource.buffer = buffer;
+          const filter = ctxAudio.createBiquadFilter();
+          filter.type = "bandpass";
+          filter.frequency.setValueAtTime(Math.max(140, Number(preset.noiseFreq) || 1300), when);
+          filter.Q.value = 0.8;
+          const gain = ctxAudio.createGain();
+          gain.gain.setValueAtTime(Math.max(0.0001, noiseGainAmount * ampScale), when);
+          gain.gain.exponentialRampToValueAtTime(0.0001, when + duration * 0.82);
+          noiseSource.connect(filter);
+          filter.connect(gain);
+          gain.connect(ctxAudio.destination);
+          noiseSource.start(when);
+          noiseSource.stop(when + Math.max(0.04, duration));
+          noiseSource.onended = () => {
+            try {
+              noiseSource.disconnect();
+              filter.disconnect();
+              gain.disconnect();
+            } catch (error) {
+              // ignore cleanup errors
+            }
+          };
+        } catch (error) {
+          // ignore synthesis failures
+        }
       }
 
       function addActionFeedbackEvent(tx, ty, tier, label, latencyMs, intensity) {
@@ -1345,7 +1513,12 @@
           ? "warn"
           : result;
         addActionFeedbackEvent(safeTx, safeTy, tier, label, latencyMs, result === "success" ? 0.95 : 0.75);
-        playActionTone(tier, 0.55);
+        const latencyRatio = INPUT_RESPONSE_TARGET_MS > 0
+          ? Math.max(0, Math.min(1.8, latencyMs / INPUT_RESPONSE_TARGET_MS))
+          : 0;
+        const baseIntensity = result === "success" ? 0.5 : 0.62;
+        const toneIntensity = Math.max(0.2, Math.min(1, baseIntensity + (latencyRatio > 1 ? (latencyRatio - 1) * 0.08 : 0)));
+        playActionTone(tier, toneIntensity, label);
         return latencyMs;
       }
 
@@ -1359,49 +1532,29 @@
         const safeTy = Math.floor(Number(ty));
         if (!Number.isFinite(safeTx) || !Number.isFinite(safeTy)) return;
         addActionFeedbackEvent(safeTx, safeTy, "input", "action");
-        playActionTone("input", 0.45);
+        playActionTone("input", 0.42, "action tap");
       }
 
-      function playActionTone(toneType, intensity) {
+      function playActionTone(toneType, intensity, label) {
         const now = performance.now();
-        if (!Number.isFinite(now) || now - lastActionToneAtMs < 25) return;
+        if (!Number.isFinite(now)) return;
+        const eventKey = resolveActionToneEvent(toneType, label);
+        const preset = ACTION_TONE_PRESETS[eventKey] || ACTION_TONE_PRESETS.tap;
+        const perEventCooldown = Math.max(8, Math.floor(Number(preset.cooldownMs) || 24));
+        const lastForKey = Number(feedbackToneLastByKey[eventKey]) || -9999;
+        if ((now - lastForKey) < perEventCooldown) return;
+        if ((now - lastActionToneAtMs) < 10) return;
         const ctxAudio = getFeedbackAudioContext();
         if (!ctxAudio) return;
-        const gainByType = {
-          input: { freq: 680, type: "triangle", duration: 0.06, base: 0.08 },
-          success: { freq: 880, type: "sine", duration: 0.06, base: 0.09 },
-          warn: { freq: 520, type: "sawtooth", duration: 0.07, base: 0.08 },
-          deny: { freq: 260, type: "square", duration: 0.09, base: 0.08 }
-        };
-        const settings = gainByType[String(toneType)] || gainByType.input;
-        const amp = Math.max(0.08, Math.min(1, Number(intensity) || 0.4));
+        const amp = Math.max(0.08, Math.min(1, Number(intensity) || 0.45));
+        const ampScale = Math.max(0.02, FEEDBACK_MASTER_GAIN * (0.46 + amp * 0.7));
         const resumePromise = ctxAudio.state === "suspended" ? ctxAudio.resume() : Promise.resolve();
+        feedbackToneLastByKey[eventKey] = now;
         lastActionToneAtMs = now;
         resumePromise.then(() => {
-          try {
-            const osc = ctxAudio.createOscillator();
-            const gain = ctxAudio.createGain();
-            osc.type = settings.type;
-            osc.frequency.value = settings.freq + (amp * 70);
-            gain.gain.value = 0.0001;
-            osc.connect(gain);
-            gain.connect(ctxAudio.destination);
-            const t = ctxAudio.currentTime;
-            gain.gain.exponentialRampToValueAtTime(settings.base * amp, t + 0.006);
-            gain.gain.exponentialRampToValueAtTime(0.0001, t + settings.duration);
-            osc.start(t);
-            osc.stop(t + settings.duration + 0.03);
-            osc.onended = () => {
-              try {
-                osc.disconnect();
-                gain.disconnect();
-              } catch (error) {
-                // ignore
-              }
-            };
-          } catch (error) {
-            // ignore audio failures
-          }
+          const t = ctxAudio.currentTime + 0.001;
+          playOscillatorLayer(ctxAudio, t, preset, ampScale);
+          playNoiseLayer(ctxAudio, t, preset, ampScale);
         }).catch(() => {
           // ignore audio failures
         });
@@ -1412,6 +1565,7 @@
         worldTransitionToken = token;
         worldTransitionTarget = String(targetWorldId || "");
         worldTransitionStartedAt = performance.now();
+        playActionTone("input", 0.5, "world transition start");
         const safeStartedAt = worldTransitionStartedAt;
         window.setTimeout(() => {
           if (worldTransitionToken !== token) return;
@@ -1431,6 +1585,7 @@
           if (Number(worldTransitionToken) !== Number(token)) return;
           worldTransitionTarget = "";
           worldTransitionStartedAt = 0;
+          playActionTone("success", 0.56, "world transition end");
         };
         if (remainingMs > 0) {
           window.setTimeout(finalize, remainingMs);
@@ -11413,8 +11568,10 @@
         if (antiCheatController && typeof antiCheatController.onWorldSwitch === "function") {
           antiCheatController.onWorldSwitch(worldId);
         }
+        let transitionToken = 0;
 
         if (!network.enabled) {
+          transitionToken = beginWorldTransition(worldId);
           setInWorldState(true);
           currentWorldId = worldId;
           resetSpawnStructureTile();
@@ -11436,10 +11593,12 @@
           });
           applyQuestEvent("visit_world", { worldId });
           applyAchievementEvent("visit_world", { worldId });
+          finishWorldTransition(transitionToken);
           return;
         }
 
         if (worldId === currentWorldId && network.playersRef) return;
+        transitionToken = beginWorldTransition(worldId);
 
         if (wasInWorld && previousWorldId && previousWorldId !== worldId) {
           sendSystemWorldMessage(playerName + " left the world.");
@@ -11707,6 +11866,7 @@
           : null;
         if (!handlers) {
           setNetworkState("Sync module missing", true);
+          finishWorldTransition(transitionToken);
           return;
         }
         network.handlers.players = handlers.players;
@@ -12072,6 +12232,7 @@
           if (!inWorld || currentWorldId !== worldId) return;
           ensurePlayerSafeSpawn(false);
         }, 1200);
+        finishWorldTransition(transitionToken);
       }
 
       function syncBlock(tx, ty, id) {
@@ -14394,14 +14555,15 @@
         if (!inWorld) return;
         const pos = worldFromPointer(e);
         mouseWorld = pos;
+        const actionStartedAtMs = performance.now();
         if (e.button === 0) {
           if (openWrenchMenuFromNameIcon(e.clientX, e.clientY)) return;
           isPointerDown = true;
-          useActionAt(pos.tx, pos.ty);
+          useActionAt(pos.tx, pos.ty, actionStartedAtMs);
           return;
         }
         if (e.button === 2) {
-          useSecondaryActionAt(pos.tx, pos.ty);
+          useSecondaryActionAt(pos.tx, pos.ty, actionStartedAtMs);
         }
       });
 
@@ -14419,11 +14581,12 @@
         isPointerDown = !mobileSecondary;
         const pos = worldFromClient(touch.clientX, touch.clientY);
         mouseWorld = pos;
+        const actionStartedAtMs = performance.now();
         if (mobileSecondary) {
-          useSecondaryActionAt(pos.tx, pos.ty);
+          useSecondaryActionAt(pos.tx, pos.ty, actionStartedAtMs);
           mobileLastTouchActionAt = performance.now();
         } else {
-          useActionAt(pos.tx, pos.ty);
+          useActionAt(pos.tx, pos.ty, actionStartedAtMs);
           mobileLastTouchActionAt = performance.now();
         }
       }, { passive: false });
@@ -14492,7 +14655,7 @@
                   } else {
                     lastHoldActionTile = { tx: mouseWorld.tx, ty: mouseWorld.ty };
                     lastHoldActionAtMs = lastTickTs;
-                    useActionAt(mouseWorld.tx, mouseWorld.ty);
+                    useActionAt(mouseWorld.tx, mouseWorld.ty, lastTickTs);
                   }
                 }
               }
