@@ -1279,6 +1279,7 @@
       let worldTransitionToken = 0;
       let worldTransitionToneEnabled = false;
       let suppressNextWorldTransitionTone = false;
+      let suppressTransitionTonesUntilMs = 0;
       let hudExpanded = false;
       let hasSeenFriendRequestsSnapshot = false;
       let hasSeenFriendsSnapshot = false;
@@ -1801,7 +1802,9 @@
         const targetId = String(targetWorldId || "").trim().toLowerCase();
         const suppressToneOnce = suppressNextWorldTransitionTone;
         suppressNextWorldTransitionTone = false;
-        worldTransitionToneEnabled = Boolean(inWorld) && targetId !== "menu" && !suppressToneOnce;
+        const transitionAtMs = Number.isFinite(worldTransitionStartedAt) ? worldTransitionStartedAt : performance.now();
+        const suppressByAuthCooldown = transitionAtMs < (Number(suppressTransitionTonesUntilMs) || 0);
+        worldTransitionToneEnabled = Boolean(inWorld) && targetId !== "menu" && !suppressToneOnce && !suppressByAuthCooldown;
         if (worldTransitionToneEnabled) {
           playActionTone("input", 0.5, "world transition start");
         }
@@ -5379,6 +5382,7 @@
         authScreenEl.classList.add("hidden");
         gameShellEl.classList.remove("hidden");
         suppressNextWorldTransitionTone = true;
+        suppressTransitionTonesUntilMs = performance.now() + 8000;
         authPasswordEl.value = "";
         if (!gameBootstrapped) {
           bootstrapGame();
