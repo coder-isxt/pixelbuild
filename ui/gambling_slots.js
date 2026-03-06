@@ -227,7 +227,10 @@ window.GTModules = window.GTModules || {};
       currentSpinWin: 0,
       stickyWilds: 0,
       multiplierCells: 0,
-      activeMultiplier: 1
+      activeMultiplier: 1,
+      spinsTotal: 0,
+      spinsPlayed: 0,
+      panelTitle: "FREE SPINS"
     },
     tower: {
       roundsByMachine: {},
@@ -300,6 +303,11 @@ window.GTModules = window.GTModules || {};
     bonusHudSpin: document.getElementById("bonusHudSpin"),
     bonusHudSticky: document.getElementById("bonusHudSticky"),
     bonusHudMulti: document.getElementById("bonusHudMulti"),
+    bonusSpinPanel: document.getElementById("bonusSpinPanel"),
+    bonusSpinTitle: document.getElementById("bonusSpinTitle"),
+    bonusSpinCount: document.getElementById("bonusSpinCount"),
+    bonusSpinTotal: document.getElementById("bonusSpinTotal"),
+    bonusSpinProgressFill: document.getElementById("bonusSpinProgressFill"),
     bonusBanner: document.getElementById("bonusBanner"),
     bonusOverlay: document.getElementById("bonusOverlay"),
     bonusOverlayTitle: document.getElementById("bonusOverlayTitle"),
@@ -346,6 +354,247 @@ window.GTModules = window.GTModules || {};
     viewGame: document.getElementById("viewGame"),
     backToLobbyBtn: document.getElementById("backToLobbyBtn")
   };
+
+  installCasinoVisualRefresh();
+
+  function installCasinoVisualRefresh() {
+    if (!(document && document.head)) return;
+    if (document.getElementById("casinoVisualRefresh")) return;
+    const style = document.createElement("style");
+    style.id = "casinoVisualRefresh";
+    style.textContent = `
+      body.casino-premium .page,
+      .page {
+        width: min(1520px, 96vw);
+      }
+
+      body.casino-premium .head,
+      body.casino-premium .card,
+      .head,
+      .card {
+        border-color: rgba(239, 194, 109, 0.36);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 232, 183, 0.08),
+          0 14px 34px rgba(0, 0, 0, 0.28);
+      }
+
+      body.casino-premium .machine-item,
+      .machine-item {
+        border-color: rgba(239, 194, 109, 0.34);
+        background: linear-gradient(180deg, rgba(34, 47, 40, 0.94), rgba(21, 30, 25, 0.96));
+      }
+
+      body.casino-premium .machine-item .name,
+      .machine-item .name {
+        color: #ffe7b5;
+      }
+
+      body.casino-premium .machine-item .info,
+      .machine-item .info {
+        color: #dae6db;
+      }
+
+      #viewGame .stage {
+        border-radius: 20px;
+      }
+
+      #viewGame .stage-wrap {
+        max-width: min(1180px, 96vw);
+        margin-inline: auto;
+      }
+
+      #viewGame .stage.theme-slots_v2,
+      body.casino-premium #viewGame .stage.theme-slots_v2 {
+        border: 1px solid rgba(239, 194, 109, 0.68);
+        border-radius: 22px;
+        padding: 14px;
+        background:
+          radial-gradient(900px 280px at 50% -120px, rgba(245, 218, 154, 0.26), transparent 66%),
+          linear-gradient(180deg, rgba(21, 31, 26, 0.98), rgba(10, 15, 13, 0.99));
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 232, 183, 0.14),
+          0 26px 64px rgba(0, 0, 0, 0.52);
+      }
+
+      #viewGame .stage.theme-slots_v2 .premium-topbar {
+        border-color: rgba(239, 194, 109, 0.52);
+        background: linear-gradient(180deg, rgba(36, 49, 41, 0.94), rgba(22, 31, 27, 0.96));
+        box-shadow: inset 0 0 0 1px rgba(255, 235, 193, 0.1);
+      }
+
+      #viewGame .stage.theme-slots_v2 .board-wrap {
+        border: 1px solid rgba(239, 194, 109, 0.56);
+        border-radius: 18px;
+        padding: 12px;
+        background:
+          linear-gradient(180deg, rgba(35, 45, 39, 0.97), rgba(17, 24, 21, 0.98));
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 236, 194, 0.12),
+          inset 0 10px 18px rgba(255, 255, 255, 0.02),
+          inset 0 -16px 28px rgba(0, 0, 0, 0.36);
+      }
+
+      #viewGame .stage.theme-slots_v2 .board-wrap.dimmed {
+        filter: brightness(0.9) saturate(0.95);
+      }
+
+      #viewGame .stage.theme-slots_v2 .board {
+        gap: 8px;
+      }
+
+      #viewGame .stage.theme-slots_v2 .reel {
+        border: 1px solid rgba(239, 194, 109, 0.36);
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(52, 67, 58, 0.95), rgba(30, 40, 34, 0.97));
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 231, 184, 0.08),
+          inset 0 -10px 18px rgba(0, 0, 0, 0.34);
+      }
+
+      #viewGame .stage.theme-slots_v2 .cell {
+        border: 1px solid rgba(239, 194, 109, 0.28);
+        border-radius: 10px;
+        background: linear-gradient(180deg, rgba(89, 107, 96, 0.98), rgba(51, 64, 57, 0.98));
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 238, 204, 0.1),
+          inset 0 -8px 14px rgba(0, 0, 0, 0.24);
+      }
+
+      #viewGame .stage.theme-slots_v2 .cell .icon {
+        font-size: clamp(24px, 3.5vw, 34px);
+        color: #fff1d2;
+        text-shadow:
+          0 1px 0 rgba(0, 0, 0, 0.6),
+          0 0 10px rgba(255, 235, 190, 0.2);
+      }
+
+      #viewGame .stage.theme-slots_v2 .line-list {
+        border-color: rgba(239, 194, 109, 0.42);
+        border-radius: 12px;
+        min-height: 58px;
+        background: rgba(22, 30, 26, 0.92);
+      }
+
+      #viewGame .stage.theme-slots_v2 .line-badge {
+        border-color: rgba(239, 194, 109, 0.38);
+        background: rgba(34, 45, 38, 0.96);
+        color: #f2f7f2;
+      }
+
+      #viewGame .stage.theme-slots_v2 .line-badge.hot {
+        border-color: rgba(112, 197, 143, 0.72);
+        background: rgba(25, 65, 45, 0.95);
+      }
+
+      #viewGame .stage.theme-slots_v2 .game-controls {
+        border-color: rgba(239, 194, 109, 0.36);
+        background: linear-gradient(180deg, rgba(29, 40, 34, 0.94), rgba(17, 24, 21, 0.96)) !important;
+        box-shadow: inset 0 0 0 1px rgba(255, 236, 194, 0.08);
+      }
+
+      #viewGame .stage.theme-slots_v2 .quick-btn,
+      #viewGame .stage.theme-slots_v2 .chip {
+        border-color: rgba(239, 194, 109, 0.54);
+        background: linear-gradient(180deg, rgba(61, 46, 26, 0.94), rgba(43, 32, 18, 0.96));
+        color: #f8ebcf;
+      }
+
+      #viewGame .stage.theme-slots_v2 #spinBtn {
+        width: 90px;
+        height: 90px;
+        min-width: 90px !important;
+        border: 3px solid rgba(255, 226, 160, 0.88);
+        background:
+          radial-gradient(circle at 36% 26%, rgba(255, 98, 90, 0.98), rgba(164, 25, 24, 0.99));
+        color: #fff4d9;
+        box-shadow:
+          inset 0 0 0 2px rgba(255, 237, 201, 0.24),
+          0 0 0 4px rgba(19, 10, 8, 0.54),
+          0 10px 24px rgba(0, 0, 0, 0.4),
+          0 0 22px rgba(255, 100, 90, 0.28);
+      }
+
+      #viewGame .stage.theme-slots_v2 .bonus-hud {
+        border-color: rgba(239, 194, 109, 0.42);
+        background: linear-gradient(180deg, rgba(37, 48, 41, 0.94), rgba(20, 29, 24, 0.96));
+      }
+
+      #viewGame .bonus-spin-panel {
+        position: absolute;
+        left: 50%;
+        top: 10px;
+        transform: translateX(-50%);
+        width: min(420px, calc(100% - 22px));
+        border: 1px solid rgba(239, 194, 109, 0.62);
+        border-radius: 12px;
+        background:
+          linear-gradient(180deg, rgba(31, 43, 37, 0.96), rgba(16, 23, 20, 0.98));
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 236, 194, 0.1),
+          0 10px 22px rgba(0, 0, 0, 0.34);
+        display: grid;
+        gap: 3px;
+        align-items: center;
+        justify-items: center;
+        padding: 7px 10px 8px;
+        z-index: 14;
+        text-align: center;
+        pointer-events: none;
+      }
+
+      #viewGame .bonus-spin-panel .bonus-spin-title {
+        font-size: 8px;
+        letter-spacing: 0.12em;
+        color: #ffe8b5;
+      }
+
+      #viewGame .bonus-spin-panel .bonus-spin-count {
+        font-size: 15px;
+        color: #f6fbf6;
+      }
+
+      #viewGame .bonus-spin-panel .bonus-spin-total {
+        font-size: 8px;
+        color: #d4e2d8;
+      }
+
+      #viewGame .bonus-spin-panel .bonus-spin-progress {
+        width: 100%;
+        height: 7px;
+        border-radius: 999px;
+        border: 1px solid rgba(239, 194, 109, 0.44);
+        background: rgba(13, 19, 16, 0.9);
+        overflow: hidden;
+      }
+
+      #viewGame .bonus-spin-panel .bonus-spin-progress > span {
+        display: block;
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, rgba(255, 214, 133, 0.96), rgba(112, 197, 143, 0.96));
+        box-shadow: 0 0 12px rgba(255, 217, 139, 0.4);
+        transition: width 180ms ease;
+      }
+
+      #viewGame .stage.theme-slots_v2 .bonus-spin-panel {
+        border-color: rgba(239, 194, 109, 0.62);
+      }
+
+      #viewGame .bonus-spin-panel.hidden {
+        display: none !important;
+      }
+
+      @media (max-width: 980px) {
+        #viewGame .stage.theme-slots_v2 #spinBtn {
+          width: 78px;
+          height: 78px;
+          min-width: 78px !important;
+          font-size: 10px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   function buildMachineDefinitions() {
     const slotsDefs = typeof slotsModule.getDefinitions === "function" ? slotsModule.getDefinitions() : {};
@@ -694,15 +943,23 @@ window.GTModules = window.GTModules || {};
       const opts = options && typeof options === "object" ? options : {};
       const anticipation = Boolean(opts.anticipation);
       const pool = SYMBOL_POOL[m.type] || SYMBOL_POOL.slots;
+      const safePoolLen = Math.max(1, pool.length);
       const startTs = performance.now();
-      const baseSpin = turbo ? 320 : 580;
-      const stagger = turbo ? 95 : 170;
-      const anticipationDelay = anticipation ? (turbo ? 120 : 260) : 0;
+      const baseSpin = turbo ? 430 : 900;
+      const stagger = turbo ? 84 : 142;
+      const anticipationDelay = anticipation ? (turbo ? 150 : 310) : 0;
       const stopTimes = [];
       const stopped = [];
+      const reelPhase = [];
+      const reelStartTimes = [];
+      const reelFrameTs = [];
       for (let c = 0; c < cols; c++) {
-        stopTimes[c] = startTs + baseSpin + (c * stagger) + (c === cols - 1 ? anticipationDelay : 0);
+        const reelStart = startTs + (c * (turbo ? 16 : 24));
+        reelStartTimes[c] = reelStart;
+        stopTimes[c] = reelStart + baseSpin + (c * stagger) + (c === cols - 1 ? anticipationDelay : 0);
         stopped[c] = false;
+        reelPhase[c] = Math.random() * safePoolLen;
+        reelFrameTs[c] = startTs;
       }
 
       state.ephemeral.rows = randomRowsForMachine(m, 0);
@@ -727,7 +984,7 @@ window.GTModules = window.GTModules || {};
           if (run.quickStop) {
             for (let c = 0; c < cols; c++) {
               if (stopped[c]) continue;
-              stopTimes[c] = Math.min(stopTimes[c], ts + 70 + (c * 36));
+              stopTimes[c] = Math.min(stopTimes[c], ts + 48 + (c * 24));
             }
           }
 
@@ -735,17 +992,30 @@ window.GTModules = window.GTModules || {};
           for (let c = 0; c < cols; c++) {
             if (stopped[c]) continue;
             allStopped = false;
-            const t = ts - startTs;
-            const reelProgress = Math.max(0, (ts - (startTs + (c * 18))) / (stopTimes[c] - (startTs + (c * 18))));
-            const eased = reelProgress < 0.28
-              ? reelProgress / 0.28
-              : (reelProgress < 0.78 ? 1 : 1 - easeOutQuint((reelProgress - 0.78) / 0.22));
-            const stride = 1 + Math.floor((1 + (eased * 8)) + ((t / (turbo ? 42 : 56)) % Math.max(2, pool.length - 1)));
+            const reelStart = reelStartTimes[c];
+            const reelStop = stopTimes[c];
+            const reelDuration = Math.max(160, reelStop - reelStart);
+            const reelProgress = Math.max(0, Math.min(1, (ts - reelStart) / reelDuration));
+            const accelWindow = turbo ? 0.14 : 0.18;
+            const decelStart = turbo ? 0.74 : 0.69;
+            let speedFactor = 1;
+            if (reelProgress < accelWindow) {
+              speedFactor = Math.max(0.08, easeOutCubic(reelProgress / accelWindow));
+            } else if (reelProgress > decelStart) {
+              const tail = (reelProgress - decelStart) / (1 - decelStart);
+              speedFactor = Math.max(0.06, 1 - (tail * tail * tail));
+            }
+            const dt = Math.max(8, Math.min(42, ts - reelFrameTs[c]));
+            reelFrameTs[c] = ts;
+            const baseSymbolsPerSecond = turbo ? 28 : 22;
+            const anticipationLift = anticipation && c === cols - 1 && reelProgress > 0.84 ? 2.2 : 0;
+            const symbolsPerSecond = Math.max(2, (baseSymbolsPerSecond * speedFactor) + anticipationLift);
+            reelPhase[c] += (symbolsPerSecond * dt) / 1000;
             for (let r = 0; r < rows; r++) {
-              const idx = (Math.floor((t / (turbo ? 18 : 24)) + stride + (r * 3) + (c * 5)) % pool.length + pool.length) % pool.length;
+              const idx = (Math.floor(reelPhase[c] + (r * 1.91) + (c * 0.73)) % safePoolLen + safePoolLen) % safePoolLen;
               state.ephemeral.rows[r][c] = pool[idx] || "?";
             }
-            if (ts >= stopTimes[c]) {
+            if (ts >= reelStop) {
               stopped[c] = true;
               for (let r = 0; r < rows; r++) {
                 if (!state.ephemeral.rows[r]) state.ephemeral.rows[r] = [];
@@ -1021,12 +1291,19 @@ window.GTModules = window.GTModules || {};
     const next = String(phase || BONUS_PHASES.BASE_IDLE);
     state.bonusFlow.phase = next;
     state.bonusFlow.active = next.indexOf("BONUS_") === 0;
+    if (!state.bonusFlow.active) {
+      state.bonusFlow.spinsLeft = 0;
+      state.bonusFlow.spinsTotal = 0;
+      state.bonusFlow.spinsPlayed = 0;
+    }
     if (els.stage instanceof HTMLElement) els.stage.dataset.bonusPhase = next;
+    if (!state.bonusFlow.active) showBonusSpinPanel(false);
   }
 
   function showBonusHud(show) {
     if (!(els.bonusHud instanceof HTMLElement)) return;
     els.bonusHud.classList.toggle("hidden", !show);
+    if (!show) showBonusSpinPanel(false);
   }
 
   function setTumbleIndicator(text) {
@@ -1040,14 +1317,69 @@ window.GTModules = window.GTModules || {};
     els.tumbleIndicator.classList.add("active");
   }
 
+  function ensureBonusSpinPanel() {
+    if (els.bonusSpinPanel instanceof HTMLElement) return els.bonusSpinPanel;
+    if (!(els.boardWrap instanceof HTMLElement)) return null;
+    const panel = document.createElement("div");
+    panel.id = "bonusSpinPanel";
+    panel.className = "bonus-spin-panel hidden";
+    panel.innerHTML = [
+      "<div class=\"bonus-spin-title\" id=\"bonusSpinTitle\">FREE SPINS</div>",
+      "<div class=\"bonus-spin-count\" id=\"bonusSpinCount\">0 / 0</div>",
+      "<div class=\"bonus-spin-total\" id=\"bonusSpinTotal\">TOTAL 0 WL</div>",
+      "<div class=\"bonus-spin-progress\"><span id=\"bonusSpinProgressFill\"></span></div>"
+    ].join("");
+    els.boardWrap.appendChild(panel);
+    els.bonusSpinPanel = panel;
+    els.bonusSpinTitle = panel.querySelector("#bonusSpinTitle");
+    els.bonusSpinCount = panel.querySelector("#bonusSpinCount");
+    els.bonusSpinTotal = panel.querySelector("#bonusSpinTotal");
+    els.bonusSpinProgressFill = panel.querySelector("#bonusSpinProgressFill");
+    return panel;
+  }
+
+  function showBonusSpinPanel(show) {
+    const panel = ensureBonusSpinPanel();
+    if (!(panel instanceof HTMLElement)) return;
+    panel.classList.toggle("hidden", !show);
+    panel.classList.toggle("active", Boolean(show));
+  }
+
+  function updateBonusSpinPanel(data) {
+    const panel = ensureBonusSpinPanel();
+    if (!(panel instanceof HTMLElement)) return;
+    const row = data && typeof data === "object" ? data : {};
+    const title = String(row.title || state.bonusFlow.panelTitle || "FREE SPINS").trim() || "FREE SPINS";
+    const total = Math.max(1, Math.floor(Number(row.total) || Number(state.bonusFlow.spinsTotal) || 1));
+    const played = Math.max(0, Math.min(total, Math.floor(Number(row.played) || Number(state.bonusFlow.spinsPlayed) || 0)));
+    const totalWin = Math.max(0, Math.floor(Number(row.totalWin) || Number(state.bonusFlow.bonusWin) || 0));
+    if (els.bonusSpinTitle instanceof HTMLElement) els.bonusSpinTitle.textContent = title;
+    if (els.bonusSpinCount instanceof HTMLElement) els.bonusSpinCount.textContent = played + " / " + total;
+    if (els.bonusSpinTotal instanceof HTMLElement) {
+      els.bonusSpinTotal.innerHTML = "TOTAL " + formatLocksByDisplayUnitHtml(totalWin);
+    }
+    if (els.bonusSpinProgressFill instanceof HTMLElement) {
+      const width = total > 0 ? (played / total) * 100 : 0;
+      els.bonusSpinProgressFill.style.width = Math.max(0, Math.min(100, width)).toFixed(2) + "%";
+    }
+  }
+
   function updateBonusHud(data) {
     const row = data && typeof data === "object" ? data : {};
-    state.bonusFlow.spinsLeft = Math.max(0, Math.floor(Number(row.spinsLeft) || 0));
+    state.bonusFlow.spinsLeft = Math.max(0, Math.floor(Number(row.spinsLeft || row.freeSpinsLeft) || 0));
     state.bonusFlow.bonusWin = Math.max(0, Math.floor(Number(row.bonusWin) || 0));
     state.bonusFlow.currentSpinWin = Math.max(0, Math.floor(Number(row.currentSpinWin) || 0));
     state.bonusFlow.stickyWilds = Math.max(0, Math.floor(Number(row.stickyWilds) || 0));
     state.bonusFlow.multiplierCells = Math.max(0, Math.floor(Number(row.multiplierCells) || 0));
     state.bonusFlow.activeMultiplier = Math.max(1, Number(row.activeMultiplier) || 1);
+    if (Number.isFinite(Number(row.spinsTotal))) {
+      state.bonusFlow.spinsTotal = Math.max(0, Math.floor(Number(row.spinsTotal) || 0));
+    }
+    if (Number.isFinite(Number(row.spinsPlayed))) {
+      state.bonusFlow.spinsPlayed = Math.max(0, Math.floor(Number(row.spinsPlayed) || 0));
+    }
+    const panelTitle = String(row.panelTitle || row.mode || state.bonusFlow.panelTitle || "FREE SPINS").trim();
+    state.bonusFlow.panelTitle = panelTitle || "FREE SPINS";
 
     if (els.bonusHudState instanceof HTMLElement) {
       const mode = String(row.mode || "FREE SPINS");
@@ -1063,6 +1395,24 @@ window.GTModules = window.GTModules || {};
     if (els.bonusHudMulti instanceof HTMLElement) {
       const multiLabel = String(row.multiLabel || "").trim();
       els.bonusHudMulti.textContent = multiLabel || ("x10 Cells: " + state.bonusFlow.multiplierCells);
+    }
+
+    const inferredTotal = state.bonusFlow.spinsTotal > 0
+      ? state.bonusFlow.spinsTotal
+      : Math.max(0, state.bonusFlow.spinsLeft + state.bonusFlow.spinsPlayed);
+    const inferredPlayed = inferredTotal > 0
+      ? Math.max(0, Math.min(inferredTotal, state.bonusFlow.spinsPlayed || (inferredTotal - state.bonusFlow.spinsLeft)))
+      : 0;
+    if (state.bonusFlow.active || inferredTotal > 0 || state.bonusFlow.spinsLeft > 0) {
+      showBonusSpinPanel(true);
+      updateBonusSpinPanel({
+        title: state.bonusFlow.panelTitle,
+        played: inferredPlayed,
+        total: inferredTotal > 0 ? inferredTotal : 1,
+        totalWin: state.bonusFlow.bonusWin
+      });
+    } else {
+      showBonusSpinPanel(false);
     }
   }
 
@@ -3978,7 +4328,10 @@ window.GTModules = window.GTModules || {};
         bonusWin: Math.floor(startTotal + ((targetTotal - startTotal) * eased)),
         currentSpinWin: Math.floor(startSpin + ((targetSpin - startSpin) * eased)),
         stickyWilds: state.bonusFlow.stickyWilds,
-        multiplierCells: state.bonusFlow.multiplierCells
+        multiplierCells: state.bonusFlow.multiplierCells,
+        spinsTotal: state.bonusFlow.spinsTotal,
+        spinsPlayed: state.bonusFlow.spinsPlayed,
+        panelTitle: state.bonusFlow.panelTitle || "FREE SPINS"
       });
       if (machineType === "slots_v2") {
         // slots_v2 has dedicated HUD function; this keeps the generic animation additive
@@ -3999,16 +4352,24 @@ window.GTModules = window.GTModules || {};
     const awarded = Math.max(0, Math.floor(Number(row.awardedSpins) || Number(row.freeSpinsLeft) || 0));
     state.bonusFlow.active = true;
     state.bonusFlow.machineType = machine ? machine.type : "";
+    state.bonusFlow.spinsTotal = Math.max(0, awarded);
+    state.bonusFlow.spinsPlayed = 0;
+    state.bonusFlow.panelTitle = "FREE SPINS";
     setBonusPhase(BONUS_PHASES.BONUS_INTRO);
     setBoardDimmed(true);
     showBonusHud(true);
+    showBonusSpinPanel(true);
+    updateBonusSpinPanel({ title: "FREE SPINS", total: Math.max(1, awarded), played: 0, totalWin: 0 });
     updateBonusHud({
       mode: "FEATURE",
       spinsLeft: awarded,
       bonusWin: 0,
       currentSpinWin: 0,
       stickyWilds: 0,
-      multiplierCells: 0
+      multiplierCells: 0,
+      spinsTotal: Math.max(0, awarded),
+      spinsPlayed: 0,
+      panelTitle: "FREE SPINS"
     });
     audioManager.play("bonus_intro");
     await showBonusOverlay(
@@ -4042,11 +4403,17 @@ window.GTModules = window.GTModules || {};
     let biggestCascadeWin = 0;
     let countedWin = 0;
     let resolvedSpinCount = 0;
+    state.bonusFlow.active = true;
+    state.bonusFlow.spinsTotal = Math.max(1, totalSpinFrames);
+    state.bonusFlow.spinsPlayed = 0;
+    state.bonusFlow.panelTitle = "FREE SPINS";
     setBonusPhase(BONUS_PHASES.BONUS_SPINNING);
     if (els.stage instanceof HTMLElement) els.stage.classList.add("bonus-live");
     audioManager.play("bonus_intro");
     audioManager.play("bonus_loop_start");
     showBonusHud(showHud);
+    showBonusSpinPanel(showHud);
+    if (showHud) updateBonusSpinPanel({ title: "FREE SPINS", total: Math.max(1, totalSpinFrames), played: 0, totalWin: 0 });
     const firstType = String(frames[0] && frames[0].frameType || "").trim().toLowerCase();
     await sleep(firstType === "bonus_intro" ? Math.min(180, bonusFx.intro) : bonusFx.intro);
     for (let i = 0; i < frames.length; i++) {
@@ -4068,14 +4435,31 @@ window.GTModules = window.GTModules || {};
         const summary = frame.summary && typeof frame.summary === "object" ? frame.summary : {};
         bonusTotal = Math.max(bonusTotal, Math.max(0, Math.floor(Number(summary.bonusWin) || 0)));
         biggestCascadeWin = Math.max(biggestCascadeWin, Math.max(0, Math.floor(Number(summary.biggestCascadeWin) || 0)));
+        if (showHud) {
+          updateBonusSpinPanel({
+            title: "FREE SPINS",
+            total: Math.max(1, totalSpinFrames),
+            played: Math.max(0, resolvedSpinCount),
+            totalWin: bonusTotal
+          });
+        }
         continue;
       }
 
       setBonusPhase(BONUS_PHASES.BONUS_SPINNING);
       resolvedSpinCount += 1;
+      state.bonusFlow.spinsPlayed = resolvedSpinCount;
       state.ephemeral.stoppedCols = 0;
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
       if (!isSix) showBonusBanner("Spin " + resolvedSpinCount + " / " + Math.max(1, totalSpinFrames));
+      if (showHud) {
+        updateBonusSpinPanel({
+          title: "FREE SPINS",
+          total: Math.max(1, totalSpinFrames),
+          played: resolvedSpinCount,
+          totalWin: bonusTotal
+        });
+      }
       pulseBonusFrameFx("glow");
       audioManager.play("bonus_tick");
       renderBoard();
@@ -4191,9 +4575,20 @@ window.GTModules = window.GTModules || {};
           bonusWin: targetTotal,
           currentSpinWin: targetSpin,
           stickyWilds: Math.max(0, Math.floor(Number(hud.stickyWilds) || metaCounts.wilds)),
-          multiplierCells: Math.max(0, Math.floor(Number(hud.multiplierCells) || metaCounts.multis))
+          multiplierCells: Math.max(0, Math.floor(Number(hud.multiplierCells) || metaCounts.multis)),
+          spinsTotal: Math.max(1, totalSpinFrames),
+          spinsPlayed: resolvedSpinCount,
+          panelTitle: "FREE SPINS"
         });
         await animateBonusHudTo(machine.type, targetSpin, targetTotal, leftSpins, Math.max(120, Math.floor(Number(bonusFx.between) || 220)));
+      }
+      if (showHud) {
+        updateBonusSpinPanel({
+          title: "FREE SPINS",
+          total: Math.max(1, totalSpinFrames),
+          played: resolvedSpinCount,
+          totalWin: Math.max(0, Math.floor(Number(bonusTotal) || 0))
+        });
       }
 
       const banner = String(frame.banner || "").trim();
