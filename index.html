@@ -20,7 +20,7 @@
           <button id="authCreateBtn" type="button">Create Account</button>
           <button id="authLoginBtn" type="button">Login</button>
         </div>
-        <div id="authStatus" class="auth-status">Create or login to continue.</div>
+        <div id="authStatus" class="auth-status notify">Notify: Create or login to continue.</div>
         <div id="authMainNotice" class="main-page-notice hidden"></div>
       </div>
       <aside class="auth-side-panel" aria-label="Discord community">
@@ -560,8 +560,9 @@
         const authCreateBtn = document.getElementById("authCreateBtn");
         const authLoginBtn = document.getElementById("authLoginBtn");
         if (authStatusEl instanceof HTMLElement) {
-          authStatusEl.textContent = "Loading login services...";
+          authStatusEl.textContent = "Notify: Loading login services...";
           authStatusEl.classList.remove("danger");
+          authStatusEl.classList.add("notify");
         }
         if (authCreateBtn instanceof HTMLButtonElement) authCreateBtn.disabled = true;
         if (authLoginBtn instanceof HTMLButtonElement) authLoginBtn.disabled = true;
@@ -608,8 +609,11 @@
 
         function setStatus(text, isError) {
           if (!(authStatusEl instanceof HTMLElement)) return;
-          authStatusEl.textContent = String(text || "");
-          authStatusEl.classList.toggle("danger", Boolean(isError));
+          const message = String(text || "").replace(/^\s*(notify|error)\s*:\s*/i, "");
+          const hasError = Boolean(isError);
+          authStatusEl.textContent = (hasError ? "Error: " : "Notify: ") + message;
+          authStatusEl.classList.toggle("danger", hasError);
+          authStatusEl.classList.toggle("notify", !hasError);
         }
 
         function setBusy(nextBusy) {
@@ -827,8 +831,9 @@
         if (criticalResult.failed.length) {
           const authStatusEl = document.getElementById("authStatus");
           if (authStatusEl instanceof HTMLElement) {
-            authStatusEl.textContent = "Failed to load login services. Hard refresh and retry.";
+            authStatusEl.textContent = "Error: Failed to load login services. Hard refresh and retry.";
             authStatusEl.classList.add("danger");
+            authStatusEl.classList.remove("notify");
           }
           return;
         }

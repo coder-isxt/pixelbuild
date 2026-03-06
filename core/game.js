@@ -1277,6 +1277,7 @@
       let worldTransitionTarget = "";
       let worldTransitionStartedAt = 0;
       let worldTransitionToken = 0;
+      let worldTransitionToneEnabled = false;
       let hudExpanded = false;
       let hasSeenFriendRequestsSnapshot = false;
       let hasSeenFriendsSnapshot = false;
@@ -1483,7 +1484,6 @@
         const detail = String(label || "").toLowerCase();
         if (detail.indexOf("world transition start") !== -1) return "world_start";
         if (detail.indexOf("world transition end") !== -1) return "world_end";
-        if (detail.indexOf("cooldown") !== -1) return "tap_soft";
         if (detail.indexOf("tile hit") !== -1) return "hit";
         if (detail.indexOf("block broken") !== -1) return "break";
         if (detail.indexOf("harvested seed") !== -1) return "harvest";
@@ -1540,7 +1540,6 @@
           detail.indexOf("weather") !== -1 ||
           detail.indexOf("quest interaction") !== -1
         ) return "ui";
-        if (kind === "deny" || kind === "warn") return "ui";
         return "";
       }
 
@@ -1795,12 +1794,17 @@
         worldTransitionToken = token;
         worldTransitionTarget = String(targetWorldId || "");
         worldTransitionStartedAt = performance.now();
+        worldTransitionToneEnabled = Boolean(inWorld);
+        if (worldTransitionToneEnabled) {
+          playActionTone("input", 0.5, "world transition start");
+        }
         const safeStartedAt = worldTransitionStartedAt;
         window.setTimeout(() => {
           if (worldTransitionToken !== token) return;
           if (worldTransitionStartedAt !== safeStartedAt) return;
           worldTransitionTarget = "";
           worldTransitionStartedAt = 0;
+          worldTransitionToneEnabled = false;
         }, WORLD_TRANSITION_MAX_VISIBLE_MS);
         return token;
       }
@@ -1814,6 +1818,10 @@
           if (Number(worldTransitionToken) !== Number(token)) return;
           worldTransitionTarget = "";
           worldTransitionStartedAt = 0;
+          if (worldTransitionToneEnabled) {
+            playActionTone("success", 0.56, "world transition end");
+          }
+          worldTransitionToneEnabled = false;
         };
         if (remainingMs > 0) {
           window.setTimeout(finalize, remainingMs);
@@ -1888,8 +1896,11 @@
       let directAdminRole = "none";
 
       function setAuthStatus(text, isError) {
-        authStatusEl.textContent = text;
-        authStatusEl.classList.toggle("danger", Boolean(isError));
+        const message = String(text || "").replace(/^\s*(notify|error)\s*:\s*/i, "");
+        const hasError = Boolean(isError);
+        authStatusEl.textContent = (hasError ? "Error: " : "Notify: ") + message;
+        authStatusEl.classList.toggle("danger", hasError);
+        authStatusEl.classList.toggle("notify", !hasError);
       }
 
       function setAuthBusy(isBusy) {
