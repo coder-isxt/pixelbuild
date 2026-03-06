@@ -1490,7 +1490,7 @@
         const kind = String(toneType || "input").toLowerCase();
         const detail = String(label || "").toLowerCase();
         if (detail.indexOf("world transition start") !== -1) return "world_start";
-        if (detail.indexOf("world transition end") !== -1) return "world_end";
+        //if (detail.indexOf("world transition end") !== -1) return "world_end";
         if (detail.indexOf("block broken") !== -1) return "break";
         if (detail.indexOf("harvested seed") !== -1) return "harvest";
         if (detail.indexOf("placed block") !== -1 || detail.indexOf("world lock placed") !== -1 || detail.indexOf("spawn moved") !== -1) {
