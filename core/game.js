@@ -1352,21 +1352,21 @@
         place: { file: "sfx_place.ogg", fallbackTone: "success", fallbackLabel: "placed block", volume: 0.4, cooldownMs: 42 },
         collect: { file: "sfx_collect.ogg", fallbackTone: "success", fallbackLabel: "collect", volume: 0.36, cooldownMs: 70 },
         ui: { file: "sfx_ui.ogg", fallbackTone: "input", fallbackLabel: "ui", volume: 0.34, cooldownMs: 55 },
-        shop_buy: { file: "sfx_shop_buy.ogg", fallbackTone: "success", fallbackLabel: "shop buy", volume: 0.48, cooldownMs: 90 },
+        shop_buy: { file: "sfx_shop_buy.ogg", fallbackTone: "success", fallbackLabel: "shop buy", volume: 0.42, cooldownMs: 90 },
         jump: { file: "sfx_jump.ogg", fallbackTone: "input", fallbackLabel: "jump", volume: 0.35, cooldownMs: 80 },
         door: { file: "sfx_door.ogg", fallbackTone: "success", fallbackLabel: "door", volume: 0.38, cooldownMs: 75 },
         drop: { file: "sfx_drop.ogg", fallbackTone: "warn", fallbackLabel: "drop", volume: 0.38, cooldownMs: 65 },
-        vending_purchase: { file: "sfx_vending_purchase.ogg", fallbackTone: "success", fallbackLabel: "vending purchase", volume: 0.5, cooldownMs: 120 },
+        vending_purchase: { file: "sfx_vending_purchase.ogg", fallbackTone: "success", fallbackLabel: "vending purchase", volume: 0.4, cooldownMs: 120 },
         chat_sent: { file: "sfx_chat_sent.ogg", fallbackTone: "input", fallbackLabel: "chat sent", volume: 0.3, cooldownMs: 44 },
-        pm_received: { file: "sfx_pm_received.ogg", fallbackTone: "success", fallbackLabel: "pm received", volume: 0.42, cooldownMs: 120 },
+        pm_received: { file: "sfx_pm_received.ogg", fallbackTone: "success", fallbackLabel: "pm received", volume: 0.32, cooldownMs: 120 },
         pm_sent: { file: "sfx_pm_sent.ogg", fallbackTone: "input", fallbackLabel: "pm sent", volume: 0.32, cooldownMs: 90 },
-        friend_request_sent: { file: "sfx_friend_request_sent.ogg", fallbackTone: "input", fallbackLabel: "friend request sent", volume: 0.34, cooldownMs: 110 },
-        friend_request_received: { file: "sfx_friend_request_received.ogg", fallbackTone: "success", fallbackLabel: "friend request received", volume: 0.4, cooldownMs: 140 },
-        friend_request_accepted: { file: "sfx_friend_request_accepted.ogg", fallbackTone: "success", fallbackLabel: "friend request accepted", volume: 0.42, cooldownMs: 140 },
-        trade_accept: { file: "sfx_trade_accept.ogg", fallbackTone: "success", fallbackLabel: "trade accepted", volume: 0.45, cooldownMs: 120 },
-        trade_decline: { file: "sfx_trade_decline.ogg", fallbackTone: "deny", fallbackLabel: "trade declined", volume: 0.42, cooldownMs: 120 },
-        trade_request_accept: { file: "sfx_trade_request_accept.ogg", fallbackTone: "success", fallbackLabel: "trade request accepted", volume: 0.45, cooldownMs: 120 },
-        trade_request_decline: { file: "sfx_trade_request_decline.ogg", fallbackTone: "deny", fallbackLabel: "trade request declined", volume: 0.42, cooldownMs: 120 }
+        friend_request_sent: { file: "sfx_friend_request_sent.ogg", fallbackTone: "input", fallbackLabel: "friend request sent", volume: 0.3, cooldownMs: 110 },
+        friend_request_received: { file: "sfx_friend_request_received.ogg", fallbackTone: "success", fallbackLabel: "friend request received", volume: 0.32, cooldownMs: 140 },
+        friend_request_accepted: { file: "sfx_friend_request_accepted.ogg", fallbackTone: "success", fallbackLabel: "friend request accepted", volume: 0.34, cooldownMs: 140 },
+        trade_accept: { file: "sfx_trade_accept.ogg", fallbackTone: "success", fallbackLabel: "trade accepted", volume: 0.36, cooldownMs: 120 },
+        trade_decline: { file: "sfx_trade_decline.ogg", fallbackTone: "deny", fallbackLabel: "trade declined", volume: 0.33, cooldownMs: 120 },
+        trade_request_accept: { file: "sfx_trade_request_accept.ogg", fallbackTone: "success", fallbackLabel: "trade request accepted", volume: 0.35, cooldownMs: 120 },
+        trade_request_decline: { file: "sfx_trade_request_decline.ogg", fallbackTone: "deny", fallbackLabel: "trade request declined", volume: 0.33, cooldownMs: 120 }
       };
 
       function getFeedbackAudioContext() {
