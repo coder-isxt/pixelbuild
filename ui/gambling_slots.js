@@ -4,7 +4,7 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
-  const GAME_IDS = ["blackjack", "slots_v2", "le_bandit", "tower", "mines", "snoop_dogg_dollars"];
+  const GAME_IDS = ["blackjack", "slots_v2", "slots_v7", "le_bandit", "tower", "mines", "snoop_dogg_dollars"];
 
   // This page is now a standalone casino site.
   // World-based machine browsing is on gambling.html
@@ -3372,7 +3372,7 @@ window.GTModules = window.GTModules || {};
     if (!Number.isFinite(tx) || !Number.isFinite(ty)) return null;
 
     const type = String(raw.type || "").trim();
-    if (GAME_IDS.indexOf(type) < 0) return null;
+    if (!MACHINE_DEFS[type]) return null;
     const def = MACHINE_DEFS[type] || MACHINE_DEFS.slots;
     const maxBetRaw = Math.floor(Number(raw.maxBet));
     const maxBet = Math.max(def.minBet, Math.min(def.maxBet, Number.isFinite(maxBetRaw) ? maxBetRaw : def.maxBet));
