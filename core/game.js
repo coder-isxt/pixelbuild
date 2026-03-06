@@ -1484,12 +1484,12 @@
         const detail = String(label || "").toLowerCase();
         if (detail.indexOf("world transition start") !== -1) return "world_start";
         if (detail.indexOf("world transition end") !== -1) return "world_end";
-        if (detail.indexOf("tile hit") !== -1) return "hit";
         if (detail.indexOf("block broken") !== -1) return "break";
         if (detail.indexOf("harvested seed") !== -1) return "harvest";
         if (detail.indexOf("placed block") !== -1 || detail.indexOf("world lock placed") !== -1 || detail.indexOf("spawn moved") !== -1) {
           return "place";
         }
+        if (detail.indexOf("tile hit") !== -1) return "hit";
         if (detail.indexOf("rotated") !== -1) return "rotate";
         if (
           detail.indexOf("world lock") !== -1 ||
@@ -1794,7 +1794,8 @@
         worldTransitionToken = token;
         worldTransitionTarget = String(targetWorldId || "");
         worldTransitionStartedAt = performance.now();
-        worldTransitionToneEnabled = Boolean(inWorld);
+        const targetId = String(targetWorldId || "").trim().toLowerCase();
+        worldTransitionToneEnabled = Boolean(inWorld) && targetId !== "menu";
         if (worldTransitionToneEnabled) {
           playActionTone("input", 0.5, "world transition start");
         }

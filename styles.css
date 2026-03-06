@@ -5094,6 +5094,14 @@ body{
   display: block;
 }
 
+.auth-layout > .auth-status {
+  margin-top: 10px;
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
 .auth-card,
 .menu-card,
 .vending-card,

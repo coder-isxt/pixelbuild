@@ -11,18 +11,18 @@
 </head>
 <body>
   <div id="authScreen" class="auth-screen">
-    <div class="auth-layout">
-      <div class="auth-card">
-        <h2>Authorization</h2>
-        <input id="authUsername" type="text" maxlength="20" placeholder="Username">
-        <input id="authPassword" type="password" maxlength="64" placeholder="Password">
+      <div class="auth-layout">
+        <div class="auth-card">
+          <h2>Authorization</h2>
+          <input id="authUsername" type="text" maxlength="20" placeholder="Username">
+          <input id="authPassword" type="password" maxlength="64" placeholder="Password">
         <div class="auth-actions">
-          <button id="authCreateBtn" type="button">Create Account</button>
-          <button id="authLoginBtn" type="button">Login</button>
+            <button id="authCreateBtn" type="button">Create Account</button>
+            <button id="authLoginBtn" type="button">Login</button>
+          </div>
+          <div id="authMainNotice" class="main-page-notice hidden"></div>
         </div>
         <div id="authStatus" class="auth-status notify">Notify: Create or login to continue.</div>
-        <div id="authMainNotice" class="main-page-notice hidden"></div>
-      </div>
       <aside class="auth-side-panel" aria-label="Discord community">
         <div class="auth-side-title">Discord</div>
         <iframe
