@@ -630,6 +630,26 @@ window.GTModules = window.GTModules || {};
         symbolWeights: row.symbolWeights && typeof row.symbolWeights === "object" ? { ...row.symbolWeights } : {}
       };
     });
+    Object.keys(slotsDefs || {}).forEach((id) => {
+      if (out[id]) return;
+      const row = slotsDefs[id] || {};
+      const base = fallback[id] || fallback.slots;
+      const layout = row && row.layout && typeof row.layout === "object" ? row.layout : {};
+      out[id] = {
+        id,
+        name: String(row.name || base.name || id),
+        minBet: Math.max(1, Math.floor(Number(row.minBet) || base.minBet || 1)),
+        maxBet: Math.max(1, Math.floor(Number(row.maxBet) || base.maxBet || 30000)),
+        maxPayoutMultiplier: Math.max(1, Math.floor(Number(row.maxPayoutMultiplier) || base.maxPayoutMultiplier || 10)),
+        reels: Math.max(1, Math.floor(Number(layout.reels) || base.reels || 5)),
+        rows: Math.max(1, Math.floor(Number(layout.rows) || base.rows || 3)),
+        volatility: String(row.volatility || base.volatility || "medium").trim().toLowerCase(),
+        mechanic: String(row.mechanic || base.mechanic || "classic").trim().toLowerCase(),
+        payMode: String(row.payMode || base.payMode || "lines").trim().toLowerCase(),
+        clusterMin: Math.max(0, Math.floor(Number(row.clusterMin || base.clusterMin) || 0)),
+        symbolWeights: row.symbolWeights && typeof row.symbolWeights === "object" ? { ...row.symbolWeights } : {}
+      };
+    });
     // Apply UI-only aliases for display in the web UI
     Object.keys(UI_GAME_ALIASES).forEach((id) => {
       if (out[id]) out[id].name = UI_GAME_ALIASES[id];

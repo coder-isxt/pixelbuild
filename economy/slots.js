@@ -32,6 +32,31 @@ window.GTModules = window.GTModules || {};
       volatility: "high",
       layout: { reels: 6, rows: 5 }
     },
+    slots_v7: {
+      id: "slots_v7",
+      name: "Astral Archive",
+      minBet: 1,
+      maxBet: 30000,
+      maxPayoutMultiplier: 2000,
+      rtp: 0.965,
+      volatility: "very-high",
+      mechanic: "tumble",
+      payMode: "cluster",
+      clusterMin: 4,
+      layout: { reels: 5, rows: 5 },
+      symbolWeights: {
+        ember: 26,
+        sigil: 24,
+        shard: 21,
+        lantern: 18,
+        watcher: 14,
+        oracle: 11,
+        archive: 8,
+        relic: 6,
+        wild_special: 2,
+        wild_multiplier: 1
+      }
+    },
     snoop_dogg_dollars: {
       id: "snoop_dogg_dollars",
       name: "Snoop Dogg Dollars",
@@ -2524,6 +2549,815 @@ window.GTModules = window.GTModules || {};
     };
   }
 
+  const ARCHIVE_ROWS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v7.layout.rows) || 5));
+  const ARCHIVE_REELS = Math.max(1, Math.floor(Number(GAME_DEFS.slots_v7.layout.reels) || 5));
+  const ARCHIVE_CLUSTER_MIN = Math.max(4, Math.floor(Number(GAME_DEFS.slots_v7.clusterMin) || 4));
+  const ARCHIVE_PORTAL_STEPS = [7, 14, 27, 42];
+  const ARCHIVE_BONUS_BASE_EFFECTS = 3;
+  const ARCHIVE_BONUS_MAX_EFFECTS = 7;
+  const ARCHIVE_SPECIAL_WILD_ID = "wild_special";
+  const ARCHIVE_MULT_WILD_ID = "wild_multiplier";
+  const ARCHIVE_MEGA_WILD_ID = "mega_wild";
+  const ARCHIVE_SYMBOLS = [
+    { id: "ember", icon: "EMB", weight: 26, premium: false, pays: { 4: 0.12, 5: 0.18, 6: 0.28, 7: 0.4, 8: 0.58, 10: 0.9, 12: 1.3, 15: 2, 20: 3.6, 25: 7 } },
+    { id: "sigil", icon: "SIG", weight: 24, premium: false, pays: { 4: 0.13, 5: 0.2, 6: 0.3, 7: 0.44, 8: 0.64, 10: 1.0, 12: 1.45, 15: 2.3, 20: 4.1, 25: 8 } },
+    { id: "shard", icon: "SHRD", weight: 21, premium: false, pays: { 4: 0.16, 5: 0.24, 6: 0.37, 7: 0.55, 8: 0.8, 10: 1.3, 12: 1.9, 15: 3.0, 20: 5.4, 25: 10.5 } },
+    { id: "lantern", icon: "LANT", weight: 18, premium: false, pays: { 4: 0.2, 5: 0.3, 6: 0.46, 7: 0.68, 8: 0.98, 10: 1.6, 12: 2.35, 15: 3.7, 20: 6.8, 25: 13 } },
+    { id: "watcher", icon: "WCHR", weight: 14, premium: false, pays: { 4: 0.26, 5: 0.39, 6: 0.6, 7: 0.9, 8: 1.3, 10: 2.1, 12: 3.1, 15: 4.9, 20: 9.1, 25: 18 } },
+    { id: "oracle", icon: "ORCL", weight: 11, premium: true, pays: { 4: 0.34, 5: 0.52, 6: 0.82, 7: 1.22, 8: 1.8, 10: 2.95, 12: 4.4, 15: 7, 20: 13.5, 25: 27 } },
+    { id: "archive", icon: "ARCH", weight: 8, premium: true, pays: { 4: 0.46, 5: 0.7, 6: 1.1, 7: 1.65, 8: 2.4, 10: 4.0, 12: 6.0, 15: 9.6, 20: 18.5, 25: 37 } },
+    { id: "relic", icon: "RLC", weight: 6, premium: true, pays: { 4: 0.62, 5: 0.95, 6: 1.5, 7: 2.25, 8: 3.3, 10: 5.5, 12: 8.4, 15: 13.5, 20: 26, 25: 52 } }
+  ];
+  const ARCHIVE_SYMBOL_BY_ID = (() => {
+    const out = {};
+    for (let i = 0; i < ARCHIVE_SYMBOLS.length; i++) out[ARCHIVE_SYMBOLS[i].id] = ARCHIVE_SYMBOLS[i];
+    return out;
+  })();
+  const ARCHIVE_PREMIUM_SET = (() => {
+    const out = {};
+    for (let i = 0; i < ARCHIVE_SYMBOLS.length; i++) {
+      if (ARCHIVE_SYMBOLS[i].premium) out[ARCHIVE_SYMBOLS[i].id] = true;
+    }
+    return out;
+  })();
+  const ARCHIVE_SPAWN_BAG = (() => {
+    const bag = ARCHIVE_SYMBOLS.map((row) => ({ id: row.id, weight: row.weight }));
+    bag.push({ id: ARCHIVE_SPECIAL_WILD_ID, weight: 2 });
+    bag.push({ id: ARCHIVE_MULT_WILD_ID, weight: 1 });
+    return bag;
+  })();
+
+  function archiveSafeRng(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const seedFn = typeof opts.rng === "function" ? opts.rng : null;
+    if (!seedFn) return Math.random;
+    return () => {
+      const v = Number(seedFn());
+      if (!Number.isFinite(v)) return Math.random();
+      if (v <= 0) return 0;
+      if (v >= 1) return 0.999999999;
+      return v;
+    };
+  }
+
+  function archiveInt(rng, min, max) {
+    const lo = Math.floor(Number(min) || 0);
+    const hi = Math.floor(Number(max) || lo);
+    if (hi <= lo) return lo;
+    return lo + Math.floor(rng() * ((hi - lo) + 1));
+  }
+
+  function archiveKey(r, c) {
+    return String(r) + "_" + String(c);
+  }
+
+  function archiveParseKey(key) {
+    const parts = String(key || "").split("_");
+    return { r: Math.floor(Number(parts[0]) || 0), c: Math.floor(Number(parts[1]) || 0) };
+  }
+
+  function archiveShuffle(list, rng) {
+    const arr = Array.isArray(list) ? list.slice(0) : [];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const t = arr[i];
+      arr[i] = arr[j];
+      arr[j] = t;
+    }
+    return arr;
+  }
+
+  function archivePickWeighted(rows, rng) {
+    const safe = Array.isArray(rows) ? rows : [];
+    let total = 0;
+    for (let i = 0; i < safe.length; i++) total += Math.max(0.000001, Number(safe[i].weight) || 0);
+    let roll = rng() * Math.max(0.000001, total);
+    for (let i = 0; i < safe.length; i++) {
+      roll -= Math.max(0.000001, Number(safe[i].weight) || 0);
+      if (roll <= 0) return safe[i];
+    }
+    return safe[0] || { id: "ember", weight: 1 };
+  }
+
+  function archiveRegularCell(id) {
+    const row = ARCHIVE_SYMBOL_BY_ID[String(id || "")] || ARCHIVE_SYMBOLS[0];
+    return { id: String(row.id), icon: String(row.icon), kind: "regular", premium: Boolean(row.premium) };
+  }
+
+  function archiveSpecialWildCell() {
+    return { id: ARCHIVE_SPECIAL_WILD_ID, icon: "SWLD", kind: "wild_special" };
+  }
+
+  function archiveMultiplierWildCell() {
+    return { id: ARCHIVE_MULT_WILD_ID, icon: "X2WD", kind: "wild_multiplier", mult: 2 };
+  }
+
+  function archiveMegaWildCell() {
+    return { id: ARCHIVE_MEGA_WILD_ID, icon: "MEGA", kind: "mega_wild", mult: 2 };
+  }
+
+  function archiveSpawnCell(rng) {
+    const pick = archivePickWeighted(ARCHIVE_SPAWN_BAG, rng);
+    const id = String(pick && pick.id || "");
+    if (id === ARCHIVE_SPECIAL_WILD_ID) return archiveSpecialWildCell();
+    if (id === ARCHIVE_MULT_WILD_ID) return archiveMultiplierWildCell();
+    return archiveRegularCell(id);
+  }
+
+  function archiveBuildGrid(rng) {
+    const grid = [];
+    for (let r = 0; r < ARCHIVE_ROWS; r++) {
+      grid[r] = [];
+      for (let c = 0; c < ARCHIVE_REELS; c++) grid[r][c] = archiveSpawnCell(rng);
+    }
+    return grid;
+  }
+
+  function archiveIsPremiumSymbol(symbolId) {
+    return Boolean(ARCHIVE_PREMIUM_SET[String(symbolId || "")]);
+  }
+
+  function archiveCellMatches(cell, symbolId) {
+    if (!cell) return false;
+    const id = String(cell.id || "");
+    const kind = String(cell.kind || "regular");
+    if (kind === "regular") return id === symbolId;
+    if (kind === "wild_special") return true;
+    if (kind === "mega_wild") return true;
+    if (kind === "wild_multiplier") return archiveIsPremiumSymbol(symbolId);
+    return false;
+  }
+
+  function archiveClusterHasNatural(cells, symbolId) {
+    const safe = Array.isArray(cells) ? cells : [];
+    for (let i = 0; i < safe.length; i++) {
+      const cell = safe[i] && safe[i].cell ? safe[i].cell : null;
+      if (!cell) continue;
+      if (String(cell.kind || "regular") === "regular" && String(cell.id || "") === symbolId) return true;
+    }
+    return false;
+  }
+
+  function archiveLookupClusterPay(symbolId, size) {
+    const row = ARCHIVE_SYMBOL_BY_ID[String(symbolId || "")];
+    const pays = row && row.pays ? row.pays : {};
+    const safeSize = Math.max(0, Math.floor(Number(size) || 0));
+    let out = 0;
+    const keys = Object.keys(pays).map((k) => Math.floor(Number(k) || 0)).sort((a, b) => a - b);
+    for (let i = 0; i < keys.length; i++) {
+      if (safeSize >= keys[i]) out = Math.max(0, Number(pays[keys[i]]) || out);
+    }
+    return out;
+  }
+
+  const ClusterEngine = {
+    findClusters(grid, bet) {
+      const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+      const candidates = [];
+      for (let s = 0; s < ARCHIVE_SYMBOLS.length; s++) {
+        const symbol = ARCHIVE_SYMBOLS[s];
+        const visited = {};
+        for (let r = 0; r < ARCHIVE_ROWS; r++) {
+          for (let c = 0; c < ARCHIVE_REELS; c++) {
+            const key = archiveKey(r, c);
+            if (visited[key]) continue;
+            const start = grid[r] && grid[r][c] ? grid[r][c] : null;
+            if (!archiveCellMatches(start, symbol.id)) continue;
+            const queue = [{ r, c }];
+            const cells = [];
+            visited[key] = true;
+            while (queue.length) {
+              const cur = queue.shift();
+              const curCell = grid[cur.r] && grid[cur.r][cur.c] ? grid[cur.r][cur.c] : null;
+              if (!archiveCellMatches(curCell, symbol.id)) continue;
+              const curKey = archiveKey(cur.r, cur.c);
+              cells.push({ r: cur.r, c: cur.c, key: curKey, cell: curCell });
+              const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+              for (let d = 0; d < dirs.length; d++) {
+                const nr = cur.r + dirs[d][0];
+                const nc = cur.c + dirs[d][1];
+                if (nr < 0 || nr >= ARCHIVE_ROWS || nc < 0 || nc >= ARCHIVE_REELS) continue;
+                const nKey = archiveKey(nr, nc);
+                if (visited[nKey]) continue;
+                const nCell = grid[nr] && grid[nr][nc] ? grid[nr][nc] : null;
+                if (!archiveCellMatches(nCell, symbol.id)) continue;
+                visited[nKey] = true;
+                queue.push({ r: nr, c: nc });
+              }
+            }
+            if (cells.length < ARCHIVE_CLUSTER_MIN) continue;
+            if (!archiveClusterHasNatural(cells, symbol.id)) continue;
+            let multWilds = 0;
+            for (let i = 0; i < cells.length; i++) {
+              if (String(cells[i].cell && cells[i].cell.kind || "") === "wild_multiplier") multWilds += 1;
+            }
+            const wildMult = Math.max(1, Math.min(16, Math.pow(2, multWilds)));
+            const basePay = archiveLookupClusterPay(symbol.id, cells.length);
+            const payMult = basePay * wildMult;
+            const payout = Math.max(0, Math.floor(safeBet * payMult));
+            candidates.push({ symbolId: symbol.id, symbolIcon: symbol.icon, cells, size: cells.length, wildMult, payMult: Number(payMult.toFixed(4)), payout });
+          }
+        }
+      }
+      candidates.sort((a, b) => (b.payout - a.payout) || (b.size - a.size));
+      const chosen = [];
+      const used = {};
+      for (let i = 0; i < candidates.length; i++) {
+        const row = candidates[i];
+        let overlap = false;
+        for (let j = 0; j < row.cells.length; j++) {
+          if (used[row.cells[j].key]) { overlap = true; break; }
+        }
+        if (overlap) continue;
+        for (let j = 0; j < row.cells.length; j++) used[row.cells[j].key] = true;
+        chosen.push(row);
+      }
+      return chosen;
+    }
+  };
+
+  function archiveMegaKeys(state) {
+    const mega = state && state.mega ? state.mega : null;
+    if (!mega || !mega.active) return [];
+    const out = [];
+    for (let r = mega.row; r < mega.row + 2; r++) {
+      for (let c = mega.col; c < mega.col + 2; c++) {
+        if (r < 0 || r >= ARCHIVE_ROWS || c < 0 || c >= ARCHIVE_REELS) continue;
+        out.push(archiveKey(r, c));
+      }
+    }
+    return out;
+  }
+
+  function archiveApplyMega(state) {
+    if (!state || !state.mega || !state.mega.active) return;
+    for (let r = state.mega.row; r < state.mega.row + 2; r++) {
+      for (let c = state.mega.col; c < state.mega.col + 2; c++) {
+        if (r < 0 || r >= ARCHIVE_ROWS || c < 0 || c >= ARCHIVE_REELS) continue;
+        if (!state.grid[r]) state.grid[r] = [];
+        state.grid[r][c] = archiveMegaWildCell();
+      }
+    }
+  }
+
+  function archiveLiftMega(state) {
+    const keys = archiveMegaKeys(state);
+    for (let i = 0; i < keys.length; i++) {
+      const p = archiveParseKey(keys[i]);
+      if (state.grid[p.r] && state.grid[p.r][p.c] && String(state.grid[p.r][p.c].kind || "") === "mega_wild") {
+        state.grid[p.r][p.c] = null;
+      }
+    }
+  }
+
+  const CascadeEngine = {
+    removeWinningSymbols(grid, wins) {
+      const safeWins = Array.isArray(wins) ? wins : [];
+      const winningMap = {};
+      const removedMap = {};
+      const winningKeys = [];
+      const removedKeys = [];
+      for (let i = 0; i < safeWins.length; i++) {
+        const cells = Array.isArray(safeWins[i] && safeWins[i].cells) ? safeWins[i].cells : [];
+        for (let j = 0; j < cells.length; j++) {
+          const cellRef = cells[j];
+          const key = String(cellRef && cellRef.key || "");
+          if (!key) continue;
+          if (!winningMap[key]) { winningMap[key] = true; winningKeys.push(key); }
+          const cell = cellRef && cellRef.cell ? cellRef.cell : null;
+          if (String(cell && cell.kind || "") === "mega_wild") continue;
+          const p = archiveParseKey(key);
+          if (!grid[p.r]) continue;
+          if (!removedMap[key]) { removedMap[key] = true; removedKeys.push(key); }
+          grid[p.r][p.c] = null;
+        }
+      }
+      return { winningKeys, winningMap, removedKeys, removedCount: removedKeys.length, winningCount: winningKeys.length };
+    },
+    collapseColumns(grid) {
+      for (let c = 0; c < ARCHIVE_REELS; c++) {
+        const kept = [];
+        for (let r = ARCHIVE_ROWS - 1; r >= 0; r--) {
+          const cell = grid[r] && grid[r][c] ? grid[r][c] : null;
+          if (cell) kept.push(cell);
+        }
+        let idx = 0;
+        for (let r = ARCHIVE_ROWS - 1; r >= 0; r--) {
+          if (!grid[r]) grid[r] = [];
+          grid[r][c] = idx < kept.length ? kept[idx++] : null;
+        }
+      }
+    },
+    spawnSymbols(grid, rng) {
+      for (let r = 0; r < ARCHIVE_ROWS; r++) {
+        for (let c = 0; c < ARCHIVE_REELS; c++) {
+          if (!grid[r][c]) grid[r][c] = archiveSpawnCell(rng);
+        }
+      }
+    },
+    collapseAndRefill(state) {
+      archiveLiftMega(state);
+      this.collapseColumns(state.grid);
+      this.spawnSymbols(state.grid, state.rng);
+      archiveApplyMega(state);
+    },
+    applySpecialWilds(state, amount, tag) {
+      const placedKeys = [];
+      const keys = [];
+      const megaMap = {};
+      const megaKeys = archiveMegaKeys(state);
+      for (let i = 0; i < megaKeys.length; i++) megaMap[megaKeys[i]] = true;
+      for (let r = 0; r < ARCHIVE_ROWS; r++) {
+        for (let c = 0; c < ARCHIVE_REELS; c++) {
+          const key = archiveKey(r, c);
+          if (!megaMap[key]) keys.push(key);
+        }
+      }
+      const shuffled = archiveShuffle(keys, state.rng);
+      const want = Math.max(0, Math.floor(Number(amount) || 0));
+      for (let i = 0; i < shuffled.length && placedKeys.length < want; i++) {
+        const p = archiveParseKey(shuffled[i]);
+        if (!state.grid[p.r]) state.grid[p.r] = [];
+        state.grid[p.r][p.c] = archiveSpecialWildCell();
+        placedKeys.push(shuffled[i]);
+      }
+      if (String(tag || "") === "stage2") {
+        state.portal.watchStage2 = {};
+        for (let i = 0; i < placedKeys.length; i++) state.portal.watchStage2[placedKeys[i]] = true;
+      } else if (String(tag || "") === "stage3") {
+        state.portal.watchStage3 = {};
+        for (let i = 0; i < placedKeys.length; i++) state.portal.watchStage3[placedKeys[i]] = true;
+      }
+      return placedKeys;
+    }
+  };
+
+  const PortalMeter = {
+    create() {
+      return { collected: 0, reached: { 7: false, 14: false, 27: false, 42: false }, watchStage2: {}, watchStage3: {}, bonusReady: false };
+    },
+    add(portal, amount) {
+      const add = Math.max(0, Math.floor(Number(amount) || 0));
+      if (add <= 0) return [];
+      portal.collected += add;
+      const events = [];
+      if (!portal.reached[7] && portal.collected >= 7) { portal.reached[7] = true; events.push({ type: "special", stage: 1, amount: 2, label: "SPECIAL WILDS" }); }
+      if (!portal.reached[14] && portal.collected >= 14) { portal.reached[14] = true; events.push({ type: "special", stage: 2, amount: 2, label: "SPECIAL WILDS" }); }
+      if (!portal.reached[27] && portal.collected >= 27) { portal.reached[27] = true; events.push({ type: "special", stage: 3, amount: 2, label: "SPECIAL WILDS" }); }
+      if (!portal.reached[42] && portal.collected >= 42) { portal.reached[42] = true; portal.bonusReady = true; events.push({ type: "bonus", label: "OTHER WORLD" }); }
+      return events;
+    }
+  };
+
+  function archiveConsumeEyeMarks(state, winningKeys) {
+    const out = [];
+    const keys = Array.isArray(winningKeys) ? winningKeys : [];
+    for (let i = 0; i < keys.length; i++) {
+      const key = String(keys[i] || "");
+      if (!key || !state.eyeMarks[key]) continue;
+      delete state.eyeMarks[key];
+      state.openedEyes[key] = true;
+      out.push(key);
+    }
+    return out;
+  }
+
+  function archiveTakeWatchedHit(map, winningMap) {
+    const keys = Object.keys(map || {});
+    const hit = [];
+    for (let i = 0; i < keys.length; i++) {
+      if (winningMap && winningMap[keys[i]]) hit.push(keys[i]);
+    }
+    return hit;
+  }
+
+  const PortalEffects = {
+    applyAbyss(state, sourceKeys) {
+      const source = Array.isArray(sourceKeys) ? sourceKeys.slice(0) : [];
+      let sourceKey = "";
+      for (let i = 0; i < source.length; i++) {
+        const p = archiveParseKey(source[i]);
+        const cell = state.grid[p.r] && state.grid[p.r][p.c] ? state.grid[p.r][p.c] : null;
+        if (cell && String(cell.kind || "") === "wild_special") {
+          sourceKey = source[i];
+          break;
+        }
+      }
+      if (!sourceKey) {
+        const special = [];
+        for (let r = 0; r < ARCHIVE_ROWS; r++) {
+          for (let c = 0; c < ARCHIVE_REELS; c++) {
+            const cell = state.grid[r] && state.grid[r][c] ? state.grid[r][c] : null;
+            if (cell && String(cell.kind || "") === "wild_special") special.push(archiveKey(r, c));
+          }
+        }
+        if (special.length) sourceKey = special[Math.floor(state.rng() * special.length)];
+      }
+      if (!sourceKey) sourceKey = archiveKey(archiveInt(state.rng, 0, ARCHIVE_ROWS - 1), archiveInt(state.rng, 0, ARCHIVE_REELS - 1));
+      const src = archiveParseKey(sourceKey);
+      let rowCount = 0;
+      let colCount = 0;
+      for (let c = 0; c < ARCHIVE_REELS; c++) {
+        const cell = state.grid[src.r] && state.grid[src.r][c] ? state.grid[src.r][c] : null;
+        if (cell && String(cell.kind || "") !== "mega_wild") rowCount += 1;
+      }
+      for (let r = 0; r < ARCHIVE_ROWS; r++) {
+        const cell = state.grid[r] && state.grid[r][src.c] ? state.grid[r][src.c] : null;
+        if (cell && String(cell.kind || "") !== "mega_wild") colCount += 1;
+      }
+      const axis = rowCount >= colCount ? "row" : "col";
+      const removed = [];
+      if (axis === "row") {
+        for (let c = 0; c < ARCHIVE_REELS; c++) {
+          const cell = state.grid[src.r] && state.grid[src.r][c] ? state.grid[src.r][c] : null;
+          if (!cell || String(cell.kind || "") === "mega_wild") continue;
+          state.grid[src.r][c] = null;
+          removed.push(archiveKey(src.r, c));
+        }
+      } else {
+        for (let r = 0; r < ARCHIVE_ROWS; r++) {
+          const cell = state.grid[r] && state.grid[r][src.c] ? state.grid[r][src.c] : null;
+          if (!cell || String(cell.kind || "") === "mega_wild") continue;
+          state.grid[r][src.c] = null;
+          removed.push(archiveKey(r, src.c));
+        }
+      }
+      if (removed.length) CascadeEngine.collapseAndRefill(state);
+      return {
+        removedCount: removed.length,
+        lineText: "ABYSS: cleared " + axis.toUpperCase() + " " + (axis === "row" ? src.r + 1 : src.c + 1)
+      };
+    },
+    applyVoid(state) {
+      const present = {};
+      for (let r = 0; r < ARCHIVE_ROWS; r++) {
+        for (let c = 0; c < ARCHIVE_REELS; c++) {
+          const cell = state.grid[r] && state.grid[r][c] ? state.grid[r][c] : null;
+          if (!cell || String(cell.kind || "") !== "regular") continue;
+          present[String(cell.id || "")] = true;
+        }
+      }
+      const ids = Object.keys(present);
+      if (!ids.length) return { removedCount: 0, lineText: "VOID: no target symbol" };
+      const chosen = ids[Math.floor(state.rng() * ids.length)];
+      const removed = [];
+      for (let r = 0; r < ARCHIVE_ROWS; r++) {
+        for (let c = 0; c < ARCHIVE_REELS; c++) {
+          const cell = state.grid[r] && state.grid[r][c] ? state.grid[r][c] : null;
+          if (!cell || String(cell.kind || "") !== "regular") continue;
+          if (String(cell.id || "") !== chosen) continue;
+          state.grid[r][c] = null;
+          removed.push(archiveKey(r, c));
+        }
+      }
+      if (removed.length) CascadeEngine.collapseAndRefill(state);
+      return { removedCount: removed.length, lineText: "VOID: removed all " + String(chosen || "").toUpperCase() };
+    },
+    spawnMegaWild(state) {
+      if (state.mega && state.mega.active) return false;
+      const col = archiveInt(state.rng, 0, Math.max(0, ARCHIVE_REELS - 2));
+      state.mega = { active: true, row: 0, col };
+      archiveApplyMega(state);
+      return true;
+    },
+    stepMegaWild(state) {
+      if (!state.mega || !state.mega.active) return false;
+      if (state.mega.row >= ARCHIVE_ROWS - 2) {
+        archiveApplyMega(state);
+        return false;
+      }
+      archiveLiftMega(state);
+      state.mega.row += 1;
+      archiveApplyMega(state);
+      return true;
+    }
+  };
+
+  const WinPresenter = {
+    clusterText(cluster) {
+      const row = cluster || {};
+      const s = String(row.symbolIcon || row.symbolId || "SYM");
+      const size = Math.max(0, Math.floor(Number(row.size) || 0));
+      const wildMult = Math.max(1, Math.floor(Number(row.wildMult) || 1));
+      return s + " cluster " + size + " (" + Number(row.payMult || 0).toFixed(2) + "x" + (wildMult > 1 ? ", x" + wildMult + " wild" : "") + ")";
+    },
+    nextPortalLabel(collected) {
+      const c = Math.max(0, Math.floor(Number(collected) || 0));
+      for (let i = 0; i < ARCHIVE_PORTAL_STEPS.length; i++) {
+        if (c < ARCHIVE_PORTAL_STEPS[i]) return "Portal " + c + "/" + ARCHIVE_PORTAL_STEPS[i];
+      }
+      return "Portal " + c + "/42";
+    }
+  };
+
+  function archiveCellMeta(state) {
+    const out = {};
+    const eyeMap = state && state.eyeMarks ? state.eyeMarks : {};
+    const openedMap = state && state.openedEyes ? state.openedEyes : {};
+    for (let r = 0; r < ARCHIVE_ROWS; r++) {
+      for (let c = 0; c < ARCHIVE_REELS; c++) {
+        const key = archiveKey(r, c);
+        const cell = state.grid[r] && state.grid[r][c] ? state.grid[r][c] : null;
+        if (!cell) continue;
+        const row = {};
+        const kind = String(cell.kind || "regular");
+        if (kind === "wild_special") row.kind = "wild";
+        if (kind === "wild_multiplier") {
+          row.kind = "multiplier";
+          row.cellMult = 2;
+        }
+        if (kind === "mega_wild") {
+          row.kind = "wild";
+          row.wildMult = 2;
+        }
+        if (eyeMap[key]) row.eyeMark = true;
+        if (openedMap[key]) row.eyeOpened = true;
+        out[key] = row;
+      }
+    }
+    return out;
+  }
+
+  function archiveInitEyeMarks(state, minCount, maxCount) {
+    const count = archiveInt(state.rng, minCount, maxCount);
+    const keys = [];
+    const megaMap = {};
+    const megaKeys = archiveMegaKeys(state);
+    for (let i = 0; i < megaKeys.length; i++) megaMap[megaKeys[i]] = true;
+    for (let r = 0; r < ARCHIVE_ROWS; r++) {
+      for (let c = 0; c < ARCHIVE_REELS; c++) {
+        const key = archiveKey(r, c);
+        if (!megaMap[key]) keys.push(key);
+      }
+    }
+    const shuffled = archiveShuffle(keys, state.rng);
+    state.eyeMarks = {};
+    state.openedEyes = {};
+    state.eyeTotal = Math.max(0, count);
+    for (let i = 0; i < shuffled.length && i < count; i++) state.eyeMarks[shuffled[i]] = true;
+  }
+
+  function archiveQueuePortalEvents(state, events) {
+    const safe = Array.isArray(events) ? events : [];
+    for (let i = 0; i < safe.length; i++) {
+      const ev = safe[i] || {};
+      if (ev.type === "special") {
+        state.pendingEffects.push({ type: "special", amount: Math.max(0, Math.floor(Number(ev.amount) || 0)), stage: Math.max(0, Math.floor(Number(ev.stage) || 0)), label: "SPECIAL WILDS" });
+      } else if (ev.type === "bonus") {
+        state.lineWins.push("OTHER WORLD READY");
+      }
+    }
+  }
+
+  function archiveResolveWin(state, wins, inBonus) {
+    const clusters = Array.isArray(wins) ? wins : [];
+    let spinPay = 0;
+    for (let i = 0; i < clusters.length; i++) spinPay += Math.max(0, Math.floor(Number(clusters[i].payout) || 0));
+    if (inBonus) state.bonus.totalWin += spinPay;
+    else state.totalPayout += spinPay;
+    const remove = CascadeEngine.removeWinningSymbols(state.grid, clusters);
+    if (inBonus) state.portal.collected += remove.winningCount;
+    else archiveQueuePortalEvents(state, PortalMeter.add(state.portal, remove.winningCount));
+    const opened = archiveConsumeEyeMarks(state, remove.winningKeys);
+    if (opened.length > 0) state.pendingEffects.push({ type: "special", amount: opened.length * 2, stage: 0, label: "SPECIAL WILDS" });
+    const hitAbyss = archiveTakeWatchedHit(state.portal.watchStage2, remove.winningMap);
+    if (hitAbyss.length) {
+      state.pendingEffects.push({ type: "abyss", sourceWilds: hitAbyss, label: "ABYSS" });
+      state.portal.watchStage2 = {};
+    }
+    const hitVoid = archiveTakeWatchedHit(state.portal.watchStage3, remove.winningMap);
+    if (hitVoid.length) {
+      state.pendingEffects.push({ type: "void", sourceWilds: hitVoid, label: "VOID" });
+      state.portal.watchStage3 = {};
+    }
+    CascadeEngine.collapseAndRefill(state);
+    if (inBonus && state.mega && state.mega.active) PortalEffects.stepMegaWild(state);
+    return { spinPay };
+  }
+
+  function archiveBuildBonusHud(state, spinPay) {
+    const effectsLeft = state.bonus ? Math.max(0, state.bonus.effectQueue.length) : 0;
+    const opened = Object.keys(state.openedEyes || {}).length;
+    return {
+      mode: "OTHER WORLD",
+      spinsLeft: effectsLeft,
+      bonusWin: Math.max(0, Math.floor(Number(state.bonus && state.bonus.totalWin) || 0)),
+      currentSpinWin: Math.max(0, Math.floor(Number(spinPay) || 0)),
+      stickyLabel: "Eyes: " + opened + "/" + Math.max(0, Math.floor(Number(state.eyeTotal) || 0)),
+      multiLabel: "Effects: " + effectsLeft
+    };
+  }
+
+  function archivePushBonusFrame(state, spinPay, lineText, banner) {
+    if (!state.bonus || !Array.isArray(state.bonus.frames)) return;
+    if (state.bonus.frames.length >= 96) return;
+    state.bonus.frames.push({
+      frameType: "bonus_spin",
+      reels: gridToTextRows(state.grid),
+      markedCells: Object.keys(state.eyeMarks || {}).slice(0, 256),
+      cellMeta: archiveCellMeta(state),
+      spinPay: Math.max(0, Math.floor(Number(spinPay) || 0)),
+      lineText: String(lineText || "").slice(0, 180),
+      banner: String(banner || "").slice(0, 120),
+      hud: archiveBuildBonusHud(state, spinPay)
+    });
+  }
+
+  function archiveRunEffect(state, effect, inBonus) {
+    const ev = effect && typeof effect === "object" ? effect : {};
+    const type = String(ev.type || "").trim().toLowerCase();
+    if (!type) return;
+    if (type === "special") {
+      const stageTag = Number(ev.stage) === 2 ? "stage2" : (Number(ev.stage) === 3 ? "stage3" : "");
+      const placed = CascadeEngine.applySpecialWilds(state, Math.max(0, Math.floor(Number(ev.amount) || 0)), stageTag);
+      const text = "SPECIAL WILDS +" + placed.length;
+      state.lineWins.push(text);
+      if (inBonus) archivePushBonusFrame(state, 0, text, "SPECIAL WILDS");
+      return;
+    }
+    if (type === "abyss") {
+      const res = PortalEffects.applyAbyss(state, Array.isArray(ev.sourceWilds) ? ev.sourceWilds : []);
+      if (inBonus) state.portal.collected += Math.max(0, Math.floor(Number(res.removedCount) || 0));
+      else archiveQueuePortalEvents(state, PortalMeter.add(state.portal, res.removedCount));
+      state.lineWins.push(res.lineText);
+      if (inBonus) archivePushBonusFrame(state, 0, res.lineText, "ABYSS");
+      return;
+    }
+    if (type === "void") {
+      const res = PortalEffects.applyVoid(state);
+      if (inBonus) state.portal.collected += Math.max(0, Math.floor(Number(res.removedCount) || 0));
+      else archiveQueuePortalEvents(state, PortalMeter.add(state.portal, res.removedCount));
+      state.lineWins.push(res.lineText);
+      if (inBonus) archivePushBonusFrame(state, 0, res.lineText, "VOID");
+      return;
+    }
+    if (type === "mega") {
+      const spawned = PortalEffects.spawnMegaWild(state);
+      const txt = spawned ? "MEGA WILD DEPLOYED" : "MEGA WILD READY";
+      state.lineWins.push(txt);
+      if (inBonus) archivePushBonusFrame(state, 0, txt, "MEGA WILD");
+    }
+  }
+
+  const BonusRoundEngine = {
+    startBonusRound(state) {
+      const extra = Math.max(0, Math.floor((Math.max(0, state.portal.collected) - 42) / 3));
+      const totalEffects = Math.max(ARCHIVE_BONUS_BASE_EFFECTS, Math.min(ARCHIVE_BONUS_MAX_EFFECTS, ARCHIVE_BONUS_BASE_EFFECTS + extra));
+      const queue = ["special4", "abyss", "void"];
+      while (queue.length < totalEffects) {
+        const pick = ["special4", "abyss", "void"];
+        queue.push(pick[Math.floor(state.rng() * pick.length)]);
+      }
+      state.bonus = {
+        totalWin: 0,
+        effectsTotal: totalEffects,
+        effectsUsed: 0,
+        effectQueue: archiveShuffle(queue.slice(0, totalEffects), state.rng),
+        frames: []
+      };
+      state.pendingEffects = [];
+      state.portal.watchStage2 = {};
+      state.portal.watchStage3 = {};
+      state.mega = { active: false, row: 0, col: 0 };
+      archiveInitEyeMarks(state, 11, 12);
+      state.bonus.frames.push({
+        frameType: "bonus_intro",
+        reels: gridToTextRows(state.grid),
+        markedCells: Object.keys(state.eyeMarks || {}).slice(0, 256),
+        cellMeta: archiveCellMeta(state),
+        lineText: "OTHER WORLD START | " + totalEffects + " effects queued",
+        intro: { awardedSpins: totalEffects, effectQueue: state.bonus.effectQueue.slice(0) }
+      });
+      return this.runQueuedBonusEffects(state);
+    },
+    runQueuedBonusEffects(state) {
+      let guard = 0;
+      while (guard++ < 520) {
+        if (state.pendingEffects.length) {
+          archiveRunEffect(state, state.pendingEffects.shift(), true);
+          continue;
+        }
+        const wins = ClusterEngine.findClusters(state.grid, state.bet);
+        if (wins.length) {
+          const out = archiveResolveWin(state, wins, true);
+          const lines = wins.slice(0, 2).map((row) => WinPresenter.clusterText(row)).join(" | ");
+          archivePushBonusFrame(state, out.spinPay, lines || "Cascade", "WIN");
+          const opened = Object.keys(state.openedEyes || {}).length;
+          if (opened >= state.eyeTotal && !(state.mega && state.mega.active)) state.pendingEffects.unshift({ type: "mega" });
+          continue;
+        }
+        if (state.bonus.effectQueue.length) {
+          const next = String(state.bonus.effectQueue.shift() || "");
+          state.bonus.effectsUsed += 1;
+          if (next === "special4") state.pendingEffects.push({ type: "special", amount: 4, stage: 0, label: "SPECIAL WILDS" });
+          else if (next === "abyss") state.pendingEffects.push({ type: "abyss", sourceWilds: [], label: "ABYSS" });
+          else state.pendingEffects.push({ type: "void", sourceWilds: [], label: "VOID" });
+          continue;
+        }
+        break;
+      }
+      state.bonus.frames.push({
+        frameType: "bonus_end",
+        reels: gridToTextRows(state.grid),
+        markedCells: [],
+        cellMeta: archiveCellMeta(state),
+        lineText: "OTHER WORLD COMPLETE | " + Math.floor(state.bonus.totalWin / Math.max(1, state.bet)) + "x",
+        summary: {
+          bonusWin: Math.max(0, Math.floor(Number(state.bonus.totalWin) || 0)),
+          biggestCascadeWin: Math.max(0, Math.floor(Number(state.bonus.totalWin) || 0))
+        }
+      });
+      return {
+        payout: Math.max(0, Math.floor(Number(state.bonus.totalWin) || 0)),
+        effectsTotal: Math.max(0, Math.floor(Number(state.bonus.effectsTotal) || 0)),
+        effectsUsed: Math.max(0, Math.floor(Number(state.bonus.effectsUsed) || 0)),
+        frames: state.bonus.frames.slice(0, 96)
+      };
+    }
+  };
+
+  function spinV7(bet, options) {
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const rng = archiveSafeRng(options);
+    const state = {
+      bet: safeBet,
+      rng,
+      grid: archiveBuildGrid(rng),
+      portal: PortalMeter.create(),
+      pendingEffects: [],
+      eyeMarks: {},
+      openedEyes: {},
+      eyeTotal: 0,
+      lineWins: [],
+      totalPayout: 0,
+      mega: { active: false, row: 0, col: 0 },
+      bonus: null
+    };
+    archiveInitEyeMarks(state, 2, 4);
+    let guard = 0;
+    while (guard++ < 320) {
+      if (state.pendingEffects.length) {
+        archiveRunEffect(state, state.pendingEffects.shift(), false);
+        continue;
+      }
+      const wins = ClusterEngine.findClusters(state.grid, state.bet);
+      if (!wins.length) break;
+      const out = archiveResolveWin(state, wins, false);
+      const labels = wins.slice(0, 3).map((row) => WinPresenter.clusterText(row));
+      if (labels.length) state.lineWins.push(labels.join(" | "));
+      state.lineWins.push(WinPresenter.nextPortalLabel(state.portal.collected));
+      if (state.lineWins.length > 48) state.lineWins = state.lineWins.slice(state.lineWins.length - 48);
+      if (out.spinPay <= 0 && !state.pendingEffects.length) break;
+    }
+    let bonusResult = null;
+    if (state.portal.bonusReady) {
+      state.lineWins.push("OTHER WORLD");
+      bonusResult = BonusRoundEngine.startBonusRound(state);
+      state.totalPayout += Math.max(0, Math.floor(Number(bonusResult && bonusResult.payout) || 0));
+    }
+    const payoutWanted = clampPayoutForGame("slots_v7", state.totalPayout, safeBet, safeBet);
+    const multiplier = safeBet > 0 ? Number((payoutWanted / safeBet).toFixed(2)) : 0;
+    const outcome = multiplier >= 250 ? "jackpot" : (multiplier > 0 ? "win" : "lose");
+    const lineWins = state.lineWins.slice(0, 24);
+    const summary = lineWins.length ? lineWins.slice(0, 3).join(" | ") : "No clusters";
+    return {
+      gameId: "slots_v7",
+      bet: safeBet,
+      reels: gridToTextRows(state.grid),
+      multiplier,
+      payoutWanted,
+      outcome,
+      summary: String(summary || "No clusters").slice(0, 220),
+      paylines: 0,
+      lineIds: [],
+      lineWins,
+      scatterCount: 0,
+      bonusTriggered: Boolean(bonusResult),
+      freeSpinsAwarded: bonusResult ? bonusResult.effectsTotal : 0,
+      freeSpinsPlayed: bonusResult ? bonusResult.effectsUsed : 0,
+      freeSpinPayout: bonusResult ? Math.max(0, Math.floor(Number(bonusResult.payout) || 0)) : 0,
+      bonusFrames: bonusResult && Array.isArray(bonusResult.frames) ? bonusResult.frames.slice(0, 96) : [],
+      cellMeta: archiveCellMeta(state),
+      portalMeter: { collected: Math.max(0, Math.floor(Number(state.portal.collected) || 0)), thresholds: ARCHIVE_PORTAL_STEPS.slice(0) },
+      mechanic: "tumble",
+      payMode: "cluster",
+      clusterMin: ARCHIVE_CLUSTER_MIN,
+      symbolWeights: {
+        ember: 26,
+        sigil: 24,
+        shard: 21,
+        lantern: 18,
+        watcher: 14,
+        oracle: 11,
+        archive: 8,
+        relic: 6,
+        wild_special: 2,
+        wild_multiplier: 1
+      },
+      rtpTarget: Number(GAME_DEFS.slots_v7.rtp) || 0.965
+    };
+  }
+
   function simulateSnoopDollars(spins, bet, options) {
     const n = Math.max(1, Math.floor(Number(spins) || 100000));
     const stake = Math.max(1, Math.floor(Number(bet) || 1));
@@ -2555,6 +3389,7 @@ window.GTModules = window.GTModules || {};
   function spin(gameId, bet, options) {
     const id = String(gameId || "slots").trim().toLowerCase();
     if (id === "slots_v2") return spinV2(bet, options);
+    if (id === "slots_v7") return spinV7(bet, options);
     if (id === "snoop_dogg_dollars") return spinSnoopDollars(bet, options);
     if (id === "slots_v3") return spinV3(bet, options);
     if (id === "slots_v4") return spinV4(bet, options);
