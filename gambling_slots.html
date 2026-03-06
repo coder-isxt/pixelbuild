@@ -2284,6 +2284,54 @@
       box-shadow: 0 0 14px rgba(255, 208, 112, 0.35);
       z-index: 5;
       animation: premiumBannerIn 320ms ease-out;
+      pointer-events: none;
+      text-align: center;
+      max-width: calc(100% - 22px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .premium-win-banner.is-center {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 14px 24px;
+      font-size: clamp(15px, 2.5vw, 26px);
+      line-height: 1.1;
+      border-width: 2px;
+      border-color: rgba(246, 225, 164, 0.94);
+      background: radial-gradient(circle at 38% 22%, rgba(255, 245, 213, 0.24), rgba(74, 52, 18, 0.92) 58%, rgba(48, 33, 10, 0.96) 100%);
+      text-shadow: 0 0 12px rgba(255, 218, 128, 0.56);
+      box-shadow:
+        0 0 30px rgba(255, 209, 106, 0.42),
+        inset 0 0 0 1px rgba(255, 247, 220, 0.24);
+      animation: premiumBannerCenterPop 340ms ease-out;
+    }
+
+    .premium-win-banner.is-big {
+      border-color: rgba(255, 223, 136, 0.94);
+      box-shadow:
+        0 0 22px rgba(255, 200, 96, 0.45),
+        inset 0 0 0 1px rgba(255, 244, 207, 0.22);
+    }
+
+    .premium-win-banner.is-max {
+      border-color: rgba(174, 238, 255, 0.95);
+      color: #e8fbff;
+      background:
+        radial-gradient(circle at 40% 20%, rgba(220, 248, 255, 0.26), rgba(24, 76, 98, 0.9) 56%, rgba(10, 31, 44, 0.96) 100%);
+      text-shadow:
+        0 0 12px rgba(140, 232, 255, 0.7),
+        0 0 26px rgba(140, 232, 255, 0.45);
+      box-shadow:
+        0 0 28px rgba(102, 220, 255, 0.5),
+        inset 0 0 0 1px rgba(218, 246, 255, 0.32);
+      animation: premiumBannerMaxPulse 700ms ease-in-out infinite alternate;
+    }
+
+    .premium-win-banner.is-final {
+      letter-spacing: 0.04em;
     }
 
     .premium-controls {
@@ -2555,6 +2603,13 @@
       box-shadow: 0 0 36px rgba(255, 160, 106, 0.34);
     }
 
+    .stage.win-tier-max .board-wrap {
+      box-shadow:
+        0 0 52px rgba(126, 223, 255, 0.48),
+        inset 0 0 0 1px rgba(203, 242, 255, 0.3);
+      filter: saturate(1.16) brightness(1.1);
+    }
+
     .stage.bonus-live .board-wrap {
       border-color: rgba(146, 212, 255, 0.44);
       box-shadow:
@@ -2683,6 +2738,10 @@
       animation: premiumShake 420ms linear;
     }
 
+    .stage.screen-shake-max {
+      animation: premiumShakeMax 920ms cubic-bezier(0.2, 0.88, 0.22, 1);
+    }
+
     .board-wrap.reel-accelerate .reel {
       animation: reelPremiumRoll 120ms linear infinite;
       filter: blur(0.6px);
@@ -2723,6 +2782,25 @@
       100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
     }
 
+    @keyframes premiumBannerCenterPop {
+      0% { transform: translate(-50%, -50%) scale(0.84); opacity: 0; }
+      75% { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+
+    @keyframes premiumBannerMaxPulse {
+      0% {
+        box-shadow:
+          0 0 22px rgba(106, 224, 255, 0.44),
+          inset 0 0 0 1px rgba(212, 244, 255, 0.26);
+      }
+      100% {
+        box-shadow:
+          0 0 40px rgba(106, 224, 255, 0.7),
+          inset 0 0 0 1px rgba(234, 250, 255, 0.42);
+      }
+    }
+
     @keyframes spinButtonPulse {
       0% { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25), 0 0 16px rgba(255, 202, 98, 0.18), inset 0 0 0 1px rgba(255, 248, 220, 0.22); }
       100% { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25), 0 0 30px rgba(255, 202, 98, 0.46), inset 0 0 0 1px rgba(255, 248, 220, 0.45); }
@@ -2735,6 +2813,20 @@
       60% { transform: translateX(-2px); }
       80% { transform: translateX(2px); }
       100% { transform: translateX(0); }
+    }
+
+    @keyframes premiumShakeMax {
+      0% { transform: translate3d(0, 0, 0) scale(1); }
+      10% { transform: translate3d(-6px, 2px, 0) scale(1.004); }
+      20% { transform: translate3d(6px, -2px, 0) scale(1.006); }
+      30% { transform: translate3d(-5px, 1px, 0) scale(1.008); }
+      40% { transform: translate3d(5px, -1px, 0) scale(1.01); }
+      50% { transform: translate3d(-4px, 0, 0) scale(1.008); }
+      60% { transform: translate3d(4px, 0, 0) scale(1.006); }
+      70% { transform: translate3d(-3px, 1px, 0) scale(1.004); }
+      80% { transform: translate3d(3px, -1px, 0) scale(1.003); }
+      90% { transform: translate3d(-2px, 0, 0) scale(1.002); }
+      100% { transform: translate3d(0, 0, 0) scale(1); }
     }
 
     @keyframes reelPremiumRoll {

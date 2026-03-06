@@ -17,7 +17,7 @@ window.GTModules = window.GTModules || {};
       name: "Slots v2",
       minBet: 1,
       maxBet: 30000,
-      maxPayoutMultiplier: 50,
+      maxPayoutMultiplier: 10000,
       rtp: 0.96,
       volatility: "medium-high",
       layout: { reels: 5, rows: 4 }
@@ -823,8 +823,7 @@ window.GTModules = window.GTModules || {};
       : (base && base.bonusView ? base.bonusView : null);
 
     const uncapped = Math.max(0, (boughtBonus ? boughtBonusPayout : Math.floor(Number(base.payoutWanted) || 0)));
-    const cap = wager * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v2.maxPayoutMultiplier) || 50));
-    const payoutWanted = Math.max(0, Math.min(cap, uncapped));
+    const payoutWanted = Math.max(0, uncapped);
     const multiplierBase = boughtBonus ? safeBet : wager;
     const finalMultiplier = multiplierBase > 0 ? Number((payoutWanted / multiplierBase).toFixed(2)) : 0;
     const outcome = finalMultiplier >= 20 ? "jackpot" : (finalMultiplier > 0 ? "win" : "lose");
@@ -1012,8 +1011,7 @@ window.GTModules = window.GTModules || {};
       summaryParts.push("BONUS TRIGGERED");
       summaryParts.push(fs.summary);
     }
-    const cap = safeBet * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v3.maxPayoutMultiplier) || 5000));
-    payout = Math.max(0, Math.min(cap, payout));
+    payout = Math.max(0, payout);
     const mult = safeBet > 0 ? Number((payout / safeBet).toFixed(2)) : 0;
     const outcome = mult >= 100 ? "jackpot" : (mult > 0 ? "win" : "lose");
     const lines = base.lineWins.slice(0, 12);
@@ -1210,8 +1208,7 @@ window.GTModules = window.GTModules || {};
       summaryParts.push("BONUS TRIGGERED");
       summaryParts.push(fs.summary);
     }
-    const cap = safeBet * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v4.maxPayoutMultiplier) || 5000));
-    payout = Math.max(0, Math.min(cap, payout));
+    payout = Math.max(0, payout);
     const mult = safeBet > 0 ? Number((payout / safeBet).toFixed(2)) : 0;
     const outcome = mult >= 120 ? "jackpot" : (mult > 0 ? "win" : "lose");
     const lines = base.lineWins.slice(0, 12);
@@ -1422,8 +1419,7 @@ window.GTModules = window.GTModules || {};
       summaryParts.push("BONUS TRIGGERED");
       summaryParts.push(fs.summary);
     }
-    const cap = safeBet * Math.max(1, Math.floor(Number(GAME_DEFS.slots_v6.maxPayoutMultiplier) || 5000));
-    payout = Math.max(0, Math.min(cap, payout));
+    payout = Math.max(0, payout);
     const mult = safeBet > 0 ? Number((payout / safeBet).toFixed(2)) : 0;
     const outcome = mult >= 120 ? "jackpot" : (mult > 0 ? "win" : "lose");
     const lines = baseRun.lineWins.slice(0, 14);
@@ -2152,13 +2148,10 @@ window.GTModules = window.GTModules || {};
         effectCells: effectCells,
         markedCells: Object.keys(state.marked || {}).slice(0, 256)
       });
-      if (totalPayout >= state.winCap) {
-        totalPayout = state.winCap;
-        break;
-      }
+      if (totalPayout >= Number.MAX_SAFE_INTEGER) break;
     }
     return {
-      payout: Math.max(0, Math.min(state.winCap, totalPayout)),
+      payout: Math.max(0, totalPayout),
       cascades,
       lineWins: lineWins.slice(0, 48),
       finalGrid: grid,
@@ -2288,17 +2281,14 @@ window.GTModules = window.GTModules || {};
         retriggerScatters,
         wildUpgrades: frameWildUpgrades.slice(0, 64)
       });
-      if (payout >= state.winCap) {
-        payout = state.winCap;
-        break;
-      }
+      if (payout >= Number.MAX_SAFE_INTEGER) break;
     }
     state.collectScatters = originalCollect;
     return {
       spinsPlayed: played,
       totalAwarded,
       retriggeredSpins,
-      payout: Math.max(0, Math.min(state.winCap, payout)),
+      payout: Math.max(0, payout),
       timeline: timeline.slice(0, 32),
       finalGrid: grid,
       frames: frames.slice(0, Math.max(1, totalAwarded)),
@@ -2435,8 +2425,7 @@ window.GTModules = window.GTModules || {};
     }
 
     const uncapped = Math.max(0, basePayout + freeSpinPayout);
-    const cap = Math.max(1, Math.floor(Number(state.winCap) || (safeBet * 10000)));
-    const payoutWanted = Math.max(0, Math.min(cap, uncapped));
+    const payoutWanted = Math.max(0, uncapped);
     const multiplier = safeBet > 0 ? Number((payoutWanted / safeBet).toFixed(2)) : 0;
     const outcome = multiplier >= 300 ? "jackpot" : (multiplier > 0 ? "win" : "lose");
     const summary = lineWins.length

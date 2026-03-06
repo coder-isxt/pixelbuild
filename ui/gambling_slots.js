@@ -824,6 +824,7 @@ window.GTModules = window.GTModules || {};
     const payout = Math.max(0, Number(pay) || 0);
     const bet = Math.max(1, Number(stake) || 1);
     const mul = payout / bet;
+    if (mul >= 150) return { id: "max", label: "MAX WIN", className: "win-tier-max", sound: "win_big", durationScale: 1.45 };
     if (mul >= 50) return { id: "epic", label: "EPIC WIN", className: "win-tier-big", sound: "win_big", durationScale: 1.3 };
     if (mul >= 25) return { id: "mega", label: "MEGA WIN", className: "win-tier-big", sound: "win_big", durationScale: 1.15 };
     if (mul >= 10) return { id: "big", label: "BIG WIN", className: "win-tier-medium", sound: "win_medium", durationScale: 1.05 };
@@ -835,19 +836,49 @@ window.GTModules = window.GTModules || {};
   let tumbleAnimator = null;
 
   function createWinPresenter() {
-    function clearWinTier() {
-      if (!(els.stage instanceof HTMLElement)) return;
-      els.stage.classList.remove("win-tier-small", "win-tier-medium", "win-tier-big", "screen-shake");
+    let bannerHideTimer = 0;
+
+    function clearBannerTimer() {
+      if (!bannerHideTimer) return;
+      window.clearTimeout(bannerHideTimer);
+      bannerHideTimer = 0;
     }
 
-    function showBanner(text) {
+    function clearWinTier() {
+      if (!(els.stage instanceof HTMLElement)) return;
+      els.stage.classList.remove("win-tier-small", "win-tier-medium", "win-tier-big", "win-tier-max", "screen-shake", "screen-shake-max");
+    }
+
+    function showBanner(text, tierId, options) {
       if (!(els.premiumWinBanner instanceof HTMLElement)) return;
+      const opts = options && typeof options === "object" ? options : {};
+      const tier = String(tierId || "").trim().toLowerCase();
+      clearBannerTimer();
       els.premiumWinBanner.textContent = String(text || "WIN!");
+      els.premiumWinBanner.classList.remove("is-center", "is-big", "is-max", "is-final");
+      if (opts.center === true) els.premiumWinBanner.classList.add("is-center");
+      if (tier === "big" || tier === "mega" || tier === "epic" || tier === "max") {
+        els.premiumWinBanner.classList.add("is-big");
+      }
+      if (tier === "max") {
+        els.premiumWinBanner.classList.add("is-max");
+      }
+      if (opts.final === true) {
+        els.premiumWinBanner.classList.add("is-final");
+      }
       els.premiumWinBanner.classList.remove("hidden");
+      const hideAfterMs = Math.max(0, Math.floor(Number(opts.hideAfterMs) || 0));
+      if (hideAfterMs > 0) {
+        bannerHideTimer = window.setTimeout(() => {
+          hideBanner();
+        }, hideAfterMs);
+      }
     }
 
     function hideBanner() {
       if (!(els.premiumWinBanner instanceof HTMLElement)) return;
+      clearBannerTimer();
+      els.premiumWinBanner.classList.remove("is-center", "is-big", "is-max", "is-final");
       els.premiumWinBanner.classList.add("hidden");
     }
 
@@ -900,16 +931,32 @@ window.GTModules = window.GTModules || {};
 
       if (els.stage instanceof HTMLElement && tier.className) {
         els.stage.classList.add(tier.className);
-        if (tier.id === "epic" || tier.id === "mega") {
+        if (tier.id === "max") {
+          els.stage.classList.add("screen-shake-max");
+          window.setTimeout(() => {
+            if (els.stage instanceof HTMLElement) els.stage.classList.remove("screen-shake-max");
+          }, 980);
+        } else if (tier.id === "epic" || tier.id === "mega") {
           els.stage.classList.add("screen-shake");
           window.setTimeout(() => {
             if (els.stage instanceof HTMLElement) els.stage.classList.remove("screen-shake");
           }, 520);
         }
       }
-      showBanner(tier.label || "WIN");
+      showBanner(tier.label || "WIN", tier.id, { center: false });
       if (tier.sound) audioManager.play(tier.sound);
-      if (tier.id === "epic" || tier.id === "mega") safeVibrate(18);
+      if (tier.id === "max") {
+        safeVibrate(26);
+        spawnParticles("jackpot");
+        window.setTimeout(() => spawnParticles("jackpot"), 140);
+        window.setTimeout(() => spawnParticles("jackpot"), 300);
+      } else if (tier.id === "epic" || tier.id === "mega") {
+        safeVibrate(18);
+        spawnParticles("jackpot");
+      } else if (tier.id === "big") {
+        safeVibrate(12);
+        spawnParticles("win");
+      }
 
       if (replayFromZero) {
         setCurrentWinValue(0, stake);
@@ -920,6 +967,15 @@ window.GTModules = window.GTModules || {};
       } else {
         setCurrentWinValue(pay, stake);
       }
+      showBanner(
+        "WIN " + formatLocksByDisplayUnit(pay),
+        tier.id,
+        {
+          center: true,
+          final: true,
+          hideAfterMs: tier.id === "max" ? 2800 : (tier.id === "epic" || tier.id === "mega" || tier.id === "big" ? 1900 : 1300)
+        }
+      );
     }
 
     return {
@@ -1927,7 +1983,7 @@ window.GTModules = window.GTModules || {};
         // Explicit dead wheel result.
       }
 
-      spinMultiplier = Math.max(1, Math.min(20, Number(spinMultiplier) || 1));
+      spinMultiplier = Math.max(1, Number(spinMultiplier) || 1);
       events.push({
         key: String(wheel.key || ""),
         row: Math.max(0, Math.floor(Number(wheel.row) || 0)),
@@ -1988,9 +2044,8 @@ window.GTModules = window.GTModules || {};
     const board = sixGenerateSpinGrid(ruleSet);
     const wheel = sixResolveWheels(board.wheels, baseBet);
     const pay = sixEvaluatePaylines(board.grid, baseBet, wheel.spinMultiplier);
-    const maxSpin = Math.max(0, Math.floor(baseBet * Math.max(1, Number(SIX666_CONFIG.maxSpinWinMultiplier) || 1)));
     const rawSpinPay = Math.max(0, wheel.instantWin + pay.total);
-    const spinPay = Math.max(0, Math.floor(Math.min(maxSpin, rawSpinPay)));
+    const spinPay = Math.max(0, Math.floor(rawSpinPay));
     const lineText = "FS " + spinIndex + " | Wheels " + board.wheels.length
       + " | Multi x" + sixFormatMultiplier(wheel.spinMultiplier)
       + " | " + (spinPay > 0 ? ("Win " + spinPay + " WL") : "No Win");
@@ -2017,8 +2072,7 @@ window.GTModules = window.GTModules || {};
     const buyMode = Boolean(buyBonus);
     const baseRules = sixRulesForBase();
     const baseSpin = sixBuildSpinFrame(machine, safeBet, baseRules, 0, 0);
-    const maxRound = Math.max(0, Math.floor(safeBet * Math.max(1, Number(SIX666_CONFIG.maxRoundWinMultiplier) || 1)));
-    const basePay = Math.max(0, Math.floor(Math.min(maxRound, Number(baseSpin.spinPay) || 0)));
+    const basePay = Math.max(0, Math.floor(Number(baseSpin.spinPay) || 0));
     baseSpin.spinPay = basePay;
     const baseWheels = Array.isArray(baseSpin.wheelEvents) ? baseSpin.wheelEvents : [];
     const activatedCount = baseWheels.filter((row) => row.activated).length;
@@ -2042,7 +2096,6 @@ window.GTModules = window.GTModules || {};
 
     const bonusFrames = [];
     let bonusTotal = 0;
-    let remainingCap = Math.max(0, maxRound - basePay);
     let spinsLeft = triggerRules ? Math.max(0, Math.floor(Number(triggerRules.spins) || Number(SIX666_CONFIG.defaultBonusSpins) || 10)) : 0;
 
     if (triggerRules) {
@@ -2067,10 +2120,9 @@ window.GTModules = window.GTModules || {};
         spinsLeft -= 1;
         spinIndex += 1;
         const frame = sixBuildSpinFrame(machine, safeBet, triggerRules, spinIndex, spinsLeft);
-        const appliedSpinPay = Math.max(0, Math.floor(Math.min(remainingCap, Number(frame.spinPay) || 0)));
+        const appliedSpinPay = Math.max(0, Math.floor(Number(frame.spinPay) || 0));
         frame.spinPay = appliedSpinPay;
         bonusTotal += appliedSpinPay;
-        remainingCap = Math.max(0, remainingCap - appliedSpinPay);
         if (frame.extraSpins > 0) {
           spinsLeft += frame.extraSpins;
           frame.banner = "EXTRA SPINS +" + frame.extraSpins;
@@ -2084,7 +2136,6 @@ window.GTModules = window.GTModules || {};
           wheelRules: triggerFlags
         };
         bonusFrames.push(frame);
-        if (remainingCap <= 0) break;
       }
 
       bonusFrames.push({
