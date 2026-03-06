@@ -1053,6 +1053,18 @@
             scope.blockImageCache = blockImageCache;
             scope.waterFramePathCache = waterFramePathCache;
             scope.remoteAnimationTracker = remoteAnimationTracker;
+            scope.actionFeedbackEvents = actionFeedbackEvents;
+            scope.lastActionLatencyMs = lastActionLatencyMs;
+            scope.worldTransitionTarget = worldTransitionTarget;
+            scope.worldTransitionStartedAt = worldTransitionStartedAt;
+            scope.worldTransitionToken = worldTransitionToken;
+            scope.hudExpanded = hudExpanded;
+            scope.FEEDBACK_TILES_TTL_MS = FEEDBACK_TILES_TTL_MS;
+            scope.FEEDBACK_MAX_EVENTS = FEEDBACK_MAX_EVENTS;
+            scope.INPUT_RESPONSE_TARGET_MS = INPUT_RESPONSE_TARGET_MS;
+            scope.WORLD_TRANSITION_MIN_VISIBLE_MS = WORLD_TRANSITION_MIN_VISIBLE_MS;
+            scope.WORLD_TRANSITION_MAX_VISIBLE_MS = WORLD_TRANSITION_MAX_VISIBLE_MS;
+            scope.WORLD_TRANSITION_LABEL = WORLD_TRANSITION_LABEL;
             scope.drawUtilsModule = drawUtilsModule;
             scope.animationsModule = animationsModule;
             scope.particleController = particleController;
@@ -1234,6 +1246,12 @@
       let mobileTouchActionMode = "primary";
       let isMobileInventoryOpen = false;
       let mobilePlayModeEnabled = true;
+      let actionFeedbackEvents = [];
+      let lastActionLatencyMs = -9999;
+      let worldTransitionTarget = "";
+      let worldTransitionStartedAt = 0;
+      let worldTransitionToken = 0;
+      let hudExpanded = false;
       const CHAT_PANEL_POS_KEY = "gt_chat_panel_top_v1";
       const CHAT_PANEL_TOP_DEFAULT = 10;
       const CHAT_PANEL_TOP_MIN = 8;
@@ -1263,11 +1281,163 @@
       };
       const HIT_ANIM_MS = 200;
       const BLOCK_HIT_COOLDOWN_MS = Math.max(60, Number(SETTINGS.BLOCK_HIT_COOLDOWN_MS) || 120);
+      const FEEDBACK_TILES_TTL_MS = 320;
+      const FEEDBACK_MAX_EVENTS = 24;
+      const INPUT_RESPONSE_TARGET_MS = 100;
+      const WORLD_TRANSITION_MIN_VISIBLE_MS = 140;
+      const WORLD_TRANSITION_MAX_VISIBLE_MS = 500;
+      const WORLD_TRANSITION_LABEL = "Switching worlds...";
       const SPIKE_KILL_COOLDOWN_MS = Math.max(350, Number(SETTINGS.SPIKE_KILL_COOLDOWN_MS) || 700);
       const DANCE_DURATION_MS = Math.max(1200, Number(SETTINGS.DANCE_DURATION_MS) || 5000);
       const FIXED_FPS = 60;
       const FIXED_FRAME_MS = 1000 / FIXED_FPS;
       const MAX_TICK_CATCHUP = 4;
+      let feedbackAudioContext = null;
+      let lastActionToneAtMs = -9999;
+
+      function getFeedbackAudioContext() {
+        if (typeof window === "undefined") return null;
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return null;
+        if (!feedbackAudioContext) {
+          feedbackAudioContext = new AudioContextClass();
+        }
+        return feedbackAudioContext;
+      }
+
+      function addActionFeedbackEvent(tx, ty, tier, label, latencyMs, intensity) {
+        if (!Array.isArray(actionFeedbackEvents)) {
+          actionFeedbackEvents = [];
+        }
+        const safeTx = Math.floor(Number(tx));
+        const safeTy = Math.floor(Number(ty));
+        if (!Number.isInteger(safeTx) || !Number.isInteger(safeTy)) return;
+        if (safeTx < 0 || safeTy < 0 || safeTx >= WORLD_W || safeTy >= WORLD_H) return;
+        const now = performance.now();
+        actionFeedbackEvents.push({
+          tx: safeTx,
+          ty: safeTy,
+          tier: String(tier || "input").slice(0, 16),
+          label: String(label || "").slice(0, 40),
+          createdAt: now,
+          latencyMs: Number.isFinite(Number(latencyMs)) ? Math.max(0, Math.round(Number(latencyMs))) : 0,
+          intensity: Number.isFinite(Number(intensity)) ? Math.max(0.2, Math.min(1, Number(intensity))) : 1
+        });
+        while (actionFeedbackEvents.length > FEEDBACK_MAX_EVENTS) {
+          actionFeedbackEvents.shift();
+        }
+      }
+
+      function recordActionLatency(startedAtMs) {
+        const now = performance.now();
+        const latencyMs = Number.isFinite(startedAtMs) ? Math.max(0, Math.round(now - Number(startedAtMs))) : 0;
+        lastActionLatencyMs = latencyMs;
+        return latencyMs;
+      }
+
+      function reportActionLatencyResult(startedAtMs, tx, ty, outcome, label) {
+        const latencyMs = recordActionLatency(startedAtMs);
+        const safeTx = Math.floor(Number(tx));
+        const safeTy = Math.floor(Number(ty));
+        if (!Number.isFinite(safeTx) || !Number.isFinite(safeTy)) return latencyMs;
+        const result = String(outcome || "warn").toLowerCase();
+        const tier = result === "success" && latencyMs > INPUT_RESPONSE_TARGET_MS
+          ? "warn"
+          : result;
+        addActionFeedbackEvent(safeTx, safeTy, tier, label, latencyMs, result === "success" ? 0.95 : 0.75);
+        playActionTone(tier, 0.55);
+        return latencyMs;
+      }
+
+      function reportActionOutcome(startedAtMs, tx, ty, outcome, label) {
+        if (!Number.isFinite(startedAtMs)) return outcome;
+        return reportActionLatencyResult(startedAtMs, tx, ty, outcome, label);
+      }
+
+      function reportActionTap(tx, ty) {
+        const safeTx = Math.floor(Number(tx));
+        const safeTy = Math.floor(Number(ty));
+        if (!Number.isFinite(safeTx) || !Number.isFinite(safeTy)) return;
+        addActionFeedbackEvent(safeTx, safeTy, "input", "action");
+        playActionTone("input", 0.45);
+      }
+
+      function playActionTone(toneType, intensity) {
+        const now = performance.now();
+        if (!Number.isFinite(now) || now - lastActionToneAtMs < 25) return;
+        const ctxAudio = getFeedbackAudioContext();
+        if (!ctxAudio) return;
+        const gainByType = {
+          input: { freq: 680, type: "triangle", duration: 0.06, base: 0.08 },
+          success: { freq: 880, type: "sine", duration: 0.06, base: 0.09 },
+          warn: { freq: 520, type: "sawtooth", duration: 0.07, base: 0.08 },
+          deny: { freq: 260, type: "square", duration: 0.09, base: 0.08 }
+        };
+        const settings = gainByType[String(toneType)] || gainByType.input;
+        const amp = Math.max(0.08, Math.min(1, Number(intensity) || 0.4));
+        const resumePromise = ctxAudio.state === "suspended" ? ctxAudio.resume() : Promise.resolve();
+        lastActionToneAtMs = now;
+        resumePromise.then(() => {
+          try {
+            const osc = ctxAudio.createOscillator();
+            const gain = ctxAudio.createGain();
+            osc.type = settings.type;
+            osc.frequency.value = settings.freq + (amp * 70);
+            gain.gain.value = 0.0001;
+            osc.connect(gain);
+            gain.connect(ctxAudio.destination);
+            const t = ctxAudio.currentTime;
+            gain.gain.exponentialRampToValueAtTime(settings.base * amp, t + 0.006);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + settings.duration);
+            osc.start(t);
+            osc.stop(t + settings.duration + 0.03);
+            osc.onended = () => {
+              try {
+                osc.disconnect();
+                gain.disconnect();
+              } catch (error) {
+                // ignore
+              }
+            };
+          } catch (error) {
+            // ignore audio failures
+          }
+        }).catch(() => {
+          // ignore audio failures
+        });
+      }
+
+      function beginWorldTransition(targetWorldId) {
+        const token = Math.max(0, Number(worldTransitionToken) || 0) + 1;
+        worldTransitionToken = token;
+        worldTransitionTarget = String(targetWorldId || "");
+        worldTransitionStartedAt = performance.now();
+        const safeStartedAt = worldTransitionStartedAt;
+        window.setTimeout(() => {
+          if (worldTransitionToken !== token) return;
+          if (worldTransitionStartedAt !== safeStartedAt) return;
+          worldTransitionTarget = "";
+          worldTransitionStartedAt = 0;
+        }, WORLD_TRANSITION_MAX_VISIBLE_MS);
+        return token;
+      }
+
+      function finishWorldTransition(token) {
+        if (!token || Number(worldTransitionToken) !== Number(token)) return;
+        if (!worldTransitionTarget || !worldTransitionStartedAt) return;
+        const elapsedMs = Math.max(0, performance.now() - worldTransitionStartedAt);
+        const remainingMs = Math.max(0, WORLD_TRANSITION_MIN_VISIBLE_MS - elapsedMs);
+        const finalize = () => {
+          if (Number(worldTransitionToken) !== Number(token)) return;
+          worldTransitionTarget = "";
+          worldTransitionStartedAt = 0;
+        };
+        if (remainingMs > 0) {
+          window.setTimeout(finalize, remainingMs);
+        } else {
+          finalize();
+        }
+      }
 
       function triggerWingFlapPulse(strength) {
         const now = performance.now();
@@ -9803,48 +9973,54 @@
         return true;
       }
 
-      function tryPlace(tx, ty) {
+      function tryPlace(tx, ty, actionStartedAtMs) {
+        const actionAtMs = Number.isFinite(actionStartedAtMs) ? Number(actionStartedAtMs) : null;
+        const reportAction = (outcome, label) => {
+          if (actionAtMs === null) return outcome;
+          return reportActionOutcome(actionAtMs, tx, ty, outcome, label);
+        };
         const id = slotOrder[selectedSlot];
-        if (typeof id !== "number") return;
+        if (typeof id !== "number") return reportAction("warn", "invalid item");
         const placeDef = blockDefs[id] || null;
         const blocksPlayers = !placeDef || placeDef.solid !== false;
         if (id === SPAWN_MOVER_ID) {
-          tryUseSpawnMover(tx, ty);
-          return;
+          return tryUseSpawnMover(tx, ty)
+            ? reportAction("success", "spawn moved")
+            : reportAction("warn", "cannot move spawn");
         }
-        if (!canEditTarget(tx, ty)) return;
-        if (isProtectedSpawnTile(tx, ty)) return;
+        if (!canEditTarget(tx, ty)) return reportAction("warn", "out of reach");
+        if (isProtectedSpawnTile(tx, ty)) return reportAction("warn", "protected spawn");
         if (!canEditCurrentWorld()) {
           notifyWorldLockedDenied();
-          return;
+          return reportAction("deny", "world is locked");
         }
-        if (inventory[id] <= 0) return;
-        if (world[ty][tx] !== 0) return;
-        if (blocksPlayers && tileOccupiedByAnyPlayer(tx, ty, { minOverlap: 0.75 })) return;
+        if (inventory[id] <= 0) return reportAction("warn", "not enough items");
+        if (world[ty][tx] !== 0) return reportAction("warn", "occupied");
+        if (blocksPlayers && tileOccupiedByAnyPlayer(tx, ty, { minOverlap: 0.75 })) return reportAction("warn", "occupied by player");
         if (isPlantSeedBlockId(id)) {
           const supportTy = ty + 1;
           if (supportTy >= WORLD_H || world[supportTy][tx] === 0) {
             postLocalSystemChat("Seeds can only be planted on top of blocks.");
-            return;
+            return reportAction("warn", "seed needs support");
           }
         }
         if (isWorldLocked() && !isWorldLockOwner()) {
           if (isWorldLockBlockId(id)) {
             notifyOwnerOnlyWorldEdit("the world lock");
-            return;
+            return reportAction("deny", "world lock is owner-only");
           }
           if (id === VENDING_ID) {
             notifyOwnerOnlyWorldEdit("vending machines");
-            return;
+            return reportAction("deny", "vending placement is owner-only");
           }
           if (id === TAX_BLOCK_ID) {
             notifyOwnerOnlyWorldEdit("owner Tax Machine");
-            return;
+            return reportAction("deny", "tax machine is owner-only");
           }
         }
         if (id === TAX_BLOCK_ID && hasOwnerTaxBlockInWorld()) {
           postLocalSystemChat("Only one owner Tax Machine is allowed per world.");
-          return;
+          return reportAction("warn", "tax machine already exists");
         }
 
         const finalizePlace = () => {
@@ -9960,7 +10136,7 @@
             } else {
               notifyWorldLockedDenied();
             }
-            return;
+            return reportAction("warn", "world already has your lock");
           }
           const ownerName = (playerName || "player").toString().slice(0, 20);
           if (!network.enabled || !network.lockRef) {
@@ -9975,7 +10151,7 @@
             finalizePlace();
             postLocalSystemChat("World locked.");
             applyAchievementEvent("world_lock_placed", { worldId: currentWorldId });
-            return;
+            return reportAction("success", "world lock placed");
           }
           network.lockRef.transaction((current) => {
             if (current && current.ownerAccountId) return;
@@ -9989,9 +10165,12 @@
             };
           }).then((result) => {
             if (!result.committed) {
-              const existing = normalizeWorldLock(result.snapshot && result.snapshot.val ? result.snapshot.val() : null);
+            const existing = normalizeWorldLock(result.snapshot && result.snapshot.val ? result.snapshot.val() : null);
               currentWorldLock = existing;
               notifyWorldLockedDenied();
+              if (actionAtMs !== null) {
+                reportActionLatencyResult(actionAtMs, tx, ty, "warn", "world already locked");
+              }
               return;
             }
             currentWorldLock = normalizeWorldLock(result.snapshot && result.snapshot.val ? result.snapshot.val() : null) || {
@@ -10005,37 +10184,49 @@
             finalizePlace();
             postLocalSystemChat("World locked.");
             applyAchievementEvent("world_lock_placed", { worldId: currentWorldId });
+            if (actionAtMs !== null) {
+              reportActionLatencyResult(actionAtMs, tx, ty, "success", "world lock placed");
+            }
           }).catch(() => {
             postLocalSystemChat("Failed to place world lock.");
+            if (actionAtMs !== null) {
+              reportActionLatencyResult(actionAtMs, tx, ty, "warn", "world lock failed");
+            }
           });
-          return;
+          return actionAtMs === null ? "pending" : "pending";
         }
 
         finalizePlace();
+        return reportAction("success", "placed block");
       }
 
-      function tryBreak(tx, ty) {
-        if (!canEditTarget(tx, ty)) return;
+      function tryBreak(tx, ty, actionStartedAtMs) {
+        const actionAtMs = Number.isFinite(actionStartedAtMs) ? Number(actionStartedAtMs) : null;
+        const reportAction = (outcome, label) => {
+          if (actionAtMs === null) return outcome;
+          return reportActionOutcome(actionAtMs, tx, ty, outcome, label);
+        };
+        if (!canEditTarget(tx, ty)) return reportAction("warn", "out of reach");
         const id = world[ty][tx];
-        if (id === 0) return;
-        if (id === SPAWN_DOOR_ID) return;
+        if (id === 0) return reportAction("warn", "nothing to break");
+        if (id === SPAWN_DOOR_ID) return reportAction("warn", "protected");
         if (!canEditCurrentWorld()) {
           notifyWorldLockedDenied();
-          return;
+          return reportAction("deny", "world is locked");
         }
-        if (isProtectedSpawnTile(tx, ty)) return;
-        if (isUnbreakableTileId(id)) return;
+        if (isProtectedSpawnTile(tx, ty)) return reportAction("warn", "protected spawn");
+        if (isUnbreakableTileId(id)) return reportAction("warn", "unbreakable");
         if (isWorldLocked() && isWorldLockBlockId(id) && !isWorldLockOwner()) {
           notifyWorldLockedDenied();
-          return;
+          return reportAction("deny", "world lock is owner-only");
         }
         if (id === VENDING_ID && isWorldLocked() && !isWorldLockOwner()) {
           notifyOwnerOnlyWorldEdit("vending machines");
-          return;
+          return reportAction("deny", "vending machine owner-only");
         }
         if (id === TAX_BLOCK_ID && isWorldLocked() && !isWorldLockOwner()) {
           notifyOwnerOnlyWorldEdit("owner Tax Machine");
-          return;
+          return reportAction("deny", "tax machine owner-only");
         }
         if (isDonationBoxBlockId(id)) {
           const donationCtrl = getDonationController();
@@ -10044,14 +10235,14 @@
             : getLocalDonationBox(tx, ty);
           if (box && box.ownerAccountId && box.ownerAccountId !== playerProfileId) {
             postLocalSystemChat("Only the donation box owner can break it.");
-            return;
+            return reportAction("warn", "not donation owner");
           }
           const storedCount = donationCtrl && typeof donationCtrl.getStoredCountAt === "function"
             ? donationCtrl.getStoredCountAt(tx, ty)
             : getDonationStoredCount(box && box.items);
           if (storedCount > 0) {
             postLocalSystemChat("Collect donations before breaking this box.");
-            return;
+            return reportAction("warn", "collect donations first");
           }
         }
         if (isChestBlockId(id)) {
@@ -10062,19 +10253,19 @@
             : Boolean(chest && chest.ownerAccountId && chest.ownerAccountId === playerProfileId);
           if (!canManageChest) {
             postLocalSystemChat("Only the chest manager can break storage chests.");
-            return;
+            return reportAction("warn", "not chest owner");
           }
           const stored = chestCtrl && typeof chestCtrl.getStoredCountAt === "function"
             ? chestCtrl.getStoredCountAt(tx, ty)
             : 0;
           if (stored > 0) {
             postLocalSystemChat("Collect chest items before breaking it.");
-            return;
+            return reportAction("warn", "collect chest items first");
           }
         }
 
         const now = performance.now();
-        if ((now - lastBlockHitAtMs) < BLOCK_HIT_COOLDOWN_MS) return;
+        if ((now - lastBlockHitAtMs) < BLOCK_HIT_COOLDOWN_MS) return reportAction("input", "cooldown");
         lastBlockHitAtMs = now;
 
         if (isPlantSeedBlockId(id)) {
@@ -10089,7 +10280,7 @@
             : null;
           if (!baseHarvest) {
             postLocalSystemChat("Seed is still growing.");
-            return;
+            return reportAction("warn", "seed still growing");
           }
           const rewardsCtrl = getRewardsController();
           const harvestRaw = (rewardsCtrl && typeof rewardsCtrl.getTreeHarvestRewards === "function")
@@ -10146,11 +10337,11 @@
           } else {
             postLocalSystemChat("Harvested seed: +" + rewardAmount + " " + rewardName + " and +" + gemReward + " gems.");
           }
-          return;
+          return reportAction("success", "harvested seed");
         }
 
         const durability = getBlockDurability(id);
-        if (!Number.isFinite(durability)) return;
+        if (!Number.isFinite(durability)) return reportAction("warn", "invalid block");
         const breakPower = getEquippedBreakPower();
         const hitAmount = breakPower.instantBreak
           ? Math.max(1, Math.floor(durability))
@@ -10159,7 +10350,7 @@
         if (id === VENDING_ID) {
           const ctrl = getVendingController();
           if (ctrl && typeof ctrl.onBreakWithFist === "function" && ctrl.onBreakWithFist(tx, ty)) {
-            return;
+            return reportAction("success", "vending interacted");
           }
         }
 
@@ -10168,7 +10359,7 @@
         if (nextHits < durability) {
           setTileDamage(tx, ty, nextHits);
           syncTileDamageToNetwork(tx, ty, nextHits);
-          return;
+          return reportAction("success", "tile hit");
         }
         clearTileDamage(tx, ty);
 
@@ -10248,7 +10439,7 @@
           const gambleCtrl = getGambleController();
           if (gambleCtrl && typeof gambleCtrl.canBreakAt === "function" && !gambleCtrl.canBreakAt(tx, ty)) {
             postLocalSystemChat("Only the machine owner can break this gambling machine.");
-            return;
+            return reportAction("deny", "machine owner-only");
           }
           if (gambleCtrl && typeof gambleCtrl.claimOnBreak === "function") {
             gambleCtrl.claimOnBreak(tx, ty);
@@ -10341,30 +10532,38 @@
         applyAchievementEvent("break_block", { count: 1, blockId: id, blockKey: brokenBlockKey });
         applyQuestEvent("break_block", { count: 1, blockId: id, blockKey: brokenBlockKey });
         applyQuestWorldGameplayEvent("break_block", { count: 1, blockId: id, blockKey: brokenBlockKey, tx, ty });
+        return reportAction("success", "block broken");
       }
 
-      function tryRotate(tx, ty) {
-        if (!canEditTarget(tx, ty)) return;
+      function tryRotate(tx, ty, actionStartedAtMs) {
+        const actionAtMs = Number.isFinite(actionStartedAtMs) ? Number(actionStartedAtMs) : null;
+        const reportAction = (outcome, label) => {
+          if (actionAtMs === null) return outcome;
+          return reportActionOutcome(actionAtMs, tx, ty, outcome, label);
+        };
+        if (!canEditTarget(tx, ty)) return reportAction("warn", "out of reach");
         const id = world[ty][tx];
-        if (!id || id === SPAWN_DOOR_ID) return;
-        if (isProtectedSpawnTile(tx, ty)) return;
+        if (!id) return reportAction("warn", "empty");
+        if (id === SPAWN_DOOR_ID) return reportAction("warn", "protected");
+        if (isProtectedSpawnTile(tx, ty)) return reportAction("warn", "protected spawn");
         if (!canEditCurrentWorld()) {
           notifyWorldLockedDenied();
-          return;
+          return reportAction("deny", "world is locked");
         }
         if (isWorldLocked() && isWorldLockBlockId(id) && !isWorldLockOwner()) {
           notifyWorldLockedDenied();
-          return;
+          return reportAction("deny", "world lock is owner-only");
         }
         if (id === VENDING_ID && isWorldLocked() && !isWorldLockOwner()) {
           notifyOwnerOnlyWorldEdit("vending machines");
-          return;
+          return reportAction("deny", "vending machine owner-only");
         }
         const nextId = getRotatedBlockId(id);
-        if (!nextId) return;
+        if (!nextId) return reportAction("warn", "cannot rotate");
         world[ty][tx] = nextId;
         clearTileDamage(tx, ty);
         syncBlock(tx, ty, nextId);
+        return reportAction("success", "rotated");
       }
 
       function createOrUpdateVendingMachine(tx, ty, updater) {
@@ -10409,71 +10608,84 @@
         ctrl.interact(tx, ty);
       }
 
-      function interactWithWrench(tx, ty) {
-        if (!canEditTarget(tx, ty)) return;
+      function interactWithWrench(tx, ty, actionStartedAtMs) {
+        const actionAtMs = Number.isFinite(actionStartedAtMs) ? Number(actionStartedAtMs) : null;
+        const reportAction = (outcome, label) => {
+          if (actionAtMs === null) return outcome;
+          return reportActionOutcome(actionAtMs, tx, ty, outcome, label);
+        };
+        if (!canEditTarget(tx, ty)) return reportAction("warn", "out of reach");
         const id = world[ty][tx];
+        if (!id) return reportAction("warn", "empty");
         const questCtrl = getQuestWorldController();
         const questWorldActive = Boolean(questCtrl && typeof questCtrl.isActive === "function" && questCtrl.isActive());
         const ownerRole = normalizeAdminRole(currentAdminRole) === "owner";
         if (questWorldActive && !ownerRole) {
           if (id === QUEST_NPC_ID && questCtrl && typeof questCtrl.interact === "function") {
-            questCtrl.interact(tx, ty);
+            if (questCtrl.interact(tx, ty)) {
+              return reportAction("success", "quest interaction");
+            }
+            return reportAction("warn", "quest interaction unavailable");
           }
-          return;
+          return reportAction("warn", "no interaction");
         }
         if (id === QUEST_NPC_ID && questCtrl && typeof questCtrl.interact === "function") {
-          if (questCtrl.interact(tx, ty)) return;
+          if (questCtrl.interact(tx, ty)) return reportAction("success", "quest interaction");
+          return reportAction("warn", "quest interaction unavailable");
         }
         if (isWorldLockBlockId(id)) {
           openWorldLockModal(tx, ty);
-          return;
+          return reportAction("success", "world lock");
         }
         if (id === VENDING_ID) {
           interactWithVendingMachine(tx, ty);
-          return;
+          return reportAction("success", "vending");
         }
         if (id === GAMBLE_ID) {
           openGambleModal(tx, ty);
-          return;
+          return reportAction("success", "gamble");
         }
         if (isDonationBoxBlockId(id)) {
           openDonationModal(tx, ty);
-          return;
+          return reportAction("success", "donation box");
         }
         if (isChestBlockId(id)) {
           openChestModal(tx, ty);
-          return;
+          return reportAction("success", "chest");
         }
         if (id === SPLICER_ID) {
           openSplicingModal(tx, ty);
-          return;
+          return reportAction("success", "splicer");
         }
         if (id === TAX_BLOCK_ID) {
           openOwnerTaxModal(tx, ty);
-          return;
+          return reportAction("success", "owner tax");
         }
         if (id === SIGN_ID) {
           openSignModal(tx, ty);
-          return;
+          return reportAction("success", "sign");
         }
         if (id === ANTI_GRAV_ID) {
           toggleAntiGravityGenerator(tx, ty);
-          return;
+          return reportAction("success", "anti-gravity");
         }
         if (id === DOOR_BLOCK_ID) {
           openDoorModal(tx, ty);
-          return;
+          return reportAction("success", "door");
         }
         if (id === CAMERA_ID) {
           openCameraModal(tx, ty);
-          return;
+          return reportAction("success", "camera");
         }
         if (id === WEATHER_MACHINE_ID) {
           openWeatherModal(tx, ty);
+          return reportAction("success", "weather");
         }
+        return reportAction("warn", "nothing to interact");
       }
 
-      function useActionAt(tx, ty) {
+      function useActionAt(tx, ty, actionStartedAtMs) {
+        const actionAtMs = Number.isFinite(actionStartedAtMs) ? Number(actionStartedAtMs) : performance.now();
         if (shouldBlockActionForFreeze()) return;
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
@@ -10497,20 +10709,22 @@
           } else {
             lastHitDirectionY = 0;
           }
-          lastHitAtMs = performance.now();
+          lastHitAtMs = actionAtMs;
         }
         if (selectedId === TOOL_WRENCH) {
-          interactWithWrench(tx, ty);
-          return;
+          reportActionTap(tx, ty);
+          return interactWithWrench(tx, ty, actionAtMs);
         }
         if (selectedId === TOOL_FIST) {
-          tryBreak(tx, ty);
-          return;
+          reportActionTap(tx, ty);
+          return tryBreak(tx, ty, actionAtMs);
         }
-        tryPlace(tx, ty);
+        reportActionTap(tx, ty);
+        return tryPlace(tx, ty, actionAtMs);
       }
 
-      function useSecondaryActionAt(tx, ty) {
+      function useSecondaryActionAt(tx, ty, actionStartedAtMs) {
+        const actionAtMs = Number.isFinite(actionStartedAtMs) ? Number(actionStartedAtMs) : performance.now();
         if (shouldBlockActionForFreeze()) return;
         if (isProtectedSpawnTile(tx, ty)) return;
         const selectedId = slotOrder[selectedSlot];
@@ -10522,14 +10736,14 @@
           });
         }
         if (selectedId === TOOL_FIST) {
-          lastHitAtMs = performance.now();
+          lastHitAtMs = actionAtMs;
+          reportActionTap(tx, ty);
+          return tryRotate(tx, ty, actionAtMs);
         }
         if (selectedId === TOOL_WRENCH) {
-          interactWithWrench(tx, ty);
-          return;
+          reportActionTap(tx, ty);
+          return interactWithWrench(tx, ty, actionAtMs);
         }
-        if (selectedId !== TOOL_FIST) return;
-        tryRotate(tx, ty);
       }
 
       function setNetworkState(label, isWarning) {

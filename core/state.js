@@ -707,6 +707,12 @@ window.GTModules.state = (function createStateModule() {
     ensure("inventorySaveTimer", () => 0);
     ensure("manualLockConvertHoldUntilMs", () => 0);
     ensure("lastInventoryFullHintAt", () => 0);
+    ensure("actionFeedbackEvents", () => []);
+    ensure("lastActionLatencyMs", () => 0);
+    ensure("worldTransitionTarget", () => "");
+    ensure("worldTransitionStartedAt", () => 0);
+    ensure("worldTransitionToken", () => 0);
+    ensure("hudExpanded", () => false);
     ensure("isPointerDown", () => false);
     ensure("currentWorldId", () => {
       if (typeof opts.getInitialWorldId === "function") {
