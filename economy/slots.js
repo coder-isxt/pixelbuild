@@ -308,7 +308,7 @@ window.GTModules = window.GTModules || {};
     multiplierCellValue: 10,
     weedAddsMultiplierCells: 1,
     wildUpgradeStep: 10,
-    wildUpgradeMax: 30,
+    wildUpgradeMax: 60,
     wildMarkedStart: 10,
     payoutMultiplierScale: 0.12,
     maxAppliedPayoutMultiplier: 6,
