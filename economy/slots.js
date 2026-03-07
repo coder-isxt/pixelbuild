@@ -316,7 +316,7 @@ window.GTModules = window.GTModules || {};
     rows: Math.max(1, Math.floor(Number(GAME_DEFS.snoop_dogg_dollars.layout.rows) || 8)),
     reels: Math.max(1, Math.floor(Number(GAME_DEFS.snoop_dogg_dollars.layout.reels) || 6)),
     rtp: Number(GAME_DEFS.snoop_dogg_dollars.rtp) || 0.96,
-    clusterMin: 6,
+    clusterMin: 5,
     maxCascade: 10,
     digUpChance: 0.08,
     fsDigUpChance: 0.04,
@@ -327,13 +327,13 @@ window.GTModules = window.GTModules || {};
       weed: 1,
       skull: 1
     },
-    freeSpinsByScatters: { 3: 5, 4: 7, 5: 9, 6: 10 },
+    freeSpinsByScatters: { 3: 10, 4: 12, 5: 15, 6: 20 },
     buyBonusCosts: { 3: 80, 4: 140, 5: 220, 6: 320 },
     hypeCostX: 20,
     multiplierCellValue: 10,
-    weedAddsMultiplierCells: 1,
+    weedAddsMultiplierCells: 2,
     wildUpgradeStep: 10,
-    wildUpgradeMax: 50,
+    wildUpgradeMax: 100,
     wildMarkedStart: 10,
     payoutMultiplierScale: 0.1,
     maxAppliedPayoutMultiplier: 5,
@@ -369,6 +369,7 @@ window.GTModules = window.GTModules || {};
     slots_v6: { maxRoundX: 260, bonusScale: 0.66 },
     snoop_dogg_dollars: { maxRoundX: 280, bonusScale: 0.7, buyBonusScale: 0.56 }
   };
+  let LAST_CLAMP_META = null;
   const SNOOP_KEY_LIST = (() => {
     const out = [];
     for (let r = 0; r < SNOOP_CFG.rows; r++) {
@@ -431,7 +432,6 @@ window.GTModules = window.GTModules || {};
 
   function clampPayoutForGame(gameId, payout, bet, wagerRef) {
     const safePayout = Math.max(0, Math.floor(Number(payout) || 0));
-    if (safePayout <= 0) return 0;
     const gid = String(gameId || "");
     const cfg = PAYOUT_GUARDRAILS[gid] || {};
     const def = GAME_DEFS[gid] || {};
@@ -441,7 +441,17 @@ window.GTModules = window.GTModules || {};
     const defX = Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || cfgX));
     const capX = Math.min(cfgX, defX);
     const cap = Math.max(1, baseWager * capX);
-    return Math.min(safePayout, cap);
+    const clamped = safePayout <= 0 ? 0 : Math.min(safePayout, cap);
+    LAST_CLAMP_META = {
+      gameId: gid,
+      cap,
+      capX,
+      baseWager,
+      rawPayout: safePayout,
+      payout: clamped,
+      applied: safePayout > clamped
+    };
+    return clamped;
   }
 
   function pickWeighted(symbols) {
@@ -2381,7 +2391,8 @@ window.GTModules = window.GTModules || {};
     const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
     const opts = options && typeof options === "object" ? options : {};
     const mode = String(opts.mode || "spin").trim().toLowerCase();
-    const buyTrigger = parseSnoopBuyTrigger(mode);
+    const forcedBonus = Boolean(opts.forceBonus || opts.devForce === "force_bonus" || opts.devForce === "snoop_bonus");
+    const buyTrigger = forcedBonus ? 6 : parseSnoopBuyTrigger(mode);
     const isHype = mode === "hype";
 
     let wagerMult = 1;
@@ -3278,6 +3289,7 @@ window.GTModules = window.GTModules || {};
 
   function spinV7(bet, options) {
     const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const opts = options && typeof options === "object" ? options : {};
     const rng = archiveSafeRng(options);
     const state = {
       bet: safeBet,
@@ -3293,6 +3305,15 @@ window.GTModules = window.GTModules || {};
       mega: { active: false, row: 0, col: 0 },
       bonus: null
     };
+    if (opts.forceBonus || opts.devForce === "force_bonus" || opts.devForce === "tome_bonus") {
+      state.portal.collected = 42;
+      state.portal.reached[7] = true;
+      state.portal.reached[14] = true;
+      state.portal.reached[27] = true;
+      state.portal.reached[42] = true;
+      state.portal.bonusReady = true;
+      state.lineWins.push("DEV FORCE -> OTHER WORLD");
+    }
     archiveInitEyeMarks(state, 2, 4);
     let guard = 0;
     while (guard++ < 320) {
@@ -3388,14 +3409,51 @@ window.GTModules = window.GTModules || {};
 
   function spin(gameId, bet, options) {
     const id = String(gameId || "slots").trim().toLowerCase();
-    if (id === "slots_v2") return spinV2(bet, options);
-    if (id === "slots_v7") return spinV7(bet, options);
-    if (id === "snoop_dogg_dollars") return spinSnoopDollars(bet, options);
-    if (id === "slots_v3") return spinV3(bet, options);
-    if (id === "slots_v4") return spinV4(bet, options);
-    if (id === "slots_v6") return spinV6(bet, options);
-    if (id === "le_bandit") return { gameId: "le_bandit", payoutWanted: 0, multiplier: 0, outcome: "lose", bet }; // Stub for server side fallback
-    return spinV1(bet, options);
+    LAST_CLAMP_META = null;
+    let out = null;
+    if (id === "slots_v2") out = spinV2(bet, options);
+    else if (id === "slots_v7") out = spinV7(bet, options);
+    else if (id === "snoop_dogg_dollars") out = spinSnoopDollars(bet, options);
+    else if (id === "slots_v3") out = spinV3(bet, options);
+    else if (id === "slots_v4") out = spinV4(bet, options);
+    else if (id === "slots_v6") out = spinV6(bet, options);
+    else if (id === "le_bandit") out = { gameId: "le_bandit", payoutWanted: 0, multiplier: 0, outcome: "lose", bet }; // Stub for server side fallback
+    else out = spinV1(bet, options);
+
+    if (!out || typeof out !== "object") return out;
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const resolvedWager = Math.max(1, Math.floor(Number(out.bet) || safeBet));
+    const payoutWanted = Math.max(0, Math.floor(Number(out.payoutWanted) || 0));
+    const def = GAME_DEFS[id] || GAME_DEFS.slots || {};
+    const cfg = PAYOUT_GUARDRAILS[id] || {};
+    const cfgX = Math.max(1, Math.floor(Number(cfg.maxRoundX) || Number(def.maxPayoutMultiplier) || 1));
+    const defX = Math.max(1, Math.floor(Number(def.maxPayoutMultiplier) || cfgX));
+    const capX = Math.min(cfgX, defX);
+    const cap = Math.max(1, resolvedWager * capX);
+    const capInfo = LAST_CLAMP_META && typeof LAST_CLAMP_META === "object"
+      ? {
+        gameId: String(LAST_CLAMP_META.gameId || id),
+        cap: Math.max(1, Math.floor(Number(LAST_CLAMP_META.cap) || cap)),
+        capX: Math.max(1, Math.floor(Number(LAST_CLAMP_META.capX) || capX)),
+        baseWager: Math.max(1, Math.floor(Number(LAST_CLAMP_META.baseWager) || resolvedWager)),
+        rawPayout: Math.max(0, Math.floor(Number(LAST_CLAMP_META.rawPayout) || payoutWanted)),
+        payout: Math.max(0, Math.floor(Number(LAST_CLAMP_META.payout) || payoutWanted)),
+        applied: Boolean(LAST_CLAMP_META.applied)
+      }
+      : {
+        gameId: id,
+        cap,
+        capX,
+        baseWager: resolvedWager,
+        rawPayout: payoutWanted,
+        payout: payoutWanted,
+        applied: false
+      };
+    out.capInfo = capInfo;
+    if (!Number.isFinite(Number(out.rawPayoutWanted))) {
+      out.rawPayoutWanted = Math.max(0, Math.floor(Number(capInfo.rawPayout) || payoutWanted));
+    }
+    return out;
   }
 
   const api = {

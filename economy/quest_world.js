@@ -368,18 +368,12 @@ window.GTModules.questWorld = (function createQuestWorldModule() {
           }
         },
         {
-          id: "hero_path_03_brick",
-          title: "Bring me 120 brick blocks",
-          description: "Final step. Deliver 120 bricks and claim your title.",
-          rewardText: "Reward: title {username} of Legend",
-          objective: {
-            type: "bring_block",
-            blockId: 6,
-            amount: 120
-          },
+          id: "legend_wing_03",
+          title: "Bring me 10 Sun Shirt",
+          description: "Deliver 10 shirt",
+          rewardText: "Better feeling to next quest",
+          objective: { type: "bring_cosmetic", cosmeticId: "sun_shirt", amount: 10 },
           reward: {
-            titleId: "legendary",
-            titleAmount: 1
           }
         }
       ];

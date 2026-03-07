@@ -3544,6 +3544,235 @@
       filter: drop-shadow(0 0 18px rgba(123, 255, 239, 0.52)) drop-shadow(0 0 8px rgba(120, 170, 255, 0.4));
     }
 
+    .game-top-row {
+      margin-bottom: 10px;
+    }
+
+    .stake-shell {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 14px;
+      align-items: stretch;
+      min-height: 0;
+    }
+
+    .stake-sidebar {
+      border: 1px solid rgba(108, 126, 146, 0.48);
+      border-radius: 14px;
+      background:
+        linear-gradient(180deg, rgba(18, 24, 32, 0.95), rgba(13, 18, 25, 0.96));
+      box-shadow:
+        0 18px 34px rgba(0, 0, 0, 0.42),
+        inset 0 0 0 1px rgba(196, 220, 244, 0.06);
+      padding: 10px;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto auto;
+      gap: 10px;
+      min-height: 640px;
+    }
+
+    .stake-side-section {
+      border: 1px solid rgba(108, 126, 146, 0.28);
+      border-radius: 10px;
+      background: rgba(12, 18, 25, 0.8);
+      padding: 8px;
+      min-height: 0;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .stake-side-title {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #ced9e8;
+    }
+
+    .stake-cats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .stake-cats .machine-cat-btn {
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 9px;
+      border-color: rgba(115, 154, 189, 0.6);
+      background: linear-gradient(180deg, rgba(32, 48, 66, 0.9), rgba(21, 31, 43, 0.9));
+    }
+
+    .stake-machine-list {
+      display: grid;
+      gap: 8px;
+      max-height: 300px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .stake-machine-list .machine-item {
+      border-color: rgba(118, 149, 182, 0.44);
+      background: linear-gradient(180deg, rgba(28, 40, 54, 0.92), rgba(18, 26, 36, 0.92));
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 140ms ease;
+    }
+
+    .stake-machine-list .machine-item:hover {
+      transform: translateY(-1px);
+      border-color: rgba(132, 196, 255, 0.72);
+      box-shadow: 0 8px 18px rgba(27, 54, 82, 0.3);
+    }
+
+    .stake-machine-list .machine-item.active {
+      border-color: rgba(80, 223, 160, 0.82);
+      box-shadow: 0 0 0 1px rgba(108, 236, 179, 0.26), 0 0 20px rgba(80, 223, 160, 0.2);
+    }
+
+    .stake-empty {
+      font-size: 9px;
+      color: #9ab0c9;
+      border: 1px dashed rgba(126, 151, 176, 0.5);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .stake-recent-list {
+      display: grid;
+      gap: 6px;
+      max-height: 140px;
+      overflow: auto;
+    }
+
+    .stake-recent-row {
+      border: 1px solid rgba(118, 149, 182, 0.3);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 9px;
+      color: #dce8f7;
+      background: linear-gradient(180deg, rgba(20, 30, 42, 0.84), rgba(13, 20, 30, 0.9));
+    }
+
+    .stake-recent-row strong {
+      color: #6ff1b0;
+    }
+
+    .stake-status-grid {
+      display: grid;
+      gap: 6px;
+    }
+
+    #viewGame .stage {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      grid-template-rows: auto auto minmax(280px, 1fr) auto auto;
+      grid-template-areas:
+        "top top"
+        "bonus bonus"
+        "board controls"
+        "line controls"
+        "dev dev";
+      gap: 10px;
+      min-height: 640px;
+    }
+
+    #viewGame .stage-head {
+      grid-area: top;
+      margin-bottom: 0;
+    }
+
+    #viewGame .bonus-hud {
+      grid-area: bonus;
+      margin-bottom: 0;
+    }
+
+    #viewGame .board-wrap {
+      grid-area: board;
+      min-height: 370px;
+      margin-bottom: 0;
+    }
+
+    #viewGame .premium-controls {
+      grid-area: controls;
+      margin-bottom: 0;
+      max-height: 100%;
+      overflow: auto;
+      align-content: start;
+      padding: 10px;
+      border: 1px solid rgba(121, 150, 183, 0.44);
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(18, 28, 39, 0.94), rgba(10, 17, 26, 0.95));
+      box-shadow:
+        inset 0 0 0 1px rgba(194, 219, 242, 0.06),
+        0 12px 24px rgba(0, 0, 0, 0.34);
+    }
+
+    #viewGame .line-list {
+      grid-area: line;
+      margin-bottom: 0;
+    }
+
+    .dev-panel {
+      grid-area: dev;
+      border: 1px solid rgba(121, 150, 183, 0.52);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(13, 21, 31, 0.94), rgba(8, 14, 22, 0.96));
+      box-shadow: inset 0 0 0 1px rgba(194, 219, 242, 0.06);
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .dev-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #d6e5f7;
+    }
+
+    .dev-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      font-size: 9px;
+      color: #c8d9ef;
+    }
+
+    .dev-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .dev-controls input,
+    .dev-controls select {
+      min-height: 34px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(114, 150, 189, 0.5);
+      background: rgba(9, 14, 21, 0.95);
+      color: #e3efff;
+      font-size: 9px;
+    }
+
+    .dev-log {
+      min-height: 44px;
+      max-height: 140px;
+      overflow: auto;
+      font-size: 9px;
+      color: #9eb6d4;
+      border: 1px solid rgba(114, 150, 189, 0.35);
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(9, 14, 21, 0.72);
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     @media (max-width: 760px) {
       .head {
         top: 0;
@@ -3559,6 +3788,28 @@
       .premium-controls-row {
         justify-content: center;
       }
+      .stake-shell {
+        grid-template-columns: 1fr;
+      }
+      .stake-sidebar {
+        min-height: 0;
+      }
+      #viewGame .stage {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "top"
+          "bonus"
+          "board"
+          "line"
+          "controls"
+          "dev";
+      }
+      .dev-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .dev-controls {
+        grid-template-columns: 1fr;
+      }
       .vault-admin-grid {
         grid-template-columns: 1fr;
       }
@@ -3571,7 +3822,7 @@
   <div class="page">
     <header class="head casino-header">
       <div class="head-brand">
-        <div class="logo-emblem" aria-hidden="true">◆</div>
+        <div class="logo-emblem" aria-hidden="true">&#9670;</div>
         <div>
           <div class="title">PIXELBUILD Casino</div>
           <div class="sub">Premium web slots platform with real-time animations, buy-bonus play and synced WL wallet.</div>
@@ -3615,10 +3866,33 @@
 
       <!-- VIEW 3: GAME STAGE -->
       <section id="viewGame" class="card stage-wrap hidden">
-        <div class="row">
+        <div class="row game-top-row">
           <button id="backToLobbyBtn" type="button" style="width:auto;">&laquo; Back to Lobby</button>
         </div>
-        <div class="stage" id="stage">
+        <div class="stake-shell">
+          <aside class="stake-sidebar">
+            <div class="stake-side-section">
+              <div class="stake-side-title">Games</div>
+              <div id="gameMachineCategoryTabs" class="stake-cats"></div>
+              <div id="gameMachineList" class="stake-machine-list">
+                <div class="stake-empty">Loading games...</div>
+              </div>
+            </div>
+            <div class="stake-side-section">
+              <div class="stake-side-title">Recent Wins</div>
+              <div id="gameRecentList" class="stake-recent-list">
+                <div class="stake-empty">No spins yet.</div>
+              </div>
+            </div>
+            <div class="stake-side-section">
+              <div class="stake-side-title">Runtime</div>
+              <div class="stake-status-grid">
+                <span class="tag" id="debugStateChip">State: BASE_IDLE</span>
+                <span class="tag" id="debugCapChip">Cap: OK</span>
+              </div>
+            </div>
+          </aside>
+          <div class="stage" id="stage">
           <div class="stage-head premium-topbar" id="premiumTopbar">
             <div class="premium-stats">
               <span class="tag good" id="userBalanceDisplay">Balance: 0 WL</span>
@@ -3690,6 +3964,10 @@
             <label class="settings-item">
               <span>Autoplay stop balance</span>
               <input id="premiumStopBalance" type="number" min="0" step="1" value="0">
+            </label>
+            <label class="settings-item">
+              <input id="premiumDevToggle" type="checkbox">
+              <span>Developer mode panel</span>
             </label>
           </div>
 
@@ -3800,6 +4078,37 @@
           </div>
 
           <div class="line-list" id="lineList"></div>
+          <div class="dev-panel hidden" id="devPanel">
+            <div class="dev-head">
+              <span>Developer Panel</span>
+              <span id="devStateText">State: BASE_IDLE</span>
+            </div>
+            <div class="dev-grid">
+              <div><strong>Bet:</strong> <span id="devBetValue">0</span></div>
+              <div><strong>Raw Win:</strong> <span id="devRawWinValue">0</span></div>
+              <div><strong>Display Win:</strong> <span id="devDisplayWinValue">0</span></div>
+              <div><strong>Bonus Total:</strong> <span id="devBonusWinValue">0</span></div>
+              <div><strong>Tumbles:</strong> <span id="devTumbleCount">0</span></div>
+              <div><strong>Cap:</strong> <span id="devCapStatus">none</span></div>
+              <div><strong>Multiplier:</strong> <span id="devMultiplierInfo">x1</span></div>
+              <div><strong>Queue:</strong> <span id="devFeatureQueue">-</span></div>
+            </div>
+            <div class="dev-controls">
+              <input id="devSeedInput" type="text" placeholder="Seed (optional)">
+              <select id="devForceSelect">
+                <option value="none">No force</option>
+                <option value="force_bonus">Force Bonus</option>
+                <option value="force_near_max">Force Near Max</option>
+                <option value="six_tier_c">Six: Force Tier C</option>
+                <option value="snoop_bonus">Snoop: Force 6 Scatter Bonus</option>
+                <option value="tome_bonus">Tome: Force Other World</option>
+                <option value="bandit_bonus">Le Bandit: Force Bonus</option>
+              </select>
+              <button id="devApplyOnceBtn" type="button" class="quick-btn">Apply Once</button>
+            </div>
+            <div class="dev-log" id="devLogText">No events yet.</div>
+          </div>
+        </div>
         </div>
       </section>
     </main>
@@ -3897,3 +4206,4 @@
 </body>
 
 </html>
+

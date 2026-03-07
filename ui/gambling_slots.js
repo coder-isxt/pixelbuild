@@ -1,4 +1,4 @@
-window.GTModules = window.GTModules || {};
+﻿window.GTModules = window.GTModules || {};
 
 (function initGamblingSlotsSite() {
   "use strict";
@@ -183,6 +183,7 @@ window.GTModules = window.GTModules || {};
     soundEnabled: true,
     soundVolume: 0.8,
     turbo: false,
+    devMode: false,
     autoplayCount: 0,
     autoplayStopOnBigWin: true,
     autoplayStopBalance: 0
@@ -217,6 +218,19 @@ window.GTModules = window.GTModules || {};
     lastPayoutValue: 0,
     winCounterSkipUntil: 0,
     quickStopRequested: false,
+    sequenceState: "BASE_IDLE",
+    debug: {
+      enabled: false,
+      lastRawWin: 0,
+      lastCapStatus: "none",
+      lastTumbleCount: 0,
+      lastMultiplierText: "x1",
+      lastFeatureQueue: "-",
+      lastLog: "No events yet.",
+      forceMode: "none",
+      seed: "",
+      pendingOverride: null
+    },
     ephemeral: { rows: null, lineIds: [], lineWins: [], markedCells: [], cellMeta: {}, effectCells: {}, upgradeFlashes: {} },
     bonusFlow: {
       phase: "BASE_IDLE",
@@ -276,6 +290,11 @@ window.GTModules = window.GTModules || {};
     machineSelect: document.getElementById("machineSelect"),
     machineCategoryTabs: document.getElementById("machineCategoryTabs"),
     machineList: document.getElementById("machineList"),
+    gameMachineCategoryTabs: document.getElementById("gameMachineCategoryTabs"),
+    gameMachineList: document.getElementById("gameMachineList"),
+    gameRecentList: document.getElementById("gameRecentList"),
+    debugStateChip: document.getElementById("debugStateChip"),
+    debugCapChip: document.getElementById("debugCapChip"),
     currentBetDisplay: document.getElementById("currentBetDisplay"),
     towerDifficultyWrap: document.getElementById("towerDifficultyWrap"),
     towerDifficultySelect: document.getElementById("towerDifficultySelect"),
@@ -342,6 +361,7 @@ window.GTModules = window.GTModules || {};
     premiumTurboToggle: document.getElementById("premiumTurboToggle"),
     premiumStopBigWin: document.getElementById("premiumStopBigWin"),
     premiumStopBalance: document.getElementById("premiumStopBalance"),
+    premiumDevToggle: document.getElementById("premiumDevToggle"),
     premiumQuickBet: document.getElementById("premiumQuickBet"),
     premiumBetMinus: document.getElementById("premiumBetMinus"),
     premiumBetPlus: document.getElementById("premiumBetPlus"),
@@ -353,6 +373,20 @@ window.GTModules = window.GTModules || {};
     fairnessModal: document.getElementById("fairnessModal"),
     premiumFairnessClose: document.getElementById("premiumFairnessClose"),
     premiumSeedLabel: document.getElementById("premiumSeedLabel"),
+    devPanel: document.getElementById("devPanel"),
+    devStateText: document.getElementById("devStateText"),
+    devBetValue: document.getElementById("devBetValue"),
+    devRawWinValue: document.getElementById("devRawWinValue"),
+    devDisplayWinValue: document.getElementById("devDisplayWinValue"),
+    devBonusWinValue: document.getElementById("devBonusWinValue"),
+    devTumbleCount: document.getElementById("devTumbleCount"),
+    devCapStatus: document.getElementById("devCapStatus"),
+    devMultiplierInfo: document.getElementById("devMultiplierInfo"),
+    devFeatureQueue: document.getElementById("devFeatureQueue"),
+    devLogText: document.getElementById("devLogText"),
+    devSeedInput: document.getElementById("devSeedInput"),
+    devForceSelect: document.getElementById("devForceSelect"),
+    devApplyOnceBtn: document.getElementById("devApplyOnceBtn"),
     viewLogin: document.getElementById("viewLogin"),
     viewLobby: document.getElementById("viewLobby"),
     viewGame: document.getElementById("viewGame"),
@@ -878,14 +912,14 @@ window.GTModules = window.GTModules || {};
 
   // Blackjack Logic
   function getDeck() {
-    const suits = ['♠', '♥', '♦', '♣'];
+    const suits = ['â™ ', 'â™¥', 'â™¦', 'â™£'];
     const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
     const deck = [];
     for (let s of suits) {
       for (let r of ranks) {
         let val = parseInt(r);
         if (isNaN(val)) val = (r === 'A') ? 11 : 10;
-        deck.push({ rank: r, suit: s, value: val, color: (s === '♥' || s === '♦') ? 'red' : 'black' });
+        deck.push({ rank: r, suit: s, value: val, color: (s === 'â™¥' || s === 'â™¦') ? 'red' : 'black' });
       }
     }
     return deck.sort(() => Math.random() - 0.5);
@@ -925,6 +959,137 @@ window.GTModules = window.GTModules || {};
     try { navigator.vibrate(Math.max(0, Math.floor(Number(ms) || 0))); } catch (_error) { /* no-op */ }
   }
 
+  function hashSeed32(seedText) {
+    const str = String(seedText || "");
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function mulberry32(seed) {
+    let t = seed >>> 0;
+    return function nextRng() {
+      t += 0x6D2B79F5;
+      let x = t;
+      x = Math.imul(x ^ (x >>> 15), x | 1);
+      x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function withSeededRandom(seedText, run) {
+    if (typeof run !== "function") return null;
+    const seed = String(seedText || "").trim();
+    if (!seed) return run();
+    const rng = mulberry32(hashSeed32(seed));
+    const originalRandom = Math.random;
+    try {
+      Math.random = () => rng();
+      return run();
+    } finally {
+      Math.random = originalRandom;
+    }
+  }
+
+  function getMachineRoundCap(machine, bet, wager) {
+    const safeMachine = machine && typeof machine === "object" ? machine : {};
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const safeWager = Math.max(1, Math.floor(Number(wager) || safeBet));
+    const capX = Math.max(1, Math.floor(Number(safeMachine.maxPayoutMultiplier) || 1));
+    return Math.max(1, safeWager * capX);
+  }
+
+  function deriveDebugSpinMode(machine, requestedMode, spinOptions) {
+    const safeMachine = machine && typeof machine === "object" ? machine : {};
+    const nextOptions = spinOptions && typeof spinOptions === "object" ? { ...spinOptions } : {};
+    let mode = String(requestedMode || "spin").trim().toLowerCase();
+    const pending = state.debug.pendingOverride && typeof state.debug.pendingOverride === "object"
+      ? state.debug.pendingOverride
+      : null;
+    if (!pending || String(pending.forceMode || "none") === "none") {
+      return { mode, spinOptions: nextOptions, seed: String((pending && pending.seed) || state.debug.seed || ""), consumed: false };
+    }
+    const force = String(pending.forceMode || "none").trim();
+    nextOptions.devForce = force;
+    if (force === "force_bonus") {
+      if (safeMachine.type === "slots_v2" || safeMachine.type === "le_bandit") mode = "buybonus";
+      else if (safeMachine.type === "snoop_dogg_dollars") mode = "snoop_buy_6";
+      else if (safeMachine.type === "slots_v7") nextOptions.forceBonus = true;
+    } else if (force === "six_tier_c" && safeMachine.type === "slots_v2") {
+      nextOptions.forceTier = "C";
+      mode = "buybonus";
+    } else if (force === "snoop_bonus" && safeMachine.type === "snoop_dogg_dollars") {
+      mode = "snoop_buy_6";
+      nextOptions.forceBonus = true;
+    } else if (force === "tome_bonus" && safeMachine.type === "slots_v7") {
+      nextOptions.forceBonus = true;
+    } else if (force === "bandit_bonus" && safeMachine.type === "le_bandit") {
+      mode = "buybonus";
+      nextOptions.forceBonus = true;
+    }
+    return {
+      mode,
+      spinOptions: nextOptions,
+      seed: String(pending.seed || state.debug.seed || ""),
+      consumed: true
+    };
+  }
+
+  function applyDebugResultOverrides(machine, result, bet, wager, mode, debugMode) {
+    const raw = result && typeof result === "object" ? { ...result } : {};
+    const force = String(debugMode || "").trim();
+    if (force !== "force_near_max") return raw;
+    const cap = getMachineRoundCap(machine, bet, wager);
+    const target = Math.max(1, Math.floor(cap * 0.92));
+    raw.rawPayoutWanted = target;
+    raw.payoutWanted = Math.min(target, cap);
+    raw.outcome = raw.payoutWanted > 0 ? "jackpot" : "lose";
+    raw.summary = "DEV: forced near max-win scenario";
+    raw.lineWins = ["DEV FORCE", "Near Max Win", "Mode: " + String(mode || "spin")];
+    raw.capInfo = {
+      cap,
+      capX: Math.max(1, Math.floor(Number(machine && machine.maxPayoutMultiplier) || 1)),
+      baseWager: Math.max(1, Math.floor(Number(wager) || 1)),
+      payout: raw.payoutWanted,
+      rawPayout: target,
+      applied: true
+    };
+    return raw;
+  }
+
+  function updateDebugSpinTrace(machine, result, payout, bet, wager) {
+    const raw = result && typeof result === "object" ? result : {};
+    const capInfo = raw.capInfo && typeof raw.capInfo === "object" ? raw.capInfo : {};
+    const rawPayout = Math.max(
+      0,
+      Math.floor(
+        Number(raw.rawPayoutWanted) ||
+        Number(capInfo.rawPayout) ||
+        Number(payout) ||
+        0
+      )
+    );
+    const safePayout = Math.max(0, Math.floor(Number(payout) || 0));
+    const cap = Math.max(1, Math.floor(Number(capInfo.cap) || getMachineRoundCap(machine, bet, wager)));
+    const clamped = Boolean(capInfo.applied) || rawPayout > safePayout;
+    state.debug.lastRawWin = rawPayout;
+    state.debug.lastCapStatus = safePayout <= 0 ? "none" : (clamped ? "clamped" : "ok");
+    state.debug.lastMultiplierText = "x" + (Math.max(0, Number(raw.multiplier) || 0).toFixed(2));
+    const features = [];
+    if (Array.isArray(raw.tumbleFrames) && raw.tumbleFrames.length) features.push("tumbles:" + raw.tumbleFrames.length);
+    if (Array.isArray(raw.bonusFrames) && raw.bonusFrames.length) features.push("bonus:" + raw.bonusFrames.length);
+    if (Array.isArray(raw.lineWins) && raw.lineWins.length) features.push("wins:" + raw.lineWins.length);
+    state.debug.lastFeatureQueue = features.length ? features.join(" | ") : "-";
+    updateRuntimeChips();
+    renderDevPanel();
+    if (state.debug.lastCapStatus === "clamped") {
+      appendDevLog("Cap applied at " + formatDebugAmount(cap) + " (raw " + formatDebugAmount(rawPayout) + ")");
+    }
+  }
+
   function loadUiSettings() {
     try {
       const raw = localStorage.getItem(UI_SETTINGS_KEY);
@@ -933,6 +1098,7 @@ window.GTModules = window.GTModules || {};
         soundEnabled: parsed && parsed.soundEnabled !== undefined ? Boolean(parsed.soundEnabled) : DEFAULT_UI_SETTINGS.soundEnabled,
         soundVolume: clamp01(parsed && parsed.soundVolume !== undefined ? Number(parsed.soundVolume) : DEFAULT_UI_SETTINGS.soundVolume),
         turbo: parsed && parsed.turbo !== undefined ? Boolean(parsed.turbo) : DEFAULT_UI_SETTINGS.turbo,
+        devMode: parsed && parsed.devMode !== undefined ? Boolean(parsed.devMode) : DEFAULT_UI_SETTINGS.devMode,
         autoplayCount: AUTOPLAY_COUNTS.indexOf(Math.max(0, Math.floor(Number(parsed && parsed.autoplayCount) || 0))) >= 0
           ? Math.max(0, Math.floor(Number(parsed.autoplayCount) || 0))
           : DEFAULT_UI_SETTINGS.autoplayCount,
@@ -1321,6 +1487,7 @@ window.GTModules = window.GTModules || {};
     if (els.winMeterMult instanceof HTMLElement) {
       els.winMeterMult.textContent = formatWinMultiplierText(state.currentWinValue, state.currentWinBetValue);
     }
+    renderDevPanel();
   }
 
   function resolveWinTier(pay, stake) {
@@ -1522,6 +1689,40 @@ window.GTModules = window.GTModules || {};
     setBet(next) { state.currentBetValue = Math.max(1, Math.floor(Number(next) || 1)); },
     get settings() { return state.uiSettings; }
   };
+  const MathEngine = {
+    getRoundCap(machine, bet, wager) {
+      return getMachineRoundCap(machine || getSelectedMachine(), bet, wager);
+    },
+    clampPayout(value, machine, bet, wager) {
+      const cap = getMachineRoundCap(machine || getSelectedMachine(), bet, wager);
+      return Math.max(0, Math.min(Math.floor(Number(value) || 0), cap));
+    }
+  };
+  const EffectQueue = (() => {
+    const list = [];
+    return {
+      push(effect) {
+        const row = effect && typeof effect === "object" ? effect : { type: String(effect || "effect") };
+        list.push(row);
+        state.debug.lastFeatureQueue = list.slice(-4).map((e) => String(e.type || "effect")).join(", ") || "-";
+        renderDevPanel();
+      },
+      shift() {
+        const next = list.shift() || null;
+        state.debug.lastFeatureQueue = list.slice(-4).map((e) => String(e.type || "effect")).join(", ") || "-";
+        renderDevPanel();
+        return next;
+      },
+      clear() {
+        list.length = 0;
+        state.debug.lastFeatureQueue = "-";
+        renderDevPanel();
+      },
+      snapshot() {
+        return list.slice(0);
+      }
+    };
+  })();
   window.GTModules.casinoRuntime = {
     UIManager,
     ReelAnimator,
@@ -1529,12 +1730,15 @@ window.GTModules = window.GTModules || {};
     WinCounter: winCounter,
     SoundManager,
     ParticleSystem,
-    GameState
+    GameState,
+    MathEngine,
+    EffectQueue
   };
 
   function setBonusPhase(phase) {
     const next = String(phase || BONUS_PHASES.BASE_IDLE);
     state.bonusFlow.phase = next;
+    state.sequenceState = next;
     state.bonusFlow.active = next.indexOf("BONUS_") === 0;
     if (!state.bonusFlow.active) {
       state.bonusFlow.spinsLeft = 0;
@@ -1543,6 +1747,92 @@ window.GTModules = window.GTModules || {};
     }
     if (els.stage instanceof HTMLElement) els.stage.dataset.bonusPhase = next;
     if (!state.bonusFlow.active) showBonusSpinPanel(false);
+    updateRuntimeChips();
+    renderDevPanel();
+  }
+
+  function formatDebugAmount(value) {
+    const safe = Math.max(0, Math.floor(Number(value) || 0));
+    return safe.toLocaleString("en-US");
+  }
+
+  function appendDevLog(line) {
+    const text = String(line || "").trim();
+    if (!text) return;
+    const stamp = new Date().toLocaleTimeString([], { hour12: false });
+    state.debug.lastLog = "[" + stamp + "] " + text;
+    renderDevPanel();
+  }
+
+  function updateRuntimeChips() {
+    if (els.debugStateChip instanceof HTMLElement) {
+      els.debugStateChip.textContent = "State: " + String(state.sequenceState || BONUS_PHASES.BASE_IDLE);
+    }
+    if (els.debugCapChip instanceof HTMLElement) {
+      const cap = String(state.debug.lastCapStatus || "none");
+      let text = "Cap: none";
+      if (cap === "clamped") text = "Cap: CLAMPED";
+      else if (cap === "ok") text = "Cap: OK";
+      els.debugCapChip.textContent = text;
+      els.debugCapChip.classList.toggle("warn", cap === "clamped");
+      els.debugCapChip.classList.toggle("good", cap === "ok");
+    }
+  }
+
+  function renderDevPanel() {
+    const enabled = Boolean(state.uiSettings.devMode);
+    if (els.premiumDevToggle instanceof HTMLInputElement) {
+      els.premiumDevToggle.checked = enabled;
+    }
+    if (els.devPanel instanceof HTMLElement) {
+      els.devPanel.classList.toggle("hidden", !enabled);
+    }
+    updateRuntimeChips();
+    if (!enabled) return;
+    if (els.devStateText instanceof HTMLElement) {
+      els.devStateText.textContent = "State: " + String(state.sequenceState || BONUS_PHASES.BASE_IDLE);
+    }
+    if (els.devBetValue instanceof HTMLElement) {
+      const machine = getSelectedMachine();
+      const bet = clampBetToMachine(machine, state.currentBetValue);
+      els.devBetValue.textContent = formatDebugAmount(bet);
+    }
+    if (els.devRawWinValue instanceof HTMLElement) {
+      els.devRawWinValue.textContent = formatDebugAmount(state.debug.lastRawWin);
+    }
+    if (els.devDisplayWinValue instanceof HTMLElement) {
+      els.devDisplayWinValue.textContent = formatDebugAmount(state.currentWinValue);
+    }
+    if (els.devBonusWinValue instanceof HTMLElement) {
+      els.devBonusWinValue.textContent = formatDebugAmount(state.bonusFlow.bonusWin);
+    }
+    if (els.devTumbleCount instanceof HTMLElement) {
+      els.devTumbleCount.textContent = String(Math.max(0, Math.floor(Number(state.debug.lastTumbleCount) || 0)));
+    }
+    if (els.devCapStatus instanceof HTMLElement) {
+      els.devCapStatus.textContent = String(state.debug.lastCapStatus || "none");
+    }
+    if (els.devMultiplierInfo instanceof HTMLElement) {
+      els.devMultiplierInfo.textContent = String(state.debug.lastMultiplierText || "x1");
+    }
+    if (els.devFeatureQueue instanceof HTMLElement) {
+      els.devFeatureQueue.textContent = String(state.debug.lastFeatureQueue || "-");
+    }
+    if (els.devLogText instanceof HTMLElement) {
+      els.devLogText.textContent = String(state.debug.lastLog || "No events yet.");
+    }
+    if (els.devForceSelect instanceof HTMLSelectElement) {
+      const force = String(state.debug.forceMode || "none");
+      if (els.devForceSelect.value !== force) {
+        els.devForceSelect.value = force;
+      }
+    }
+    if (els.devSeedInput instanceof HTMLInputElement) {
+      const seed = String(state.debug.seed || "");
+      if (els.devSeedInput.value !== seed) {
+        els.devSeedInput.value = seed;
+      }
+    }
   }
 
   function showBonusHud(show) {
@@ -2293,10 +2583,10 @@ window.GTModules = window.GTModules || {};
       { id: "WILD", weight: 1, pays: { 3: 1.8, 4: 5.5, 5: 18 } }
     ],
     base: {
-      wheelChance: { blue: 0.018, red: 0.006 },
-      sixChance: { blue: 0.1, red: 0.12 },
+      wheelChance: { blue: 0.02, red: 0 },
+      sixChance: { blue: 0.1, red: 0 },
       allowBlue: true,
-      allowRed: true,
+      allowRed: false,
       blueSixEnabled: true,
       guaranteedRed: false
     },
@@ -2340,10 +2630,29 @@ window.GTModules = window.GTModules || {};
     },
     bonusBuy: {
       enabled: true,
-      costMultiplier: 25,
+      costMultiplier: 60,
       tiers: [
         { id: "A", weight: 72 },
         { id: "B", weight: 28 }
+      ]
+    },
+    dealWithDevil: {
+      enabled: true,
+      A: [
+        { type: "spins", value: 5, label: "+5 FS", weight: 20 },
+        { type: "spins", value: 8, label: "+8 FS", weight: 24 },
+        { type: "spins", value: 12, label: "+12 FS", weight: 22 },
+        { type: "spins", value: 16, label: "+16 FS", weight: 12 },
+        { type: "spins", value: 20, label: "+20 FS", weight: 8 },
+        { type: "upgrade", to: "B", label: "6 -> Tier B", weight: 14 }
+      ],
+      B: [
+        { type: "spins", value: 5, label: "+5 FS", weight: 22 },
+        { type: "spins", value: 8, label: "+8 FS", weight: 26 },
+        { type: "spins", value: 12, label: "+12 FS", weight: 24 },
+        { type: "spins", value: 16, label: "+16 FS", weight: 12 },
+        { type: "spins", value: 20, label: "+20 FS", weight: 8 },
+        { type: "upgrade", to: "C", label: "6 -> Tier C", weight: 8 }
       ]
     },
     wheelOutcomes: {
@@ -2616,6 +2925,22 @@ window.GTModules = window.GTModules || {};
     return tier === "B" ? "B" : "A";
   }
 
+  function sixResolveDealOutcome(tierId) {
+    if (!SIX666_CONFIG.dealWithDevil || !SIX666_CONFIG.dealWithDevil.enabled) return null;
+    const tier = String(tierId || "").trim().toUpperCase();
+    if (tier !== "A" && tier !== "B") return null;
+    const table = Array.isArray(SIX666_CONFIG.dealWithDevil[tier]) ? SIX666_CONFIG.dealWithDevil[tier] : [];
+    if (!table.length) return null;
+    const picked = sixPickWeighted(table) || table[0] || { type: "spins", value: 10, label: "+10 FS" };
+    return {
+      fromTier: tier,
+      type: String(picked.type || "spins").trim().toLowerCase(),
+      spins: Math.max(0, Math.floor(Number(picked.value) || 0)),
+      upgradeTo: String(picked.to || "").trim().toUpperCase(),
+      label: String(picked.label || "").trim() || "Deal"
+    };
+  }
+
   function sixFormatRuleFlags(rules) {
     const row = sixCloneRules(rules);
     return {
@@ -2667,9 +2992,11 @@ window.GTModules = window.GTModules || {};
     };
   }
 
-  function simulateSixSixSix(machine, bet, buyBonus) {
+  function simulateSixSixSix(machine, bet, buyBonus, options) {
     const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const opts = options && typeof options === "object" ? options : {};
     const buyMode = Boolean(buyBonus);
+    const forcedTier = String(opts.forceTier || "").trim().toUpperCase();
     const baseRules = sixRulesForBase();
     const baseSpin = sixBuildSpinFrame(machine, safeBet, baseRules, 0, 0);
     const basePay = Math.max(0, Math.floor(Number(baseSpin.spinPay) || 0));
@@ -2678,8 +3005,37 @@ window.GTModules = window.GTModules || {};
     const activatedCount = baseWheels.filter((row) => row.activated).length;
     const baseTier = sixMapTriggerTierByActivatedCount(activatedCount);
     const buyTier = buyMode ? sixPickBuyTier() : "";
-    const triggerTier = buyTier || baseTier;
-    const triggerRules = triggerTier ? sixRulesForTier(triggerTier) : null;
+    const rawTier = forcedTier === "A" || forcedTier === "B" || forcedTier === "C"
+      ? forcedTier
+      : (buyTier || baseTier);
+
+    let triggerRules = rawTier ? sixRulesForTier(rawTier) : null;
+    const dealEvents = [];
+    let spinsLeft = triggerRules ? Math.max(0, Math.floor(Number(triggerRules.spins) || Number(SIX666_CONFIG.defaultBonusSpins) || 10)) : 0;
+    if (triggerRules && triggerRules.id !== "C") {
+      const firstDeal = sixResolveDealOutcome(triggerRules.id);
+      if (firstDeal) {
+        dealEvents.push(firstDeal);
+        if (firstDeal.type === "upgrade" && (firstDeal.upgradeTo === "B" || firstDeal.upgradeTo === "C")) {
+          triggerRules = sixRulesForTier(firstDeal.upgradeTo);
+          spinsLeft = Math.max(0, Math.floor(Number(triggerRules.spins) || 10));
+        } else if (firstDeal.type === "spins" && firstDeal.spins > 0) {
+          spinsLeft = firstDeal.spins;
+        }
+        if (firstDeal.type === "upgrade" && firstDeal.upgradeTo === "B") {
+          const secondDeal = sixResolveDealOutcome("B");
+          if (secondDeal) {
+            dealEvents.push(secondDeal);
+            if (secondDeal.type === "upgrade" && secondDeal.upgradeTo === "C") {
+              triggerRules = sixRulesForTier("C");
+              spinsLeft = Math.max(0, Math.floor(Number(triggerRules.spins) || 10));
+            } else if (secondDeal.type === "spins" && secondDeal.spins > 0) {
+              spinsLeft = secondDeal.spins;
+            }
+          }
+        }
+      }
+    }
     const triggerFlags = triggerRules ? sixFormatRuleFlags(triggerRules) : null;
 
     const lineWins = [];
@@ -2693,11 +3049,16 @@ window.GTModules = window.GTModules || {};
       }
       if (wheelText.length) lineWins.push(wheelText.join(" | "));
     }
+    if (dealEvents.length) {
+      for (let i = 0; i < dealEvents.length; i++) {
+        const row = dealEvents[i] || {};
+        const from = row.fromTier ? ("Tier " + row.fromTier) : "Tier";
+        lineWins.push("Deal With Devil: " + from + " -> " + String(row.label || "Deal"));
+      }
+    }
 
     const bonusFrames = [];
     let bonusTotal = 0;
-    let spinsLeft = triggerRules ? Math.max(0, Math.floor(Number(triggerRules.spins) || Number(SIX666_CONFIG.defaultBonusSpins) || 10)) : 0;
-
     if (triggerRules) {
       const introTitle = triggerRules.title || "FREE SPINS";
       const introText = buyMode
@@ -2712,6 +3073,7 @@ window.GTModules = window.GTModules || {};
         awardedSpins: spinsLeft,
         triggerWheelKeys: baseWheels.filter((row) => row.activated).map((row) => row.key),
         wheelRules: triggerFlags,
+        dealEvents: dealEvents.slice(0, 4),
         lineText: introText
       });
 
@@ -2750,7 +3112,7 @@ window.GTModules = window.GTModules || {};
 
     const totalPayout = Math.max(0, Math.floor(basePay + bonusTotal));
     if (triggerRules) {
-      lineWins.push("Bonus: " + triggerRules.subtitle + " (" + (triggerRules.spins || 10) + " FS)");
+      lineWins.push("Bonus: " + triggerRules.subtitle + " (" + Math.max(0, Math.floor(Number(triggerRules.spins) || 10)) + " FS)");
     }
 
     const baseOutcome = totalPayout > 0 ? (totalPayout >= safeBet * 300 ? "jackpot" : "win") : "lose";
@@ -2762,10 +3124,11 @@ window.GTModules = window.GTModules || {};
       gameId: "slots_v2",
       reels: baseSpin.reels,
       payoutWanted: totalPayout,
+      rawPayoutWanted: totalPayout,
       outcome: baseOutcome,
       lineWins: lineWins.slice(0, 18),
       lineIds: baseSpin.lineIds.slice(0, 24),
-      bet: buyMode ? (safeBet * Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 25))) : safeBet,
+      bet: buyMode ? (safeBet * Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 60))) : safeBet,
       summary,
       bonusTriggered: Boolean(triggerRules),
       bonusFrames: bonusFrames.slice(0, 128)
@@ -2783,124 +3146,389 @@ window.GTModules = window.GTModules || {};
   const LE_BANDIT_BASE_PAY_SCALE = 0.68;
   const LE_BANDIT_BONUS_PAY_SCALE = 0.62;
 
-  function simulateLeBandit(machine, bet, buyBonus) {
-    const COLS = 6, ROWS = 5;
-    const pool = [
-      ...Array(25).fill("TRAP"), ...Array(20).fill("CHEESE"), ...Array(18).fill("BEER"),
-      ...Array(12).fill("BAG"), ...Array(8).fill("HAT"), ...Array(4).fill("WINT"),
-      "WILD" // Only 1 WILD in a larger pool
+  function simulateLeBandit(machine, bet, buyBonus, options) {
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    const buyMode = Boolean(buyBonus);
+    const opts = options && typeof options === "object" ? options : {};
+    const forceBonus = Boolean(opts.forceBonus || opts.devForce === "force_bonus" || opts.devForce === "bandit_bonus");
+    const COLS = 6;
+    const ROWS = 5;
+    const MAX_CASCADE = 8;
+    const REGULAR_SYMBOLS = Object.keys(LB_CLUSTER_PAY);
+    const WEIGHTED_POOL = [
+      ...Array(24).fill("TRAP"),
+      ...Array(20).fill("CHEESE"),
+      ...Array(18).fill("BEER"),
+      ...Array(13).fill("BAG"),
+      ...Array(9).fill("HAT"),
+      ...Array(5).fill("WINT")
     ];
-    function pick() { return pool[Math.floor(Math.random() * pool.length)]; }
-    function makeGrid(rc) { const g = []; for (let r = 0; r < ROWS; r++) { g[r] = []; for (let c = 0; c < COLS; c++) { let s = pick(); if (Math.random() < rc) s = "RAIN"; g[r][c] = s; } } return g; }
-    function cpay(sym, n) { const t = LB_CLUSTER_PAY[sym]; if (!t) return 0; let b = 0; for (const k in t) { if (n >= Number(k)) b = t[k]; } return b; }
-    function clusters(g) {
-      const vis = new Set(), out = [];
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        const sym = g[r][c]; if (sym === "RAIN" || sym === "WILD" || vis.has(r + "_" + c) || !LB_CLUSTER_PAY[sym]) continue;
-        const stk = [[r, c]], cells = [];
-        while (stk.length) { const [rr, cc] = stk.pop(); const k = rr + "_" + cc; if (vis.has(k)) continue; const s = g[rr][cc]; if (s !== sym && s !== "WILD") continue; vis.add(k); cells.push({ r: rr, c: cc }); if (rr > 0) stk.push([rr - 1, cc]); if (rr < ROWS - 1) stk.push([rr + 1, cc]); if (cc > 0) stk.push([rr, cc - 1]); if (cc < COLS - 1) stk.push([rr, cc + 1]); }
-        if (cells.length >= 5) out.push({ sym, cells });
+
+    function key(r, c) {
+      return r + "_" + c;
+    }
+    function parseKey(value) {
+      const parts = String(value || "").split("_");
+      return {
+        r: Math.max(0, Math.floor(Number(parts[0]) || 0)),
+        c: Math.max(0, Math.floor(Number(parts[1]) || 0))
+      };
+    }
+    function inBounds(r, c) {
+      return r >= 0 && c >= 0 && r < ROWS && c < COLS;
+    }
+    function countRainbows(grid) {
+      let total = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (String(grid[r] && grid[r][c] || "") === "RAIN") total += 1;
+        }
+      }
+      return total;
+    }
+    function toReels(grid) {
+      const out = [];
+      for (let r = 0; r < ROWS; r++) out.push((grid[r] || []).join(","));
+      return out;
+    }
+    function pickRegular() {
+      return WEIGHTED_POOL[Math.floor(Math.random() * WEIGHTED_POOL.length)] || "TRAP";
+    }
+    function spawnSymbol(rainChance) {
+      if (Math.random() < Math.max(0, Math.min(1, Number(rainChance) || 0))) return "RAIN";
+      if (Math.random() < 0.035) return "WILD";
+      return pickRegular();
+    }
+    function buildGrid(rainChance) {
+      const out = [];
+      for (let r = 0; r < ROWS; r++) {
+        out[r] = [];
+        for (let c = 0; c < COLS; c++) {
+          out[r][c] = spawnSymbol(rainChance);
+        }
       }
       return out;
     }
-    function cntRain(g) { let n = 0; for (let r = 0; r < ROWS; r++)for (let c = 0; c < COLS; c++)if (g[r][c] === "RAIN") n++; return n; }
-    function toReels(g) { const o = []; for (let r = 0; r < ROWS; r++)o.push(g[r].join(",")); return o; }
-
-    // ────── BASE SPIN ──────
-    const baseGrid = makeGrid(buyBonus ? 0.035 : 0.01);
-    const baseC = clusters(baseGrid);
-    let basePay = 0;
-    const lines = [];
-    for (const cl of baseC) {
-      const m = cpay(cl.sym, cl.cells.length);
-      if (m > 0) {
-        basePay += bet * m * LE_BANDIT_BASE_PAY_SCALE;
-        lines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym) + " (" + m + "x)");
+    function refillGrid(grid, rainChance) {
+      const out = Array.isArray(grid) ? grid : buildGrid(rainChance);
+      for (let c = 0; c < COLS; c++) {
+        const stack = [];
+        for (let r = ROWS - 1; r >= 0; r--) {
+          const cell = String(out[r] && out[r][c] || "");
+          if (!cell || cell === "EMPTY") continue;
+          stack.push(cell);
+        }
+        for (let r = ROWS - 1; r >= 0; r--) {
+          if (stack.length) out[r][c] = stack.shift();
+          else out[r][c] = spawnSymbol(rainChance);
+        }
       }
+      return out;
     }
-    const triggerBonus = cntRain(baseGrid) >= 4 || buyBonus;
-    const reels = toReels(baseGrid);
-
-    // ────── FREE SPINS BONUS ──────
-    let bonusPay = 0;
-    const bonusFrames = [];
-    const FREE_SPINS = 8;
-    const marked = new Set();
-
-    if (triggerBonus) {
-      lines.push("🌈 BONUS! " + FREE_SPINS + " Free Spins!");
-      for (let s = 0; s < FREE_SPINS; s++) {
-        const fsGrid = makeGrid(0.04);
-        const fsC = clusters(fsGrid);
-        let sPay = 0;
-        const sLines = [];
-
-        // Cluster wins → mark cells
-        for (const cl of fsC) {
-          const m = cpay(cl.sym, cl.cells.length);
-          if (m > 0) {
-            sPay += bet * m * LE_BANDIT_BONUS_PAY_SCALE;
-            sLines.push(cl.cells.length + "x " + (SYMBOL_LABELS[cl.sym] || cl.sym));
-            for (const cell of cl.cells) marked.add(cell.r + "_" + cell.c);
+    function payForCluster(symbolId, size) {
+      const table = LB_CLUSTER_PAY[String(symbolId || "")];
+      if (!table) return 0;
+      let best = 0;
+      const keys = Object.keys(table);
+      for (let i = 0; i < keys.length; i++) {
+        const n = Math.max(0, Math.floor(Number(keys[i]) || 0));
+        if (size >= n) best = Math.max(best, Number(table[keys[i]]) || 0);
+      }
+      return best;
+    }
+    function findClusters(grid) {
+      const all = [];
+      const usedGlobal = {};
+      for (let i = 0; i < REGULAR_SYMBOLS.length; i++) {
+        const target = REGULAR_SYMBOLS[i];
+        const visited = {};
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const startKey = key(r, c);
+            if (visited[startKey]) continue;
+            const startCell = String(grid[r] && grid[r][c] || "");
+            if (startCell !== target && startCell !== "WILD") continue;
+            const queue = [{ r, c }];
+            const cells = [];
+            let natural = 0;
+            visited[startKey] = true;
+            while (queue.length) {
+              const cur = queue.shift();
+              const curKey = key(cur.r, cur.c);
+              const curCell = String(grid[cur.r] && grid[cur.r][cur.c] || "");
+              if (curCell !== target && curCell !== "WILD") continue;
+              cells.push({ r: cur.r, c: cur.c, key: curKey, sym: curCell });
+              if (curCell === target) natural += 1;
+              const next = [
+                { r: cur.r - 1, c: cur.c },
+                { r: cur.r + 1, c: cur.c },
+                { r: cur.r, c: cur.c - 1 },
+                { r: cur.r, c: cur.c + 1 }
+              ];
+              for (let n = 0; n < next.length; n++) {
+                const row = next[n];
+                if (!inBounds(row.r, row.c)) continue;
+                const nk = key(row.r, row.c);
+                if (visited[nk]) continue;
+                const nc = String(grid[row.r] && grid[row.r][row.c] || "");
+                if (nc !== target && nc !== "WILD") continue;
+                visited[nk] = true;
+                queue.push(row);
+              }
+            }
+            if (cells.length >= 5 && natural > 0) {
+              const pay = payForCluster(target, cells.length);
+              if (pay > 0) all.push({ symbol: target, pay, size: cells.length, cells });
+            }
           }
         }
-
-        // Rainbow fill
-        const rain = cntRain(fsGrid);
-        let fills = null;
-        let frameMarked = Array.from(marked); // Capture current state for the frame
-
-        if (rain > 0 && frameMarked.length > 0) {
-          const fb = {};
-          for (const key of frameMarked) {
-            const roll = Math.random(), [fr, fc] = key.split("_").map(Number);
-            if (roll < 0.70) {
-              // Favors lower coins
-              const vs = [1, 1, 1, 1, 2, 2, 3, 5]; fb[key] = { type: "COIN", value: vs[Math.floor(Math.random() * vs.length)] };
-            }
-            else if (roll < 0.92) {
-              const ms = [2, 2, 3, 4, 5]; fb[key] = { type: "CLOVR", value: ms[Math.floor(Math.random() * ms.length)] };
-            }
-            else { fb[key] = { type: "POT", value: 0 }; }
-          }
-          // Clovers multiply adjacent coins
-          for (const k of Object.keys(fb)) { if (fb[k].type !== "CLOVR") continue; const [cr, cc] = k.split("_").map(Number); for (const [ar, ac] of [[cr - 1, cc], [cr + 1, cc], [cr, cc - 1], [cr, cc + 1]]) { const ak = ar + "_" + ac; if (fb[ak] && fb[ak].type === "COIN") fb[ak].value *= fb[k].value; } }
-          // Sum coins
-          let coinVal = 0; for (const k of Object.keys(fb)) { if (fb[k].type === "COIN") coinVal += fb[k].value; }
-          // Pot respin
-          let hasPot = false, respinV = 0; for (const k of Object.keys(fb)) { if (fb[k].type === "POT") { hasPot = true; break; } }
-          if (hasPot && coinVal > 0) { for (const k of Object.keys(fb)) { if (fb[k].type === "COIN") { const rv = [1, 2, 3, 5, 8, 10]; respinV += rv[Math.floor(Math.random() * rv.length)]; } }; coinVal += respinV; }
-          bonusPay += bet * coinVal * LE_BANDIT_BONUS_PAY_SCALE;
-          const fillCells = frameMarked.map(k => { const [r, c] = k.split("_").map(Number); return { r, c, ...fb[k] }; });
-          fills = { cells: fillCells, totalMult: coinVal, hasPot, respinMult: respinV };
-          sLines.push("🌈 " + frameMarked.length + " fills" + (hasPot ? " + POT respin" : "") + " (" + coinVal + "x)");
-          // Marked area cleared AFTER push below
-        } else if (rain > 0) { sLines.push("🌈 (no marked area)"); }
-
-        bonusPay += sPay;
-        const txt = "FS" + (s + 1) + ": " + (sLines.length ? sLines.join(" | ") : "no win");
-        lines.push(txt);
-        bonusFrames.push({
-          grid: fsGrid,
-          reels: toReels(fsGrid),
-          markedCells: frameMarked,
-          fills,
-          lineText: txt,
-          spinPay: sPay + (fills ? bet * fills.totalMult * LE_BANDIT_BONUS_PAY_SCALE : 0)
-        });
-
-        if (fills) marked.clear(); // Persistence ends on fill
       }
+      all.sort((a, b) => {
+        const av = (Number(a.pay) || 0) * (Number(a.size) || 0);
+        const bv = (Number(b.pay) || 0) * (Number(b.size) || 0);
+        return bv - av;
+      });
+      const selected = [];
+      for (let i = 0; i < all.length; i++) {
+        const row = all[i];
+        let conflict = false;
+        for (let c = 0; c < row.cells.length; c++) {
+          if (usedGlobal[row.cells[c].key]) {
+            conflict = true;
+            break;
+          }
+        }
+        if (conflict) continue;
+        for (let c = 0; c < row.cells.length; c++) usedGlobal[row.cells[c].key] = true;
+        selected.push(row);
+      }
+      return selected;
+    }
+    function revealGoldenRewards(goldenSet) {
+      const keys = Array.from(goldenSet || []);
+      if (!keys.length) return { payout: 0, text: "No Golden Squares", cells: [], hasPot: false };
+      const cells = [];
+      const map = {};
+      for (let i = 0; i < keys.length; i++) {
+        const p = parseKey(keys[i]);
+        const roll = Math.random();
+        if (roll < 0.68) {
+          const vals = [1, 1, 2, 2, 3, 5, 8];
+          map[keys[i]] = { type: "COIN", value: vals[Math.floor(Math.random() * vals.length)] };
+        } else if (roll < 0.88) {
+          const vals = [2, 2, 3, 4];
+          map[keys[i]] = { type: "CLOVR", value: vals[Math.floor(Math.random() * vals.length)] };
+        } else {
+          map[keys[i]] = { type: "POT", value: 0 };
+        }
+        cells.push({ r: p.r, c: p.c, type: map[keys[i]].type, value: map[keys[i]].value });
+      }
+      for (let i = 0; i < cells.length; i++) {
+        const row = cells[i];
+        if (row.type !== "CLOVR") continue;
+        const adj = [
+          key(row.r - 1, row.c),
+          key(row.r + 1, row.c),
+          key(row.r, row.c - 1),
+          key(row.r, row.c + 1)
+        ];
+        for (let a = 0; a < adj.length; a++) {
+          const target = map[adj[a]];
+          if (!target || target.type !== "COIN") continue;
+          target.value *= Math.max(2, Math.floor(Number(row.value) || 2));
+        }
+      }
+      let coinTotal = 0;
+      let pots = 0;
+      for (let i = 0; i < keys.length; i++) {
+        const row = map[keys[i]];
+        if (!row) continue;
+        if (row.type === "COIN") coinTotal += Math.max(0, Math.floor(Number(row.value) || 0));
+        if (row.type === "POT") pots += 1;
+      }
+      const collectX = pots > 0 ? Math.max(0, Math.floor(coinTotal * (1 + (pots * 0.35)))) : coinTotal;
+      return {
+        payout: Math.max(0, collectX),
+        text: "RAINBOW -> Golden " + keys.length + " | x" + collectX + (pots > 0 ? (" | POT x" + pots) : ""),
+        cells,
+        hasPot: pots > 0
+      };
+    }
+    function runCascadeSequence(startGrid, goldenSet, config) {
+      const cfg = config && typeof config === "object" ? config : {};
+      const rainChance = Math.max(0, Math.min(1, Number(cfg.rainChance) || 0));
+      const payScale = Math.max(0.05, Number(cfg.payScale) || LE_BANDIT_BASE_PAY_SCALE);
+      let grid = Array.isArray(startGrid) ? startGrid : buildGrid(rainChance);
+      const lineWins = [];
+      const tumbleFrames = [];
+      let totalPay = 0;
+      let cascades = 0;
+      while (cascades < MAX_CASCADE) {
+        const wins = findClusters(grid);
+        if (!wins.length) break;
+        cascades += 1;
+        const beforeRows = toReels(grid);
+        const removeMap = {};
+        const winningKeys = [];
+        const winningTypes = {};
+        let cascadePay = 0;
+        for (let i = 0; i < wins.length; i++) {
+          const row = wins[i];
+          winningTypes[row.symbol] = true;
+          const pay = Math.max(0, Math.floor(safeBet * Math.max(0, Number(row.pay) || 0) * payScale));
+          cascadePay += pay;
+          lineWins.push("C" + cascades + " " + row.symbol + " x" + row.size + " -> +" + pay + " WL");
+          for (let c = 0; c < row.cells.length; c++) {
+            const cell = row.cells[c];
+            removeMap[cell.key] = true;
+            winningKeys.push(cell.key);
+          }
+        }
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            const sym = String(grid[r] && grid[r][c] || "");
+            if (!winningTypes[sym]) continue;
+            removeMap[key(r, c)] = true;
+          }
+        }
+        const clearedKeys = Object.keys(removeMap);
+        for (let i = 0; i < clearedKeys.length; i++) {
+          const p = parseKey(clearedKeys[i]);
+          if (grid[p.r]) grid[p.r][p.c] = "EMPTY";
+          if (goldenSet) goldenSet.add(clearedKeys[i]);
+        }
+
+        let fillInfo = null;
+        const rainbows = countRainbows(grid);
+        if (rainbows > 0 && goldenSet && goldenSet.size > 0) {
+          const reward = revealGoldenRewards(goldenSet);
+          if (reward.payout > 0) {
+            const rewardPay = Math.max(0, Math.floor(safeBet * reward.payout * 0.22 * payScale));
+            cascadePay += rewardPay;
+            lineWins.push(reward.text + " -> +" + rewardPay + " WL");
+          }
+          fillInfo = {
+            cells: reward.cells,
+            totalMult: reward.payout,
+            hasPot: reward.hasPot,
+            respinMult: 0
+          };
+        }
+
+        totalPay += cascadePay;
+        grid = refillGrid(grid, rainChance);
+        const afterRows = toReels(grid);
+        tumbleFrames.push({
+          index: cascades,
+          payout: cascadePay,
+          lineText: "Super Cascade " + cascades + " | +" + cascadePay + " WL",
+          winningKeys: winningKeys.slice(0, 256),
+          clearedKeys: clearedKeys.slice(0, 256),
+          beforeRows,
+          afterRows,
+          markedCells: Array.from(goldenSet || []).slice(0, 256),
+          effectCells: {},
+          fills: fillInfo
+        });
+      }
+      return {
+        finalGrid: grid,
+        spinPay: Math.max(0, totalPay),
+        lineWins: lineWins.slice(0, 48),
+        tumbleFrames: tumbleFrames.slice(0, 32),
+        markedCells: Array.from(goldenSet || []).slice(0, 256)
+      };
     }
 
-    const totalPay = Math.floor(basePay + bonusPay);
-    let summary = triggerBonus ? ("Bonus " + FREE_SPINS + " FS | Total " + (totalPay / Math.max(1, bet)).toFixed(1) + "x") : (basePay > 0 ? ("Cluster " + (basePay / bet).toFixed(1) + "x") : "");
+    const lines = [];
+    const goldenSquares = new Set();
+    let baseGrid = buildGrid(buyMode ? 0.045 : 0.02);
+    const baseRun = runCascadeSequence(baseGrid, goldenSquares, {
+      rainChance: buyMode ? 0.05 : 0.02,
+      payScale: LE_BANDIT_BASE_PAY_SCALE
+    });
+    baseGrid = baseRun.finalGrid;
+    for (let i = 0; i < baseRun.lineWins.length && lines.length < 48; i++) {
+      lines.push(baseRun.lineWins[i]);
+    }
+    const basePayout = Math.max(0, Math.floor(Number(baseRun.spinPay) || 0));
+    const baseReels = toReels(baseGrid);
+    const baseRainbows = countRainbows(baseGrid);
+    const triggerBonus = forceBonus || buyMode || baseRainbows >= 3 || goldenSquares.size >= 7;
 
+    const bonusFrames = [];
+    let bonusPay = 0;
+    if (triggerBonus) {
+      let freeSpins = buyMode ? 10 : 8;
+      lines.push("BONUS TRIGGERED | " + freeSpins + " FREE SPINS");
+      bonusFrames.push({
+        frameType: "bonus_intro",
+        reels: baseReels,
+        tierId: "LB",
+        tierTitle: "OUTLAW SPINS",
+        tierSubtitle: "Golden Squares",
+        awardedSpins: freeSpins,
+        triggerWheelKeys: [],
+        wheelRules: {},
+        lineText: "Golden Squares + Rainbow mode active"
+      });
+
+      let spinIndex = 0;
+      while (freeSpins > 0 && bonusFrames.length < 96) {
+        freeSpins -= 1;
+        spinIndex += 1;
+        const fsGrid = buildGrid(0.09);
+        const fsRun = runCascadeSequence(fsGrid, goldenSquares, {
+          rainChance: 0.1,
+          payScale: LE_BANDIT_BONUS_PAY_SCALE
+        });
+        const spinPay = Math.max(0, Math.floor(Number(fsRun.spinPay) || 0));
+        bonusPay += spinPay;
+        const fsLines = fsRun.lineWins.slice(0, 14);
+        if (fsLines.length) lines.push("FS" + spinIndex + ": " + fsLines[0]);
+        bonusFrames.push({
+          frameType: "bonus_spin",
+          reels: toReels(fsRun.finalGrid),
+          lineText: "FS " + spinIndex + " | Golden: " + goldenSquares.size + " | +" + spinPay + " WL",
+          lineWins: fsLines,
+          lineIds: [],
+          markedCells: fsRun.markedCells,
+          spinPay: spinPay,
+          tumbleFrames: fsRun.tumbleFrames.slice(0, 24),
+          hud: {
+            mode: "OUTLAW SPINS",
+            spinsLeft: freeSpins,
+            bonusWin: bonusPay,
+            currentSpinWin: spinPay
+          }
+        });
+      }
+      bonusFrames.push({
+        frameType: "bonus_end",
+        summary: {
+          bonusWin: Math.max(0, bonusPay),
+          biggestCascadeWin: Math.max(0, Math.floor(Number(bonusPay) || 0))
+        }
+      });
+    }
+
+    const totalPay = Math.max(0, Math.floor(basePayout + bonusPay));
+    const summary = triggerBonus
+      ? ("Outlaw Spins | Golden Squares " + goldenSquares.size)
+      : (basePayout > 0 ? ("Super Cascades " + (basePayout / Math.max(1, safeBet)).toFixed(1) + "x") : "No win");
     return {
-      gameId: "le_bandit", reels, payoutWanted: totalPay,
-      outcome: totalPay > 0 ? (totalPay >= bet * 50 ? "jackpot" : "win") : "lose",
-      lineWins: lines, lineIds: [], bet: buyBonus ? bet * 10 : bet, summary,
-      bonusFrames
+      gameId: "le_bandit",
+      reels: baseReels,
+      payoutWanted: totalPay,
+      rawPayoutWanted: totalPay,
+      outcome: totalPay > 0 ? (totalPay >= safeBet * 80 ? "jackpot" : "win") : "lose",
+      lineWins: lines.slice(0, 24),
+      lineIds: [],
+      bet: buyMode ? (safeBet * 10) : safeBet,
+      summary,
+      bonusFrames: bonusFrames.slice(0, 96),
+      tumbleFrames: baseRun.tumbleFrames.slice(0, 24),
+      markedCells: Array.from(goldenSquares).slice(0, 256)
     };
   }
 
@@ -3079,6 +3707,8 @@ window.GTModules = window.GTModules || {};
   async function runTumblePlayback(machine, tumbleFrames, betValue) {
     const frames = Array.isArray(tumbleFrames) ? tumbleFrames : [];
     if (!frames.length) return { steps: 0, totalWin: 0 };
+    state.debug.lastTumbleCount = frames.length;
+    renderDevPanel();
     const safeBet = Math.max(1, Math.floor(Number(betValue) || 1));
     const totalWin = frames.reduce((sum, row) => sum + Math.max(0, Math.floor(Number(row && row.payout) || 0)), 0);
     if (!tumbleAnimator || typeof tumbleAnimator.playSequence !== "function") {
@@ -3360,19 +3990,37 @@ window.GTModules = window.GTModules || {};
     if (!(els.premiumHistoryList instanceof HTMLElement)) return;
     if (!state.spinHistory.length) {
       els.premiumHistoryList.innerHTML = "<div class=\"premium-history-item\">No spins yet.</div>";
+    } else {
+      els.premiumHistoryList.innerHTML = state.spinHistory.map((row) => {
+        const r = row && typeof row === "object" ? row : {};
+        const cls = ["premium-history-item"];
+        if (r.payout > 0) cls.push("win");
+        if (r.bigWin) cls.push("big");
+        const ts = r.time ? new Date(r.time).toLocaleTimeString([], { hour12: false }) : "--:--:--";
+        return (
+          "<div class=\"" + cls.join(" ") + "\">" +
+          "<div>" + escapeHtml(ts) + " | " + escapeHtml(String(r.game || "")) + "</div>" +
+          "<div>Bet: " + formatLocksByDisplayUnitHtml(Math.max(0, Math.floor(Number(r.bet) || 0))) + "</div>" +
+          "<div>Payout: " + formatLocksByDisplayUnitHtml(Math.max(0, Math.floor(Number(r.payout) || 0))) + (r.bigWin ? " <strong>(BIG)</strong>" : "") + "</div>" +
+          "</div>"
+        );
+      }).join("");
+    }
+    if (!(els.gameRecentList instanceof HTMLElement)) return;
+    if (!state.spinHistory.length) {
+      els.gameRecentList.innerHTML = "<div class=\"stake-empty\">No spins yet.</div>";
       return;
     }
-    els.premiumHistoryList.innerHTML = state.spinHistory.map((row) => {
+    const rows = state.spinHistory.slice(0, 8);
+    els.gameRecentList.innerHTML = rows.map((row) => {
       const r = row && typeof row === "object" ? row : {};
-      const cls = ["premium-history-item"];
-      if (r.payout > 0) cls.push("win");
-      if (r.bigWin) cls.push("big");
-      const ts = r.time ? new Date(r.time).toLocaleTimeString([], { hour12: false }) : "--:--:--";
+      const ts = r.time ? new Date(r.time).toLocaleTimeString([], { hour12: false }) : "--:--";
+      const payout = Math.max(0, Math.floor(Number(r.payout) || 0));
+      const cls = "premium-history-item" + (payout > 0 ? " win" : "");
       return (
-        "<div class=\"" + cls.join(" ") + "\">" +
-        "<div>" + escapeHtml(ts) + " | " + escapeHtml(String(r.game || "")) + "</div>" +
-        "<div>Bet: " + formatLocksByDisplayUnitHtml(Math.max(0, Math.floor(Number(r.bet) || 0))) + "</div>" +
-        "<div>Payout: " + formatLocksByDisplayUnitHtml(Math.max(0, Math.floor(Number(r.payout) || 0))) + (r.bigWin ? " <strong>(BIG)</strong>" : "") + "</div>" +
+        "<div class=\"" + cls + "\">" +
+        "<div>" + escapeHtml(ts) + " - " + escapeHtml(String(r.game || "")) + "</div>" +
+        "<div>+" + formatLocksByDisplayUnitHtml(payout) + "</div>" +
         "</div>"
       );
     }).join("");
@@ -3457,6 +4105,7 @@ window.GTModules = window.GTModules || {};
     state.uiSettings.soundEnabled = Boolean(src.soundEnabled);
     state.uiSettings.soundVolume = clamp01(src.soundVolume);
     state.uiSettings.turbo = Boolean(src.turbo);
+    state.uiSettings.devMode = Boolean(src.devMode);
     state.uiSettings.autoplayCount = AUTOPLAY_COUNTS.indexOf(Math.max(0, Math.floor(Number(src.autoplayCount) || 0))) >= 0
       ? Math.max(0, Math.floor(Number(src.autoplayCount) || 0))
       : 0;
@@ -3467,6 +4116,7 @@ window.GTModules = window.GTModules || {};
     audioManager.setEnabled(state.uiSettings.soundEnabled);
     saveUiSettings();
     renderPremiumHud();
+    renderDevPanel();
   }
 
   function setAutoplayActive(active, count) {
@@ -4303,6 +4953,14 @@ window.GTModules = window.GTModules || {};
     winPresenter.clearWinTier();
     winPresenter.hideBanner();
     winPresenter.setCurrentWinValue(0, Math.max(1, Math.floor(Number(betForDisplay) || Number(state.currentBetValue) || 1)));
+    state.debug.lastRawWin = 0;
+    state.debug.lastTumbleCount = 0;
+    state.debug.lastCapStatus = "none";
+    state.debug.lastFeatureQueue = "-";
+    state.debug.lastMultiplierText = "x1";
+    EffectQueue.clear();
+    EffectQueue.push({ type: "spin_start" });
+    renderDevPanel();
     audioManager.play("spin_start");
     if (!state.bonusFlow.active) {
       setBonusPhase(BONUS_PHASES.BASE_SPINNING);
@@ -4518,6 +5176,7 @@ window.GTModules = window.GTModules || {};
     const tierTitle = String(row.tierTitle || "FREE SPINS");
     const tierSubtitle = String(row.tierSubtitle || "Tier");
     const triggerKeys = Array.isArray(row.triggerWheelKeys) ? row.triggerWheelKeys.map((v) => String(v || "")).filter(Boolean) : [];
+    const dealEvents = Array.isArray(row.dealEvents) ? row.dealEvents : [];
     const wheelRules = row.wheelRules && typeof row.wheelRules === "object" ? row.wheelRules : {};
 
     setBonusPhase(BONUS_PHASES.BONUS_INTRO);
@@ -4547,7 +5206,7 @@ window.GTModules = window.GTModules || {};
     await showBonusOverlay(
       tierTitle,
       awarded + " FREE SPINS",
-      tierSubtitle + " | " + sixHudRuleText(wheelRules),
+      tierSubtitle + " | " + sixHudRuleText(wheelRules) + (dealEvents.length ? (" | Deal x" + dealEvents.length) : ""),
       false
     );
     await sleep(Math.max(220, Math.floor(Number(bonusFx.intro) || 720)));
@@ -4562,6 +5221,16 @@ window.GTModules = window.GTModules || {};
       renderBoard();
       await sleep(160);
       delete state.ephemeral.upgradeFlashes[key];
+    }
+    if (dealEvents.length) {
+      for (let i = 0; i < dealEvents.length; i++) {
+        const ev = dealEvents[i] && typeof dealEvents[i] === "object" ? dealEvents[i] : {};
+        const from = String(ev.fromTier || "").trim();
+        const label = String(ev.label || "Deal").trim() || "Deal";
+        showBonusBanner("Deal " + (from ? ("Tier " + from) : "") + ": " + label);
+        safeVibrate(8);
+        await sleep(320);
+      }
     }
     state.ephemeral.effectCells = {};
     state.ephemeral.upgradeFlashes = {};
@@ -4664,6 +5333,10 @@ window.GTModules = window.GTModules || {};
   async function runBonusPlayback(machine, bonusFrames, betValue) {
     const frames = Array.isArray(bonusFrames) ? bonusFrames : [];
     if (!frames.length) return { bonusTotal: 0, biggestSpinWin: 0, biggestCascadeWin: 0, countedWin: 0 };
+    EffectQueue.clear();
+    EffectQueue.push({ type: "bonus_start" });
+    state.debug.lastFeatureQueue = "bonus:" + frames.length;
+    renderDevPanel();
     const safeBet = Math.max(1, Math.floor(Number(betValue) || 1));
     const bonusFx = bonusAnimTimings(machine.type);
     const isSnoop = machine.type === "snoop_dogg_dollars";
@@ -4694,6 +5367,7 @@ window.GTModules = window.GTModules || {};
     for (let i = 0; i < frames.length; i++) {
       const frame = frames[i] && typeof frames[i] === "object" ? frames[i] : {};
       const frameType = String(frame.frameType || "bonus_spin").trim().toLowerCase();
+      EffectQueue.push({ type: frameType || "bonus_spin" });
       if (frameType === "bonus_intro" && isSnoop) {
         await runSnoopBonusIntroFrame(machine, frame);
         continue;
@@ -4932,6 +5606,9 @@ window.GTModules = window.GTModules || {};
     audioManager.play("bonus_loop_end");
     if (els.stage instanceof HTMLElement) els.stage.classList.remove("bonus-live");
     setBonusPhase(BONUS_PHASES.BASE_IDLE);
+    EffectQueue.clear();
+    state.debug.lastFeatureQueue = "-";
+    renderDevPanel();
     return { bonusTotal, biggestSpinWin, biggestCascadeWin, countedWin };
   }
 
@@ -4972,6 +5649,47 @@ window.GTModules = window.GTModules || {};
     return "Slots";
   }
 
+  function renderStageMachineSelector(rows, countByCategory) {
+    if (!(els.gameMachineCategoryTabs instanceof HTMLElement) || !(els.gameMachineList instanceof HTMLElement)) return;
+    const list = Array.isArray(rows) ? rows : [];
+    const counts = countByCategory && typeof countByCategory === "object"
+      ? countByCategory
+      : { all: list.length, slots: 0, table: 0, risk: 0 };
+
+    els.gameMachineCategoryTabs.innerHTML = MACHINE_CATEGORY_DEFS
+      .filter((row) => row.id === "all" || Math.max(0, Math.floor(Number(counts[row.id]) || 0)) > 0)
+      .map((row) => {
+        const active = row.id === state.machineCategory ? " active" : "";
+        const count = Math.max(0, Math.floor(Number(counts[row.id]) || 0));
+        return (
+          "<button type=\"button\" class=\"machine-cat-btn" + active + "\" data-category=\"" + row.id + "\">" +
+          "<span>" + escapeHtml(row.label) + "</span>" +
+          "<span class=\"count\">" + count + "</span>" +
+          "</button>"
+        );
+      }).join("");
+
+    const selected = String(state.machineCategory || "all");
+    const visible = selected === "all"
+      ? list
+      : list.filter((row) => getMachineCategoryId(row.type) === selected);
+    if (!visible.length) {
+      els.gameMachineList.innerHTML = "<div class=\"stake-empty\">No games in this category.</div>";
+      return;
+    }
+    els.gameMachineList.innerHTML = visible.map((row) => {
+      const catId = getMachineCategoryId(row.type);
+      const active = row.tileKey === state.selectedMachineKey ? " active" : "";
+      return (
+        "<div class=\"machine-item" + active + "\" data-machine-key=\"" + escapeHtml(row.tileKey) + "\">" +
+        "<div class=\"machine-cat " + escapeHtml(catId) + "\">" + escapeHtml(getMachineCategoryLabel(catId)) + "</div>" +
+        "<div class=\"name\">" + escapeHtml(row.typeName) + "</div>" +
+        "<div class=\"info\">Volatility: " + escapeHtml(formatVolatility(row.volatility)) + "</div>" +
+        "</div>"
+      );
+    }).join("");
+  }
+
   function ensureValidMachineCategory(countByCategory) {
     const by = countByCategory && typeof countByCategory === "object" ? countByCategory : {};
     const selected = String(state.machineCategory || "all");
@@ -4987,11 +5705,14 @@ window.GTModules = window.GTModules || {};
 
   // Renders the "Tablet" style grid of games in the lobby
   function renderMachineSelector() {
-    if (!(els.machineList instanceof HTMLElement)) return;
     const rows = state.machines.slice().sort((a, b) => a.ty - b.ty || a.tx - b.tx);
     if (!rows.length) {
       if (els.machineCategoryTabs instanceof HTMLElement) els.machineCategoryTabs.innerHTML = "";
-      els.machineList.innerHTML = "<div class=\"status\">No games available.</div>";
+      if (els.machineList instanceof HTMLElement) {
+        els.machineList.innerHTML = "<div class=\"status\">No games available.</div>";
+      }
+      if (els.gameMachineCategoryTabs instanceof HTMLElement) els.gameMachineCategoryTabs.innerHTML = "";
+      if (els.gameMachineList instanceof HTMLElement) els.gameMachineList.innerHTML = "<div class=\"stake-empty\">No games available.</div>";
       return;
     }
 
@@ -5001,6 +5722,8 @@ window.GTModules = window.GTModules || {};
       countByCategory[cat] = Math.max(0, Math.floor(Number(countByCategory[cat]) || 0)) + 1;
     }
     ensureValidMachineCategory(countByCategory);
+    renderStageMachineSelector(rows, countByCategory);
+    if (!(els.machineList instanceof HTMLElement)) return;
 
     if (els.machineCategoryTabs instanceof HTMLElement) {
       els.machineCategoryTabs.innerHTML = MACHINE_CATEGORY_DEFS
@@ -5267,6 +5990,8 @@ window.GTModules = window.GTModules || {};
 
     renderBetChipLabels();
     renderPremiumHud();
+    updateRuntimeChips();
+    renderDevPanel();
     UIManager.updateHeader();
   }
 
@@ -5276,6 +6001,8 @@ window.GTModules = window.GTModules || {};
     renderMachineStats();
     renderBoard(animCtx);
     renderPremiumHud();
+    updateRuntimeChips();
+    renderDevPanel();
     UIManager.updateHeader();
   }
 
@@ -5897,28 +6624,33 @@ window.GTModules = window.GTModules || {};
       return;
     }
 
-    const modeText = String(mode || "spin").trim().toLowerCase();
+    let modeText = String(mode || "spin").trim().toLowerCase();
+    let spinOptions = {};
+    const debugPlan = deriveDebugSpinMode(machine, modeText, spinOptions);
+    modeText = debugPlan.mode;
+    spinOptions = debugPlan.spinOptions;
+    const spinSeed = String(debugPlan.seed || "");
+    const debugForceMode = String(spinOptions.devForce || "none");
     if (modeText !== "spin" && state.autoplay.active) setAutoplayActive(false);
     const buyBonus = modeText === "buybonus" && (machine.type === "slots_v2" || machine.type === "le_bandit");
     const snoopBuyMatch = machine.type === "snoop_dogg_dollars" ? /^snoop_buy_([3-6])$/.exec(modeText) : null;
     const isSnoopHype = machine.type === "snoop_dogg_dollars" && modeText === "hype";
     const isSnoopBuy = Boolean(snoopBuyMatch);
     let wagerX = 1;
-    let spinOptions = {};
     if (buyBonus) {
       if (machine.type === "slots_v2") {
         wagerX = Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 25));
       } else {
         wagerX = 10;
       }
-      spinOptions = { mode: "buybonus" };
+      spinOptions = { ...spinOptions, mode: "buybonus" };
     } else if (isSnoopHype) {
       wagerX = Math.max(1, Math.floor(Number(SNOOP_UI.hypeCostX) || 20));
-      spinOptions = { mode: "hype" };
+      spinOptions = { ...spinOptions, mode: "hype" };
     } else if (isSnoopBuy) {
       const scatters = Math.max(3, Math.min(6, Math.floor(Number(snoopBuyMatch[1]) || 3)));
       wagerX = Math.max(1, Math.floor(Number(SNOOP_UI.buyCostByScatter[scatters]) || 1));
-      spinOptions = { mode: "buybonus_" + scatters };
+      spinOptions = { ...spinOptions, mode: "buybonus_" + scatters };
     }
     const isPremiumSpin = buyBonus || isSnoopHype || isSnoopBuy;
     const showBonusSpinText = buyBonus || isSnoopBuy;
@@ -5940,6 +6672,10 @@ window.GTModules = window.GTModules || {};
       renderAll();
       return;
     }
+    if (debugPlan.consumed) {
+      state.debug.pendingOverride = null;
+      appendDevLog("Applied one-time override: " + debugForceMode + (spinSeed ? (" | seed " + spinSeed) : ""));
+    }
 
     let applied = false;
     let resolved = null;
@@ -5948,19 +6684,23 @@ window.GTModules = window.GTModules || {};
     // Standalone / Casino Mode Handling
     if (machine.tileKey.startsWith("demo_")) {
 
-      let rawResult = {};
-      if (machine.type === "slots_v2") {
-        rawResult = simulateSixSixSix(machine, bet, buyBonus);
-      } else if (machine.type === "le_bandit") {
-        rawResult = simulateLeBandit(machine, bet, buyBonus);
-      } else if (typeof slotsModule.spin === "function") {
-        rawResult = slotsModule.spin(machine.type, bet, spinOptions) || {};
-      } else {
-        rawResult = simulateStandaloneSpin(machine, bet);
-      }
+      let rawResult = withSeededRandom(spinSeed, () => {
+        if (machine.type === "slots_v2") {
+          return simulateSixSixSix(machine, bet, buyBonus, spinOptions);
+        }
+        if (machine.type === "le_bandit") {
+          return simulateLeBandit(machine, bet, buyBonus, spinOptions);
+        }
+        if (typeof slotsModule.spin === "function") {
+          return slotsModule.spin(machine.type, bet, spinOptions) || {};
+        }
+        return simulateStandaloneSpin(machine, bet);
+      }) || {};
+      rawResult = applyDebugResultOverrides(machine, rawResult, bet, wager, modeText, debugForceMode);
 
       const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
       const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
+      updateDebugSpinTrace(machine, rawResult, wanted, bet, resultWager);
 
       const lines = Array.isArray(rawResult.lineWins) ? rawResult.lineWins.map((s) => String(s || "").trim()).filter(Boolean) : [];
       const lineIds = Array.isArray(rawResult.lineIds) ? rawResult.lineIds.map((n) => Math.max(1, Math.floor(Number(n) || 0))).filter((n) => n > 0) : [];
@@ -6023,6 +6763,8 @@ window.GTModules = window.GTModules || {};
       }
 
       const tumbleFramesSafe = Array.isArray(resolved.tumbleFrames) ? resolved.tumbleFrames : [];
+      state.debug.lastTumbleCount = tumbleFramesSafe.length;
+      renderDevPanel();
       if (!state.bonusFlow.active) setBonusPhase(BONUS_PHASES.BASE_RESOLVING);
       state.ephemeral.rows = tumbleFramesSafe.length ? resolved.spinStartRows : resolved.rows;
       state.ephemeral.lineWins = resolved.lineWins;
@@ -6121,6 +6863,7 @@ window.GTModules = window.GTModules || {};
         const ref = db.ref(basePath + "/worlds/" + state.worldId + "/gamble-machines/" + machine.tileKey);
         const playerName = String(state.user.username || "").slice(0, 24);
         const playerId = String(state.user.accountId || "").trim();
+        let debugTrace = null;
 
         const txn = await ref.transaction((currentRaw) => {
           const current = normalizeMachineRecord(machine.tileKey, currentRaw);
@@ -6130,14 +6873,16 @@ window.GTModules = window.GTModules || {};
           const liveMax = getSpinMaxBet(current);
           if (bet > liveMax) return currentRaw;
 
-          let rawResult = {};
-          if (current.type === "slots_v2") {
-            rawResult = simulateSixSixSix(current, bet, buyBonus);
-          } else if (current.type === "le_bandit") {
-            rawResult = simulateLeBandit(current, bet, buyBonus);
-          } else {
-            rawResult = slotsModule.spin(current.type, bet, spinOptions) || {};
-          }
+          let rawResult = withSeededRandom(spinSeed, () => {
+            if (current.type === "slots_v2") {
+              return simulateSixSixSix(current, bet, buyBonus, spinOptions);
+            }
+            if (current.type === "le_bandit") {
+              return simulateLeBandit(current, bet, buyBonus, spinOptions);
+            }
+            return slotsModule.spin(current.type, bet, spinOptions) || {};
+          }) || {};
+          rawResult = applyDebugResultOverrides(current, rawResult, bet, wager, modeText, debugForceMode);
           const resultWager = Math.max(1, Math.floor(Number(rawResult.bet) || wager));
           const wanted = Math.max(0, Math.floor(Number(rawResult.payoutWanted) || 0));
           if (resultWager !== wager) return currentRaw;
@@ -6172,6 +6917,13 @@ window.GTModules = window.GTModules || {};
 
           applied = true;
           payout = wanted;
+          debugTrace = {
+            machine: current,
+            rawResult,
+            payout: wanted,
+            bet,
+            wager: resultWager
+          };
           resolved = {
             type: current.type,
             rows: finalRows,
@@ -6213,6 +6965,9 @@ window.GTModules = window.GTModules || {};
           state.spinTimer = 0;
         }
         state.ephemeral.stoppedCols = 0;
+        if (debugTrace && typeof debugTrace === "object") {
+          updateDebugSpinTrace(debugTrace.machine, debugTrace.rawResult, debugTrace.payout, debugTrace.bet, debugTrace.wager);
+        }
         const useAnticipation = shouldUseReelAnticipation(machine, resolved, payout, bet);
         await reelAnimator.animate(machine, resolved.spinStartRows, {
           anticipation: useAnticipation
@@ -6230,6 +6985,8 @@ window.GTModules = window.GTModules || {};
         }
 
         const tumbleFramesSafe = Array.isArray(resolved.tumbleFrames) ? resolved.tumbleFrames : [];
+        state.debug.lastTumbleCount = tumbleFramesSafe.length;
+        renderDevPanel();
         if (!state.bonusFlow.active) setBonusPhase(BONUS_PHASES.BASE_RESOLVING);
         state.ephemeral.rows = tumbleFramesSafe.length ? resolved.spinStartRows : resolved.rows;
         state.ephemeral.lineWins = resolved.lineWins;
@@ -6438,6 +7195,44 @@ window.GTModules = window.GTModules || {};
         renderPremiumHud();
       });
     }
+    if (els.premiumDevToggle instanceof HTMLInputElement) {
+      els.premiumDevToggle.addEventListener("change", () => {
+        state.uiSettings.devMode = Boolean(els.premiumDevToggle.checked);
+        saveUiSettings();
+        renderPremiumHud();
+        renderDevPanel();
+      });
+    }
+    if (els.devForceSelect instanceof HTMLSelectElement) {
+      els.devForceSelect.addEventListener("change", () => {
+        state.debug.forceMode = String(els.devForceSelect.value || "none").trim() || "none";
+        renderDevPanel();
+      });
+    }
+    if (els.devSeedInput instanceof HTMLInputElement) {
+      els.devSeedInput.addEventListener("change", () => {
+        state.debug.seed = String(els.devSeedInput.value || "").trim();
+        renderDevPanel();
+      });
+    }
+    if (els.devApplyOnceBtn instanceof HTMLButtonElement) {
+      els.devApplyOnceBtn.addEventListener("click", () => {
+        const force = els.devForceSelect instanceof HTMLSelectElement
+          ? String(els.devForceSelect.value || "none").trim()
+          : "none";
+        const seed = els.devSeedInput instanceof HTMLInputElement
+          ? String(els.devSeedInput.value || "").trim()
+          : "";
+        state.debug.forceMode = force || "none";
+        state.debug.seed = seed;
+        state.debug.pendingOverride = {
+          forceMode: state.debug.forceMode,
+          seed: state.debug.seed,
+          createdAt: Date.now()
+        };
+        appendDevLog("Queued override: " + state.debug.forceMode + (state.debug.seed ? (" | seed " + state.debug.seed) : ""));
+      });
+    }
     if (els.premiumQuickBet instanceof HTMLSelectElement) {
       els.premiumQuickBet.addEventListener("change", () => {
         const val = Math.max(0, Math.floor(Number(els.premiumQuickBet.value) || 0));
@@ -6504,9 +7299,35 @@ window.GTModules = window.GTModules || {};
       event.preventDefault();
     }, true);
     window.addEventListener("keydown", async (event) => {
-      if (event.key !== " " || event.repeat) return;
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
+      const key = String(event.key || "");
+      if (event.repeat) return;
+      if (key.toLowerCase() === "s") {
+        event.preventDefault();
+        state.uiSettings.turbo = !state.uiSettings.turbo;
+        syncTurboSetting();
+        saveUiSettings();
+        renderPremiumHud();
+        appendDevLog("Turbo " + (state.uiSettings.turbo ? "enabled" : "disabled"));
+        return;
+      }
+      if (key.toLowerCase() === "a") {
+        event.preventDefault();
+        if (state.autoplay.active) {
+          setAutoplayActive(false);
+          appendDevLog("Autoplay stopped");
+          return;
+        }
+        const count = Math.max(0, Math.floor(Number(state.uiSettings.autoplayCount) || 0));
+        if (count <= 0) return;
+        setAutoplayActive(true, count);
+        state.autoplay.mode = "spin";
+        appendDevLog("Autoplay started: " + count);
+        await runSpin("spin");
+        return;
+      }
+      if (key !== " ") return;
       event.preventDefault();
       const skipCounter = winCounter && typeof winCounter.isRunning === "function" && winCounter.isRunning();
       const skipTumble = tumbleAnimator && typeof tumbleAnimator.isRunning === "function" && tumbleAnimator.isRunning();
@@ -6555,6 +7376,18 @@ window.GTModules = window.GTModules || {};
         renderMachineSelector();
       });
     }
+    if (els.gameMachineCategoryTabs instanceof HTMLElement) {
+      els.gameMachineCategoryTabs.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest(".machine-cat-btn");
+        if (!(btn instanceof HTMLElement)) return;
+        const next = String(btn.dataset.category || "all");
+        if (!next || state.machineCategory === next) return;
+        state.machineCategory = next;
+        renderMachineSelector();
+      });
+    }
 
     if (els.machineList instanceof HTMLElement) {
       els.machineList.addEventListener("click", (event) => {
@@ -6570,6 +7403,22 @@ window.GTModules = window.GTModules || {};
         clearBonusUiState();
         renderAll();
         switchView("game");
+      });
+    }
+    if (els.gameMachineList instanceof HTMLElement) {
+      els.gameMachineList.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const item = target.closest(".machine-item");
+        if (!(item instanceof HTMLElement)) return;
+        const key = String(item.dataset.machineKey || "");
+        if (!key || state.selectedMachineKey === key) return;
+        state.selectedMachineKey = key;
+        state.currentWinValue = 0;
+        winPresenter.setCurrentWinValue(0, Math.max(1, Math.floor(Number(state.currentBetValue) || 1)));
+        resetEphemeralVisuals();
+        clearBonusUiState();
+        renderAll();
       });
     }
 
@@ -6920,3 +7769,4 @@ window.GTModules = window.GTModules || {};
     renderAll();
   });
 })();
+
