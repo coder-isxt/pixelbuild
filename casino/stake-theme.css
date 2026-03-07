@@ -139,6 +139,19 @@ body {
   min-height: calc(100vh - 100px);
 }
 
+.grid.layout-app {
+  grid-template-columns: 1fr;
+}
+
+.grid.layout-app .main-stack {
+  width: 100%;
+}
+
+.grid.layout-app .dashboard-view,
+.grid.layout-app .game-view {
+  width: 100%;
+}
+
 .main-stack {
   display: grid;
   align-content: start;

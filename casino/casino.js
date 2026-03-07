@@ -43,6 +43,7 @@ window.GTModules = window.GTModules || {};
   };
 
   const els = {
+    casinoGrid: document.getElementById("casinoGrid"),
     toGameBtn: document.getElementById("toGameBtn"),
     sessionChip: document.getElementById("sessionChip"),
     walletChip: document.getElementById("walletChip"),
@@ -208,6 +209,10 @@ window.GTModules = window.GTModules || {};
     if (els.authCard instanceof HTMLElement) els.authCard.classList.toggle("hidden", next !== "auth");
     if (els.dashboardView instanceof HTMLElement) els.dashboardView.classList.toggle("hidden", next !== "dashboard");
     if (els.gameView instanceof HTMLElement) els.gameView.classList.toggle("hidden", next !== "game");
+    if (els.casinoGrid instanceof HTMLElement) {
+      els.casinoGrid.classList.toggle("layout-auth", next === "auth");
+      els.casinoGrid.classList.toggle("layout-app", next !== "auth");
+    }
   }
 
   function clampBetByGame(raw) {
