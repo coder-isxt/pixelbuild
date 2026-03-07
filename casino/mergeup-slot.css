@@ -49,8 +49,11 @@ body {
 
 .brand h1 {
   margin: 0;
-  font-family: "Press Start 2P", monospace;
-  font-size: 14px;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--brand);
 }
 
@@ -313,8 +316,11 @@ body {
   border-radius: 14px;
   padding: 14px 20px;
   text-align: center;
-  font-family: "Press Start 2P", monospace;
-  font-size: 13px;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   line-height: 1.5;
   color: #f6fbff;
   box-shadow: 0 24px 56px rgba(0, 0, 0, 0.45);
@@ -399,9 +405,11 @@ body {
 
 .panel h2 {
   margin: 0;
-  font-family: "Press Start 2P", monospace;
-  font-size: 11px;
-  letter-spacing: 0.2px;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .history-list {
@@ -532,8 +540,11 @@ body {
 
 .modal-head h3 {
   margin: 0;
-  font-family: "Press Start 2P", monospace;
-  font-size: 12px;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .modal-body {
