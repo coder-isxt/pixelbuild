@@ -450,7 +450,6 @@
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           if (visited[r][c]) continue;
-          visited[r][c] = true;
           const symbolId = grid[r][c];
           if (!symbolId) continue;
           const sym = this.symbolMap[symbolId];
@@ -458,6 +457,7 @@
 
           const queue = [[r, c]];
           const cells = [[r, c]];
+          visited[r][c] = true;
           while (queue.length) {
             const cur = queue.shift();
             for (let d = 0; d < dirs.length; d++) {
@@ -465,8 +465,8 @@
               const nc = cur[1] + dirs[d][1];
               if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
               if (visited[nr][nc]) continue;
-              visited[nr][nc] = true;
               if (grid[nr][nc] !== symbolId) continue;
+              visited[nr][nc] = true;
               queue.push([nr, nc]);
               cells.push([nr, nc]);
             }
