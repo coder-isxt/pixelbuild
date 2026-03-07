@@ -1949,8 +1949,18 @@
       }
 
       function isSessionTransferTarget(value) {
+        const rawPath = String(value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\\/g, "/")
+          .split("#")[0]
+          .split("?")[0];
         const target = normalizeSessionTransferTarget(value);
-        return target === "casino.html" || target === "gambling_slots.html" || target === "gambling.html";
+        return target === "casino.html"
+          || rawPath === "casino/index.html"
+          || rawPath.endsWith("/casino/index.html")
+          || target === "gambling_slots.html"
+          || target === "gambling.html";
       }
 
       function shouldPreserveSessionOnNavigation() {
