@@ -23,8 +23,8 @@
     </header>
 
     <section class="grid">
-      <aside class="card">
-        <h2>Account</h2>
+      <aside id="authCard" class="card auth-card">
+        <h2>Account Login</h2>
         <div class="auth-fields">
           <input id="authUsername" class="input" type="text" maxlength="20" placeholder="Username">
           <input id="authPassword" class="input" type="password" maxlength="64" placeholder="Password">
@@ -34,61 +34,91 @@
           </div>
         </div>
         <div id="authStatus" class="status">Ready.</div>
-
-        <h2 style="margin-top:14px;">Game Selection</h2>
-        <div class="game-tabs">
-          <button id="tabBlackjack" class="game-tab active" type="button">Blackjack</button>
-          <button id="tabTower" class="game-tab" type="button">Tower</button>
-          <button id="tabMines" class="game-tab" type="button">Mines</button>
-        </div>
-
-        <div class="controls">
-          <div class="control-row">
-            <button id="betDownBtn" class="btn" type="button">- Bet</button>
-            <input id="betInput" class="input" type="number" min="1" step="1" value="10">
-            <button id="betUpBtn" class="btn" type="button">+ Bet</button>
-            <button id="betMaxBtn" class="btn" type="button">Max</button>
-          </div>
-          <div class="control-row tight" id="towerDifficultyWrap" style="display:none;">
-            <select id="towerDifficulty" class="select">
-              <option value="easy">Easy</option>
-              <option value="normal" selected>Normal</option>
-              <option value="hard">Hard</option>
-              <option value="extreme">Extreme</option>
-            </select>
-            <button id="towerCashoutBtn" class="btn good" type="button">Cashout</button>
-          </div>
-          <div class="control-row tight" id="minesConfigWrap" style="display:none;">
-            <select id="minesCount" class="select">
-              <option value="1">1 mine</option>
-              <option value="3">3 mines</option>
-              <option value="5" selected>5 mines</option>
-              <option value="7">7 mines</option>
-              <option value="10">10 mines</option>
-              <option value="15">15 mines</option>
-              <option value="20">20 mines</option>
-              <option value="24">24 mines</option>
-            </select>
-            <button id="minesCashoutBtn" class="btn good" type="button">Cashout</button>
-          </div>
-          <div class="control-row">
-            <button id="spinBtn" class="btn primary" type="button">Spin / Start</button>
-            <button id="bjHitBtn" class="btn" type="button" style="display:none;">Hit</button>
-            <button id="bjStandBtn" class="btn" type="button" style="display:none;">Stand</button>
-            <button id="bjDealBtn" class="btn" type="button" style="display:none;">Deal</button>
-          </div>
-        </div>
-
-        <div id="gameStatus" class="status" style="margin-top:12px;">Choose a game and press Start.</div>
       </aside>
 
-      <main class="card">
-        <h2 id="boardTitle">Blackjack</h2>
-        <div id="board" class="board"></div>
+      <div class="main-stack">
+        <section id="dashboardView" class="card dashboard-view">
+          <div class="dashboard-head">
+            <h2>Casino Tablet</h2>
+            <p>Select a game to open its table.</p>
+          </div>
+          <div id="dashboardCards" class="dashboard-grid">
+            <button type="button" class="game-card active" data-game-card="blackjack">
+              <span class="game-card-tag">Table</span>
+              <strong>Blackjack</strong>
+              <small>Classic 21 table play</small>
+            </button>
+            <button type="button" class="game-card" data-game-card="tower">
+              <span class="game-card-tag">Risk</span>
+              <strong>Tower</strong>
+              <small>Climb floors, cash out anytime</small>
+            </button>
+            <button type="button" class="game-card" data-game-card="mines">
+              <span class="game-card-tag">Risk</span>
+              <strong>Mines</strong>
+              <small>Pick safe tiles, avoid bombs</small>
+            </button>
+          </div>
+        </section>
 
-        <h2 style="margin-top:10px;">Recent Results</h2>
-        <div id="history" class="history"></div>
-      </main>
+        <section id="gameView" class="card game-view hidden">
+          <div class="game-head">
+            <div>
+              <h2 id="boardTitle">Blackjack</h2>
+              <p>Active table controls</p>
+            </div>
+            <button id="backToDashboardBtn" class="btn" type="button">Back To Tablet</button>
+          </div>
+
+          <div class="game-tabs hidden">
+            <button id="tabBlackjack" class="game-tab active" type="button">Blackjack</button>
+            <button id="tabTower" class="game-tab" type="button">Tower</button>
+            <button id="tabMines" class="game-tab" type="button">Mines</button>
+          </div>
+
+          <div class="controls">
+            <div class="control-row">
+              <button id="betDownBtn" class="btn" type="button">- Bet</button>
+              <input id="betInput" class="input" type="number" min="1" step="1" value="10">
+              <button id="betUpBtn" class="btn" type="button">+ Bet</button>
+              <button id="betMaxBtn" class="btn" type="button">Max</button>
+            </div>
+            <div class="control-row tight" id="towerDifficultyWrap" style="display:none;">
+              <select id="towerDifficulty" class="select">
+                <option value="easy">Easy</option>
+                <option value="normal" selected>Normal</option>
+                <option value="hard">Hard</option>
+                <option value="extreme">Extreme</option>
+              </select>
+              <button id="towerCashoutBtn" class="btn good" type="button">Cashout</button>
+            </div>
+            <div class="control-row tight" id="minesConfigWrap" style="display:none;">
+              <select id="minesCount" class="select">
+                <option value="1">1 mine</option>
+                <option value="3">3 mines</option>
+                <option value="5" selected>5 mines</option>
+                <option value="7">7 mines</option>
+                <option value="10">10 mines</option>
+                <option value="15">15 mines</option>
+                <option value="20">20 mines</option>
+                <option value="24">24 mines</option>
+              </select>
+              <button id="minesCashoutBtn" class="btn good" type="button">Cashout</button>
+            </div>
+            <div class="control-row">
+              <button id="spinBtn" class="btn primary" type="button">Spin / Start</button>
+              <button id="bjHitBtn" class="btn" type="button" style="display:none;">Hit</button>
+              <button id="bjStandBtn" class="btn" type="button" style="display:none;">Stand</button>
+              <button id="bjDealBtn" class="btn" type="button" style="display:none;">Deal</button>
+            </div>
+          </div>
+
+          <div id="gameStatus" class="status" style="margin-top:12px;">Choose a game and press Start.</div>
+          <div id="board" class="board"></div>
+          <h2 style="margin-top:12px;">Recent Results</h2>
+          <div id="history" class="history"></div>
+        </section>
+      </div>
     </section>
   </div>
 
@@ -105,4 +135,3 @@
   <script src="./casino.js"></script>
 </body>
 </html>
-

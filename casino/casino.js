@@ -5,6 +5,7 @@ window.GTModules = window.GTModules || {};
   "use strict";
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
+  const SESSION_NAV_TRANSFER_KEY = "gt_session_nav_transfer_v1";
   const BASE_PATH = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
   const HOUSE_EDGE_MINES = 0.04;
   const TOWER_DIFFICULTY = {
@@ -30,6 +31,7 @@ window.GTModules = window.GTModules || {};
     handlers: { inventory: null },
     walletLocks: 0,
     walletById: {},
+    view: "auth",
     activeGame: "blackjack",
     bet: 10,
     busy: false,
@@ -49,6 +51,11 @@ window.GTModules = window.GTModules || {};
     authCreateBtn: document.getElementById("authCreateBtn"),
     authLoginBtn: document.getElementById("authLoginBtn"),
     authStatus: document.getElementById("authStatus"),
+    authCard: document.getElementById("authCard"),
+    dashboardView: document.getElementById("dashboardView"),
+    dashboardCards: document.getElementById("dashboardCards"),
+    gameView: document.getElementById("gameView"),
+    backToDashboardBtn: document.getElementById("backToDashboardBtn"),
     tabBlackjack: document.getElementById("tabBlackjack"),
     tabTower: document.getElementById("tabTower"),
     tabMines: document.getElementById("tabMines"),
@@ -195,6 +202,14 @@ window.GTModules = window.GTModules || {};
     if (els.betMaxBtn instanceof HTMLButtonElement) els.betMaxBtn.disabled = disabled;
   }
 
+  function setView(mode) {
+    const next = (mode === "dashboard" || mode === "game" || mode === "auth") ? mode : "auth";
+    state.view = next;
+    if (els.authCard instanceof HTMLElement) els.authCard.classList.toggle("hidden", next !== "auth");
+    if (els.dashboardView instanceof HTMLElement) els.dashboardView.classList.toggle("hidden", next !== "dashboard");
+    if (els.gameView instanceof HTMLElement) els.gameView.classList.toggle("hidden", next !== "game");
+  }
+
   function clampBetByGame(raw) {
     const game = GAMES[state.activeGame] || GAMES.blackjack;
     const n = toCount(raw);
@@ -243,6 +258,14 @@ window.GTModules = window.GTModules || {};
     if (els.tabBlackjack instanceof HTMLElement) els.tabBlackjack.classList.toggle("active", state.activeGame === "blackjack");
     if (els.tabTower instanceof HTMLElement) els.tabTower.classList.toggle("active", state.activeGame === "tower");
     if (els.tabMines instanceof HTMLElement) els.tabMines.classList.toggle("active", state.activeGame === "mines");
+    if (els.dashboardCards instanceof HTMLElement) {
+      const cards = els.dashboardCards.querySelectorAll("[data-game-card]");
+      for (let i = 0; i < cards.length; i++) {
+        const node = cards[i];
+        const id = String(node.getAttribute("data-game-card") || "").trim().toLowerCase();
+        node.classList.toggle("active", id === state.activeGame);
+      }
+    }
 
     if (els.towerDifficultyWrap instanceof HTMLElement) els.towerDifficultyWrap.style.display = state.activeGame === "tower" ? "grid" : "none";
     if (els.minesConfigWrap instanceof HTMLElement) els.minesConfigWrap.style.display = state.activeGame === "mines" ? "grid" : "none";
@@ -777,11 +800,99 @@ window.GTModules = window.GTModules || {};
     return state.db;
   }
 
-  async function readUserRole(accountId) {
+  async function readUserRole(accountId, usernameHint) {
     const db = await connectDb();
-    const roleSnap = await db.ref(BASE_PATH + "/roles/" + accountId).once("value");
-    const roleVal = String(roleSnap.val() || "").trim().toLowerCase();
-    return roleVal || "none";
+    try {
+      const roleSnap = await db.ref(BASE_PATH + "/admin-roles/" + accountId).once("value");
+      const val = roleSnap.val();
+      if (typeof val === "string") return val.trim().toLowerCase() || "none";
+      if (val && typeof val === "object" && typeof val.role === "string") return val.role.trim().toLowerCase() || "none";
+    } catch (_error) {
+      // fallback below
+    }
+    try {
+      const roleSnapLegacy = await db.ref(BASE_PATH + "/roles/" + accountId).once("value");
+      const legacy = String(roleSnapLegacy.val() || "").trim().toLowerCase();
+      if (legacy) return legacy;
+    } catch (_error) {
+      // fallback below
+    }
+    const username = String(usernameHint || (state.user && state.user.username) || "").toLowerCase();
+    const byName = window.GT_SETTINGS && window.GT_SETTINGS.ADMIN_ROLE_BY_USERNAME;
+    if (username && byName && typeof byName === "object") {
+      const roleByName = String(byName[username] || "").trim().toLowerCase();
+      if (roleByName) return roleByName;
+    }
+    return "none";
+  }
+
+  function consumeSessionNavigationTransfer() {
+    try {
+      const raw = sessionStorage.getItem(SESSION_NAV_TRANSFER_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+
+      const issuedAt = Math.max(0, Math.floor(Number(parsed.issuedAt) || 0));
+      if (!issuedAt || Math.abs(Date.now() - issuedAt) > 30000) return null;
+
+      const targetRaw = String(parsed.target || "").trim().toLowerCase();
+      const clean = targetRaw.split("#")[0].split("?")[0].replace(/\\/g, "/");
+      if (!(clean === "casino/index.html" || clean.endsWith("/casino/index.html") || clean === "casino.html" || clean.endsWith("/casino.html"))) {
+        return null;
+      }
+
+      const accountId = String(parsed.accountId || "").trim();
+      const sessionId = String(parsed.sessionId || "").trim();
+      const username = String(parsed.username || "").trim().toLowerCase();
+      if (!accountId) return null;
+
+      sessionStorage.removeItem(SESSION_NAV_TRANSFER_KEY);
+      return { accountId, sessionId, username };
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  async function attemptSessionTransferResume() {
+    const transfer = consumeSessionNavigationTransfer();
+    if (!transfer) return false;
+    setAuthStatus("Linking game session...");
+
+    try {
+      const db = await connectDb();
+      const sessionSnap = await db.ref(BASE_PATH + "/account-sessions/" + transfer.accountId).once("value");
+      const sessionVal = sessionSnap && typeof sessionSnap.val === "function" ? (sessionSnap.val() || {}) : {};
+      const liveSessionId = String(sessionVal.sessionId || "").trim();
+      const liveUsername = String(sessionVal.username || "").trim().toLowerCase();
+
+      if (!liveSessionId) {
+        setAuthStatus("Session transfer expired. Login required.", "error");
+        return false;
+      }
+      if (transfer.sessionId && liveSessionId !== transfer.sessionId) {
+        setAuthStatus("Session transfer mismatch. Login required.", "error");
+        return false;
+      }
+
+      const username = liveUsername || transfer.username || "";
+      if (!username) {
+        setAuthStatus("Session transfer missing username.", "error");
+        return false;
+      }
+
+      const role = await readUserRole(transfer.accountId, username);
+      state.user = { accountId: transfer.accountId, username, role };
+      refreshSessionChips();
+      setBusy(false);
+      bindInventoryWatch();
+      setAuthStatus("Session linked as @" + username + ".", "ok");
+      setView("dashboard");
+      return true;
+    } catch (_error) {
+      setAuthStatus("Session transfer failed.", "error");
+      return false;
+    }
   }
   async function authenticate(createMode) {
     if (!(els.authUsername instanceof HTMLInputElement) || !(els.authPassword instanceof HTMLInputElement)) return;
@@ -840,18 +951,20 @@ window.GTModules = window.GTModules || {};
         authStorageModule.saveCredentials(SAVED_AUTH_KEY, username, password);
       }
 
-      const role = await readUserRole(accountId);
+      const role = await readUserRole(accountId, username);
       state.user = { accountId, username, role };
       setAuthStatus("Logged in as @" + username + ".", "ok");
       setBusy(false);
       refreshSessionChips();
       bindInventoryWatch();
+      setView("dashboard");
       renderBoard();
     } catch (error) {
       setAuthStatus((error && error.message) || "Auth failed.", "error");
       state.user = null;
       refreshSessionChips();
       setBusy(false);
+      setView("auth");
     } finally {
       setAuthBusy(false);
     }
@@ -914,6 +1027,22 @@ window.GTModules = window.GTModules || {};
     if (els.tabBlackjack instanceof HTMLButtonElement) els.tabBlackjack.addEventListener("click", () => setGame("blackjack"));
     if (els.tabTower instanceof HTMLButtonElement) els.tabTower.addEventListener("click", () => setGame("tower"));
     if (els.tabMines instanceof HTMLButtonElement) els.tabMines.addEventListener("click", () => setGame("mines"));
+    if (els.dashboardCards instanceof HTMLElement) {
+      els.dashboardCards.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const card = target.closest("[data-game-card]");
+        if (!(card instanceof HTMLElement)) return;
+        const gameId = String(card.getAttribute("data-game-card") || "").trim().toLowerCase();
+        setGame(gameId);
+        setView("game");
+      });
+    }
+    if (els.backToDashboardBtn instanceof HTMLButtonElement) {
+      els.backToDashboardBtn.addEventListener("click", () => {
+        setView("dashboard");
+      });
+    }
 
     if (els.betInput instanceof HTMLInputElement) {
       els.betInput.addEventListener("change", () => setBet(els.betInput.value));
@@ -935,6 +1064,10 @@ window.GTModules = window.GTModules || {};
       els.spinBtn.addEventListener("click", () => {
         if (!state.user) {
           setStatus("Login first.", "error");
+          return;
+        }
+        if (state.view !== "game") {
+          setStatus("Select a game from the dashboard first.", "error");
           return;
         }
         if (state.activeGame === "blackjack") startBlackjack();
@@ -979,11 +1112,16 @@ window.GTModules = window.GTModules || {};
     bindEvents();
     renderHistory();
     setGame("blackjack");
+    setView("auth");
     setBusy(true);
     setAuthStatus("Ready.");
-    setStatus("Login to start gambling games.");
+    setStatus("Pick a game from dashboard to start.");
     refreshSessionChips();
-    await tryAutoLogin();
+    const resumed = await attemptSessionTransferResume();
+    if (!resumed) {
+      await tryAutoLogin();
+      if (state.user) setView("dashboard");
+    }
     setBusy(false);
   }
 
