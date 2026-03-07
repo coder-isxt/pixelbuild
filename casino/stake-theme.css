@@ -335,12 +335,27 @@ body {
 
 .control-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .control-row.tight {
   grid-template-columns: 1fr 1fr;
+}
+
+.control-row.bet-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.control-row.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.control-row.action-row > .btn {
+  flex: 1 1 calc(50% - 10px);
+  min-width: 130px;
 }
 
 .board {
@@ -353,7 +368,7 @@ body {
   align-content: start;
   gap: 8px;
   grid-column: 2;
-  grid-row: 2 / span 3;
+  grid-row: 2;
 }
 
 .history {
@@ -378,11 +393,14 @@ body {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
+  width: min(100%, 420px);
+  margin-top: 6px;
 }
 
 .tower-cell,
 .mines-cell {
-  height: 58px;
+  min-height: 58px;
+  aspect-ratio: 1 / 1;
   border: 1px solid var(--border);
   border-radius: 9px;
   background: #1a263a;
@@ -394,7 +412,7 @@ body {
 }
 
 .tower-cell.active,
-.mines-cell.hidden:hover {
+.mines-cell.covered:hover {
   background: #24354e;
   border-color: rgba(111, 226, 255, 0.5);
 }
@@ -417,6 +435,8 @@ body {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
+  width: min(100%, 420px);
+  margin-top: 6px;
 }
 
 .cards {
@@ -532,6 +552,10 @@ body {
 
 @media (max-width: 760px) {
   .control-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .control-row.bet-row {
     grid-template-columns: 1fr 1fr;
   }
 

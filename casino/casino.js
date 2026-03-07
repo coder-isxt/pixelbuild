@@ -782,7 +782,7 @@ window.GTModules = window.GTModules || {};
     for (let i = 0; i < round.total; i++) {
       const picked = Boolean(round.picked[i]);
       const isMine = Boolean(round.mineSet[i]);
-      let cls = "mines-cell hidden";
+      let cls = "mines-cell covered";
       let label = "?";
       if (!round.active) {
         if (isMine) {
