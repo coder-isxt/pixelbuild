@@ -1207,6 +1207,63 @@
     return grid;
   }
 
+  function cellKey(row, col) {
+    return String(row) + ":" + String(col);
+  }
+
+  function buildSpinDropDistanceMap() {
+    const map = {};
+    for (let r = 0; r < gameConfig.rows; r++) {
+      for (let c = 0; c < gameConfig.cols; c++) {
+        map[cellKey(r, c)] = r + 3 + (c % 2);
+      }
+    }
+    return map;
+  }
+
+  function buildRevealColumnDropDistanceMap(colIndex) {
+    const map = {};
+    const col = clamp(toInt(colIndex, 0), 0, gameConfig.cols - 1);
+    for (let r = 0; r < gameConfig.rows; r++) map[cellKey(r, col)] = r + 2;
+    return map;
+  }
+
+  function buildRefillDropDistanceMap(step) {
+    const map = {};
+    if (!step || typeof step !== "object") return map;
+
+    const moves = Array.isArray(step.refillMoves) ? step.refillMoves : [];
+    for (let i = 0; i < moves.length; i++) {
+      const move = moves[i] || {};
+      const from = Array.isArray(move.from) ? move.from : null;
+      const to = Array.isArray(move.to) ? move.to : null;
+      if (!from || !to || from.length < 2 || to.length < 2) continue;
+      const toRow = toInt(to[0], -1);
+      const toCol = toInt(to[1], -1);
+      const fromRow = toInt(from[0], -1);
+      if (toRow < 0 || toCol < 0 || fromRow < 0) continue;
+      const dist = Math.max(1, toRow - fromRow);
+      const key = cellKey(toRow, toCol);
+      map[key] = Math.max(toInt(map[key], 0), dist);
+    }
+
+    const spawns = Array.isArray(step.refillSpawns) ? step.refillSpawns : [];
+    for (let i = 0; i < spawns.length; i++) {
+      const spawn = spawns[i] || {};
+      const to = Array.isArray(spawn.to) ? spawn.to : null;
+      if (!to || to.length < 2) continue;
+      const toRow = toInt(to[0], -1);
+      const toCol = toInt(to[1], -1);
+      if (toRow < 0 || toCol < 0) continue;
+      let dist = toInt(spawn.dropDistance, 0);
+      if (dist <= 0) dist = toRow + 2;
+      dist = Math.max(dist, toRow + 1);
+      const key = cellKey(toRow, toCol);
+      map[key] = Math.max(toInt(map[key], 0), dist + 1);
+    }
+    return map;
+  }
+
   function buildGridDom() {
     if (!(el.grid instanceof HTMLElement)) return;
     el.grid.innerHTML = "";
@@ -1245,6 +1302,9 @@
         const root = cells[r][c].root;
         root.classList.remove("win", "dim", "merge-source", "merge-target", "drop-in", "scatter-hit", "spin-cycling", "reveal-pop");
         root.style.animationDelay = "0ms";
+        root.style.removeProperty("--drop-from");
+        root.style.removeProperty("--drop-delay");
+        root.style.removeProperty("--reveal-delay");
       }
     }
   }
@@ -1256,6 +1316,7 @@
     const spinCycle = Boolean(opts.spinCycle);
     const revealPop = Boolean(opts.revealPop);
     const revealColumn = toInt(opts.revealColumn, -1);
+    const dropDistances = opts.dropDistances && typeof opts.dropDistances === "object" ? opts.dropDistances : null;
     clearHighlights();
 
     for (let r = 0; r < gameConfig.rows; r++) {
@@ -1283,16 +1344,25 @@
         }
 
         if (drop && symbolId) {
-          root.classList.add("drop-in");
-          root.style.animationDelay = String((r * 22) + (c * 10)) + "ms";
+          const key = cellKey(r, c);
+          let distance = 0;
+          if (dropDistances) distance = toInt(dropDistances[key], 0);
+          if (!dropDistances || distance > 0) {
+            if (distance <= 0) distance = r + 1;
+            const px = Math.min(300, 18 + (distance * 20));
+            root.classList.add("drop-in");
+            root.style.setProperty("--drop-from", String(px) + "px");
+            const delayMs = (dropDistances ? (c * 20) + (r * 7) : (r * 22) + (c * 10));
+            root.style.setProperty("--drop-delay", String(delayMs) + "ms");
+          }
         }
         if (spinCycle && symbolId) root.classList.add("spin-cycling");
         if (revealPop && symbolId) {
           root.classList.add("reveal-pop");
-          root.style.animationDelay = String((c * 30) + (r * 8)) + "ms";
+          root.style.setProperty("--reveal-delay", String((c * 30) + (r * 8)) + "ms");
         } else if (revealColumn >= 0 && c <= revealColumn && symbolId) {
           root.classList.add("reveal-pop");
-          root.style.animationDelay = String((c * 34) + (r * 6)) + "ms";
+          root.style.setProperty("--reveal-delay", String((c * 34) + (r * 6)) + "ms");
         }
 
         const marker = markers && markers[r] && markers[r][c] ? markers[r][c] : null;
@@ -1475,7 +1545,10 @@
     await pause(320);
 
     setPhase(SLOT_STATE.REFILL);
-    renderGrid(step.gridAfterRefill, isBonus ? step.markerAfter : null, { dropIn: true });
+    renderGrid(step.gridAfterRefill, isBonus ? step.markerAfter : null, {
+      dropIn: true,
+      dropDistances: buildRefillDropDistanceMap(step)
+    });
     setMessage("TUMBLE " + step.index + " | Step win: " + formatWL(step.stepWin));
     audio.play("land");
     await pause(420);
@@ -1494,12 +1567,22 @@
 
     for (let col = 0; col < gameConfig.cols; col++) {
       const revealGrid = buildSpinPreviewGrid(chain.initialGrid, col);
-      renderGrid(revealGrid, markerGrid, { spinCycle: true, revealColumn: col });
+      renderGrid(revealGrid, markerGrid, {
+        spinCycle: true,
+        revealColumn: col,
+        dropIn: true,
+        dropDistances: buildRevealColumnDropDistanceMap(col)
+      });
       audio.play("land");
       await pause(95);
     }
 
-    renderGrid(chain.initialGrid, markerGrid, { dropIn: true, scatterPulse: true, revealPop: true });
+    renderGrid(chain.initialGrid, markerGrid, {
+      dropIn: true,
+      dropDistances: buildSpinDropDistanceMap(),
+      scatterPulse: true,
+      revealPop: true
+    });
     const scatters = countScatterCells(chain.initialGrid);
     if (scatters >= 3) {
       setMessage("Scatter suspense: " + scatters + " visible.");

@@ -254,7 +254,9 @@ body {
 }
 
 .cell.drop-in {
-  animation: dropIn 0.58s cubic-bezier(.16,.76,.2,1) both;
+  animation: dropIn 0.66s cubic-bezier(.16,.76,.2,1) both;
+  animation-delay: var(--drop-delay, 0ms);
+  will-change: transform, opacity, filter;
 }
 
 .cell.spin-cycling .icon {
@@ -269,6 +271,7 @@ body {
 
 .cell.reveal-pop {
   animation: revealPop 0.28s ease-out both;
+  animation-delay: var(--reveal-delay, 0ms);
 }
 
 @keyframes pulseWin {
@@ -277,8 +280,9 @@ body {
 }
 
 @keyframes dropIn {
-  from { transform: translateY(-36px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  0% { transform: translateY(calc(var(--drop-from, 44px) * -1)); opacity: 0; filter: blur(0.75px); }
+  78% { transform: translateY(4px); opacity: 1; filter: blur(0); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
 }
 
 @keyframes popIn {
