@@ -1417,14 +1417,28 @@ function drawBackground() {
       function drawNameWrenchIcon(x, y, size) {
         ctx.save();
         const r = size / 2;
-        ctx.fillStyle = "rgba(255, 209, 102, 0.95)";
+        const badgeGradient = ctx.createRadialGradient(
+          x + r * 0.78,
+          y + r * 0.75,
+          Math.max(1, r * 0.18),
+          x + r,
+          y + r,
+          r
+        );
+        badgeGradient.addColorStop(0, "rgba(152, 239, 255, 0.98)");
+        badgeGradient.addColorStop(0.58, "rgba(95, 149, 255, 0.96)");
+        badgeGradient.addColorStop(1, "rgba(34, 76, 137, 0.98)");
+        ctx.fillStyle = badgeGradient;
+        ctx.shadowBlur = Math.max(4, size * 0.42);
+        ctx.shadowColor = "rgba(96, 204, 255, 0.55)";
         ctx.beginPath();
         ctx.arc(x + r, y + r, r, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "rgba(14, 36, 56, 0.9)";
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(6, 26, 52, 0.94)";
         ctx.lineWidth = Math.max(1, size * 0.08);
         ctx.stroke();
-        ctx.strokeStyle = "rgba(14, 36, 56, 0.95)";
+        ctx.strokeStyle = "rgba(230, 251, 255, 0.96)";
         ctx.lineWidth = Math.max(1.5, size * 0.12);
         const pad = size * 0.25;
         ctx.beginPath();
@@ -1433,6 +1447,11 @@ function drawBackground() {
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x + size - pad, y + pad, size * 0.15, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(8, 24, 48, 0.9)";
+        ctx.lineWidth = Math.max(1, size * 0.06);
+        ctx.beginPath();
+        ctx.arc(x + r, y + r, r - Math.max(1, size * 0.08), 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
