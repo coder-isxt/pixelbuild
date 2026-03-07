@@ -27,7 +27,7 @@
   const gameConfig = {
     rows: 6,
     cols: 6,
-    minCluster: 4,
+    minCluster: 5,
     defaultBet: 20,
     minBet: 1,
     maxBet: 5000,
@@ -1695,19 +1695,18 @@
   function buildInfoContent() {
     if (!(el.infoContent instanceof HTMLElement)) return;
     let html = "";
-    html += "<section><strong>Game Type:</strong> 6x6 cluster pays, orthogonal adjacency, minimum cluster size 4.</section>";
-    html += "<section><strong>MergeUP Rule:</strong> every winning cluster is consumed, then merges into one upgraded symbol at a deterministic anchor cell (lowest row, then left-most).</section>";
+    html += "<section><strong>Game Type:</strong> 6x6 cluster pays, orthogonal adjacency, minimum cluster size 5.</section>";
+    html += "<section><strong>MergeUP Rule:</strong> only clusters of 5+ matching ducks win and merge into the next level at a deterministic anchor cell (lowest row, then left-most).</section>";
     html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award 15/18/20 free spins. In free spins, marked cells gain multipliers up to x128 and retrigger with 4/5/6+ scatters for +5/+8/+10.</section>";
     html += "<section><strong>Math:</strong> RTP " + gameConfig.rtp + " (config placeholder), volatility " + gameConfig.volatility + ", max win cap " + gameConfig.maxWinMultiplier + "x bet.</section>";
 
-    html += "<section><table><thead><tr><th>Symbol</th><th>Cluster 4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>10+</th></tr></thead><tbody>";
+    html += "<section><table><thead><tr><th>Symbol</th><th>Cluster 5</th><th>6</th><th>7</th><th>8</th><th>10+</th></tr></thead><tbody>";
     for (let i = 0; i < symbolConfig.length; i++) {
       const sym = symbolConfig[i];
       if (sym.scatter) continue;
       const p = sym.payoutBySize;
       html += "<tr>" +
         "<td>" + sym.name + "</td>" +
-        "<td>x" + Number(p[4] || 0).toFixed(2) + "</td>" +
         "<td>x" + Number(p[5] || 0).toFixed(2) + "</td>" +
         "<td>x" + Number(p[6] || 0).toFixed(2) + "</td>" +
         "<td>x" + Number(p[7] || 0).toFixed(2) + "</td>" +
