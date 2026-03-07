@@ -30,6 +30,7 @@
     rows: 6,
     cols: 6,
     minCluster: 5,
+    maxMergeUpgradesPerCluster: 4,
     defaultBet: 20,
     minBet: 1,
     maxBet: 5000,
@@ -298,6 +299,7 @@
     cfg.rows = Math.max(3, toInt(cfg.rows, DEFAULT_GAME_CONFIG.rows));
     cfg.cols = Math.max(3, toInt(cfg.cols, DEFAULT_GAME_CONFIG.cols));
     cfg.minCluster = Math.max(4, toInt(cfg.minCluster, DEFAULT_GAME_CONFIG.minCluster));
+    cfg.maxMergeUpgradesPerCluster = Math.max(1, toInt(cfg.maxMergeUpgradesPerCluster, DEFAULT_GAME_CONFIG.maxMergeUpgradesPerCluster));
     cfg.defaultBet = Math.max(1, toInt(cfg.defaultBet, DEFAULT_GAME_CONFIG.defaultBet));
     cfg.minBet = Math.max(1, toInt(cfg.minBet, DEFAULT_GAME_CONFIG.minBet));
     cfg.maxBet = Math.max(cfg.minBet, toInt(cfg.maxBet, DEFAULT_GAME_CONFIG.maxBet));
@@ -924,7 +926,11 @@
         const cluster = clusters[i];
         const sym = this.symbolMap[cluster.symbolId];
         const upgradedSymbolId = this.getUpgradedSymbol(cluster.symbolId);
-        const upgradedCount = Math.max(1, cluster.size - (this.config.minCluster - 1));
+        const rawUpgradedCount = Math.max(1, cluster.size - (this.config.minCluster - 1));
+        const upgradedCount = Math.min(
+          Math.max(1, toInt(this.config.maxMergeUpgradesPerCluster, 4)),
+          rawUpgradedCount
+        );
         const mergeAnchors = this.chooseMergeAnchors(cluster.cells, upgradedCount);
         const anchor = mergeAnchors[0];
         const highBetBoost = this.getHighBetPayoutMultiplier(bet);
@@ -954,6 +960,7 @@
           anchor: [anchor[0], anchor[1]],
           mergeAnchors: mergeAnchors.map((cell) => [cell[0], cell[1]]),
           mergedCount: mergeAnchors.length,
+          rawMergedCount: rawUpgradedCount,
           basePayout,
           highBetBoost,
           multiplierApplied,
@@ -978,6 +985,7 @@
           anchor: [anchor[0], anchor[1]],
           anchors: mergeAnchors.map((cell) => [cell[0], cell[1]]),
           mergedCount: mergeAnchors.length,
+          rawMergedCount: rawUpgradedCount,
           consumedCells: cluster.cells.map((cell) => [cell[0], cell[1]])
         });
       }
@@ -1201,6 +1209,7 @@
   let winCounterAtEnd = false;
   let winCounterTargetValue = 0;
   let winCounterCurrentValue = 0;
+  let winCounterLastPulseAt = 0;
 
   audio.setEnabled(!state.muted);
 
@@ -1427,11 +1436,16 @@
 
   function hideWinCounterNow() {
     clearWinCounterTimer();
-    if (el.winCounterOverlay instanceof HTMLElement) el.winCounterOverlay.classList.add("hidden");
+    if (el.winCounterOverlay instanceof HTMLElement) {
+      el.winCounterOverlay.classList.add("hidden");
+      el.winCounterOverlay.classList.remove("counting");
+    }
+    if (el.winCounterValue instanceof HTMLElement) el.winCounterValue.classList.remove("value-pop");
     winCounterAnimating = false;
     winCounterAtEnd = false;
     winCounterTargetValue = 0;
     winCounterCurrentValue = 0;
+    winCounterLastPulseAt = 0;
     if (typeof winCounterDismissResolve === "function") {
       const resolve = winCounterDismissResolve;
       winCounterDismissResolve = null;
@@ -1447,6 +1461,11 @@
     if (el.winCounterOverlay instanceof HTMLElement) el.winCounterOverlay.classList.remove("hidden");
     winCounterAtEnd = false;
     if (!winCounterAnimating) winCounterTargetValue = Math.max(winCounterTargetValue, winCounterCurrentValue);
+  }
+
+  function setWinCounterCounting(flag) {
+    if (!(el.winCounterOverlay instanceof HTMLElement)) return;
+    el.winCounterOverlay.classList.toggle("counting", Boolean(flag));
   }
 
   function queueHideWinCounter(ms) {
@@ -1470,6 +1489,18 @@
     if (!(el.winCounterValue instanceof HTMLElement)) return;
     winCounterCurrentValue = Math.max(0, toInt(value, 0));
     el.winCounterValue.textContent = formatWL(winCounterCurrentValue);
+    if (winCounterAnimating) {
+      const now = Date.now();
+      if ((now - winCounterLastPulseAt) >= (state.turbo ? 90 : 130)) {
+        winCounterLastPulseAt = now;
+        el.winCounterValue.classList.remove("value-pop");
+        window.requestAnimationFrame(() => {
+          if (el.winCounterValue instanceof HTMLElement) el.winCounterValue.classList.add("value-pop");
+        });
+      }
+    } else {
+      el.winCounterValue.classList.remove("value-pop");
+    }
     if (!winCounterAnimating && winCounterCurrentValue >= winCounterTargetValue) winCounterAtEnd = true;
   }
 
@@ -2067,6 +2098,7 @@
     winCounterTargetValue = finalTotal;
     winCounterAnimating = true;
     winCounterAtEnd = false;
+    setWinCounterCounting(true);
     const duration = countDurationByWin(finalTotal, bet) + (state.turbo ? 170 : 360);
     const tickEvery = state.turbo ? 190 : 250;
     const tickHandle = window.setInterval(() => {
@@ -2080,6 +2112,7 @@
     window.clearInterval(tickHandle);
     winCounterAnimating = false;
     winCounterAtEnd = true;
+    setWinCounterCounting(false);
     setWinCounterValue(finalTotal);
     queueHideWinCounter(state.turbo ? 170 : 320);
     await waitForWinCounterDismiss();
@@ -2088,24 +2121,42 @@
   async function animateSpinWinTo(targetValue, duration, options) {
     const opts = options || {};
     const start = state.spinWin;
-    if (opts.showOverlay !== false && targetValue > start) {
+    const target = Math.max(0, toInt(targetValue, start));
+    const hasTumbleSync = Number.isFinite(Number(opts.tumbleFrom)) && Number.isFinite(Number(opts.tumbleTo));
+    const tumbleFrom = hasTumbleSync ? Math.max(0, toInt(opts.tumbleFrom, state.tumbleWin)) : state.tumbleWin;
+    const tumbleTo = hasTumbleSync ? Math.max(0, toInt(opts.tumbleTo, tumbleFrom)) : state.tumbleWin;
+    const spinSpan = target - start;
+
+    if (opts.showOverlay !== false && target > start) {
       showWinCounter(opts.label || "WIN");
-      winCounterTargetValue = targetValue;
+      winCounterTargetValue = target;
       winCounterAnimating = true;
       winCounterAtEnd = false;
+      setWinCounterCounting(true);
       setWinCounterValue(start);
     }
-    await counter.animate(start, targetValue, duration, (value) => {
+    await counter.animate(start, target, duration, (value) => {
       state.spinWin = toInt(Math.round(value), start);
-      if (state.spinWin > targetValue) state.spinWin = targetValue;
+      if (state.spinWin > target) state.spinWin = target;
+      if (hasTumbleSync) {
+        if (!spinSpan) {
+          state.tumbleWin = tumbleTo;
+        } else {
+          const progress = clamp((state.spinWin - start) / spinSpan, 0, 1);
+          const tumbleNow = tumbleFrom + ((tumbleTo - tumbleFrom) * progress);
+          state.tumbleWin = Math.max(0, toInt(Math.round(tumbleNow), tumbleFrom));
+        }
+      }
       updateHUD();
       if (opts.showOverlay !== false) setWinCounterValue(state.spinWin);
     });
-    state.spinWin = targetValue;
+    state.spinWin = target;
+    if (hasTumbleSync) state.tumbleWin = tumbleTo;
     updateHUD();
     if (opts.showOverlay !== false) {
       winCounterAnimating = false;
       winCounterAtEnd = true;
+      setWinCounterCounting(false);
       setWinCounterValue(state.spinWin);
     }
   }
@@ -2160,35 +2211,56 @@
       const clusterWin = toInt(cluster.payoutAfterMultiplier, 0);
       const baseWin = Math.max(0, toInt(cluster.basePayout, 0));
       const hasMultiplierStage = cluster.multiplierApplied > 1 && baseWin > 0 && clusterWin > baseWin;
-      state.tumbleWin += clusterWin;
-      updateHUD();
-      showFloatingText(cluster.anchor[0], cluster.anchor[1], "+" + formatWL(clusterWin), false);
-      spawnClusterFx(cluster, hasMultiplierStage ? "gold" : "win");
-      triggerAreaFx("fx-cluster-hit", 300);
-      audio.play("cluster_burst");
 
       const preClusterTotal = state.spinWin;
+      const preTumbleTotal = state.tumbleWin;
       const targetTotal = preClusterTotal + clusterWin;
+      const targetTumbleTotal = preTumbleTotal + clusterWin;
       const duration = countDurationByWin(clusterWin, bet);
       if (hasMultiplierStage) {
         const baseTarget = preClusterTotal + baseWin;
+        const baseTumbleTarget = preTumbleTotal + baseWin;
         const boostedWin = Math.max(0, clusterWin - baseWin);
         const markedCount = Math.max(1, toInt(cluster.activeMarkedCells, 1));
 
+        showFloatingText(cluster.anchor[0], cluster.anchor[1], "+" + formatWL(baseWin), false);
+        spawnClusterFx(cluster, "gold");
+        triggerAreaFx("fx-cluster-hit", 300);
+        audio.play("cluster_burst");
         audio.play(getWinSfxByAmount(baseWin, bet));
 
-        await animateSpinWinTo(baseTarget, countDurationByWin(baseWin, bet), { label: "WIN", showOverlay: false });
+        await animateSpinWinTo(baseTarget, countDurationByWin(baseWin, bet), {
+          label: "WIN",
+          showOverlay: false,
+          tumbleFrom: preTumbleTotal,
+          tumbleTo: baseTumbleTarget
+        });
         await pause(120);
 
-        showFloatingText(cluster.anchor[0], cluster.anchor[1], "x" + cluster.multiplierApplied + " (" + markedCount + " cells)", true);
+        showFloatingText(
+          cluster.anchor[0],
+          cluster.anchor[1],
+          "x" + cluster.multiplierApplied + " (" + markedCount + " cells) +" + formatWL(boostedWin),
+          true
+        );
         spawnClusterFx(cluster, "multiplier");
         triggerAreaFx("fx-multiplier-hit", 360);
         audio.play("multiplier_burst");
-        await animateSpinWinTo(targetTotal, countDurationByWin(boostedWin, bet) + 100, { label: "WIN", showOverlay: false });
+        await animateSpinWinTo(targetTotal, countDurationByWin(boostedWin, bet) + 100, {
+          label: "WIN",
+          showOverlay: false,
+          tumbleFrom: baseTumbleTarget,
+          tumbleTo: targetTumbleTotal
+        });
       } else {
+        showFloatingText(cluster.anchor[0], cluster.anchor[1], "+" + formatWL(clusterWin), false);
+        spawnClusterFx(cluster, "win");
+        triggerAreaFx("fx-cluster-hit", 300);
+        audio.play("cluster_burst");
+
         if (cluster.multiplierApplied > 1) {
           const markedCount = Math.max(1, toInt(cluster.activeMarkedCells, 1));
-          showFloatingText(cluster.anchor[0], cluster.anchor[1], "x" + cluster.multiplierApplied + " (" + markedCount + " cells)", true);
+          showFloatingText(cluster.anchor[0], cluster.anchor[1], "x" + cluster.multiplierApplied + " (" + markedCount + " cells) applied", true);
           spawnClusterFx(cluster, "multiplier");
           triggerAreaFx("fx-multiplier-hit", 320);
           audio.play("multiplier");
@@ -2196,7 +2268,12 @@
 
         audio.play(getWinSfxByAmount(clusterWin, bet));
 
-        await animateSpinWinTo(targetTotal, duration, { label: "WIN", showOverlay: false });
+        await animateSpinWinTo(targetTotal, duration, {
+          label: "WIN",
+          showOverlay: false,
+          tumbleFrom: preTumbleTotal,
+          tumbleTo: targetTumbleTotal
+        });
       }
       await pause(260);
       clearHighlights();
@@ -2205,7 +2282,7 @@
 
     setPhase(SLOT_STATE.MERGE);
     showMergeOps(step.mergeOps);
-    setMessage("Merge Up: winning ducks combine into higher levels.");
+    setMessage("Merge Up: winning symbols combine into higher levels (max " + gameConfig.maxMergeUpgradesPerCluster + ").");
     for (let i = 0; i < step.mergeOps.length; i++) {
       const op = step.mergeOps[i] || {};
       const targets = Array.isArray(op.anchors) && op.anchors.length ? op.anchors : (op.anchor ? [op.anchor] : []);
@@ -2521,7 +2598,7 @@
     const retrig6 = toInt(gameConfig.freeSpinsRetrigger && gameConfig.freeSpinsRetrigger[6], 10);
     let html = "";
     html += "<section><strong>Game Type:</strong> " + gameConfig.rows + "x" + gameConfig.cols + " cluster pays, orthogonal adjacency, minimum cluster size " + gameConfig.minCluster + ".</section>";
-    html += "<section><strong>MergeUP Rule:</strong> clusters of " + gameConfig.minCluster + "+ matching symbols win. Merge count scales by size: " + gameConfig.minCluster + "->1 upgrade, " + (gameConfig.minCluster + 1) + "->2, " + (gameConfig.minCluster + 2) + "->3, etc. Targets are chosen deterministically from lowest row, then left-most.</section>";
+    html += "<section><strong>MergeUP Rule:</strong> clusters of " + gameConfig.minCluster + "+ matching symbols win. Merge count scales by size: " + gameConfig.minCluster + "->1 upgrade, " + (gameConfig.minCluster + 1) + "->2, " + (gameConfig.minCluster + 2) + "->3, etc, capped at " + gameConfig.maxMergeUpgradesPerCluster + " upgraded icons per cluster. Targets are chosen deterministically from lowest row, then left-most.</section>";
     html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award " + trigger4 + "/" + trigger5 + "/" + trigger6 + " free spins. In free spins, marked cells gain multipliers up to x" + gameConfig.maxCellMultiplier + ", cluster multipliers stack into one additive multiplier across marked cascade cells, and 4/5/6+ scatters retrigger for +" + retrig4 + "/+" + retrig5 + "/+" + retrig6 + ".</section>";
     const boostRows = Array.isArray(gameConfig.highBetPayoutBoostTiers) ? gameConfig.highBetPayoutBoostTiers : [];
     let boostText = "none";

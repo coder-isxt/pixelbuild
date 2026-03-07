@@ -354,6 +354,7 @@ body {
   background: linear-gradient(180deg, rgba(6, 13, 23, 0.7), rgba(4, 10, 19, 0.74));
   box-shadow: 0 26px 54px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(3px);
+  overflow: hidden;
 }
 
 .win-counter-label {
@@ -372,6 +373,28 @@ body {
   line-height: 1.02;
   color: #eaf6ff;
   text-shadow: 0 0 24px rgba(123, 216, 255, 0.42);
+}
+
+.win-counter-overlay.counting {
+  border-color: rgba(134, 224, 255, 0.7);
+  box-shadow:
+    0 0 0 1px rgba(134, 224, 255, 0.15) inset,
+    0 24px 56px rgba(0, 0, 0, 0.45),
+    0 0 36px rgba(94, 200, 255, 0.2);
+}
+
+.win-counter-overlay.counting::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0), rgba(123, 216, 255, 0.18), rgba(255, 255, 255, 0));
+  transform: translateX(-120%);
+  animation: counterSweep 1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.win-counter-value.value-pop {
+  animation: counterValuePop 160ms ease-out;
 }
 
 .message {
@@ -655,6 +678,17 @@ body {
   0% { transform: translate(-50%, -56%) scale(0.84); opacity: 0.3; filter: brightness(1); }
   26% { transform: translate(-50%, -56%) scale(1.1); opacity: 1; filter: brightness(1.12); }
   100% { transform: translate(-50%, -56%) scale(1); opacity: 1; filter: brightness(1); }
+}
+
+@keyframes counterSweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+@keyframes counterValuePop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.04); }
+  100% { transform: scale(1); }
 }
 
 .controls {
