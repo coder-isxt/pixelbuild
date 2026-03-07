@@ -31,10 +31,10 @@ body {
 }
 
 .page {
-  width: min(1440px, 96vw);
-  margin: 18px auto;
+  width: min(1740px, 99vw);
+  margin: 8px auto;
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .top {
@@ -44,8 +44,8 @@ body {
   align-items: center;
   background: linear-gradient(180deg, rgba(22, 33, 50, 0.9), rgba(18, 27, 41, 0.92));
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 14px 16px;
+  border-radius: 18px;
+  padding: 16px 18px;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.34);
 }
 
@@ -57,7 +57,7 @@ body {
 .brand h1 {
   margin: 0;
   font-family: "Press Start 2P", monospace;
-  font-size: 14px;
+  font-size: 15px;
   letter-spacing: 0.35px;
   color: var(--brand);
 }
@@ -65,7 +65,7 @@ body {
 .brand p {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .top-actions {
@@ -80,8 +80,8 @@ body {
   background: rgba(20, 30, 46, 0.92);
   color: var(--text);
   border-radius: 999px;
-  padding: 8px 11px;
-  font-size: 12px;
+  padding: 9px 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -93,7 +93,8 @@ body {
   background: linear-gradient(180deg, #24334b, #1e2c42);
   color: var(--text);
   font: inherit;
-  padding: 10px 12px;
+  font-size: clamp(16px, 1vw, 18px);
+  padding: 14px 14px;
 }
 
 .input,
@@ -133,22 +134,22 @@ body {
 
 .grid {
   display: grid;
-  grid-template-columns: 330px 1fr;
-  gap: 12px;
-  min-height: calc(100vh - 120px);
+  grid-template-columns: 420px 1fr;
+  gap: 14px;
+  min-height: calc(100vh - 100px);
 }
 
 .main-stack {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 14px;
 }
 
 .card {
   background: linear-gradient(180deg, rgba(21, 31, 47, 0.97), rgba(17, 26, 40, 0.96));
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 14px;
+  border-radius: 18px;
+  padding: 18px;
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.28);
 }
 
@@ -156,12 +157,12 @@ body {
   margin: 0 0 10px 0;
   font-family: "Press Start 2P", monospace;
   letter-spacing: 0.28px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .auth-fields {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .status {
@@ -170,9 +171,9 @@ body {
   border-radius: 11px;
   background: rgba(11, 18, 30, 0.78);
   color: var(--muted);
-  padding: 10px 11px;
-  font-size: 12px;
-  min-height: 40px;
+  padding: 12px 13px;
+  font-size: 14px;
+  min-height: 48px;
   line-height: 1.4;
   white-space: pre-wrap;
 }
@@ -188,7 +189,7 @@ body {
 }
 
 .dashboard-view {
-  min-height: 420px;
+  min-height: clamp(560px, 72vh, 900px);
 }
 
 .dashboard-head {
@@ -200,36 +201,38 @@ body {
 .dashboard-head p {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
 }
 
 .game-card {
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
   background: linear-gradient(180deg, rgba(29, 42, 63, 0.9), rgba(22, 33, 50, 0.95));
-  padding: 13px;
+  padding: 18px;
   text-align: left;
   color: var(--text);
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  min-height: 190px;
   cursor: pointer;
   transition: transform 0.12s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .game-card strong {
-  font-size: 16px;
+  font-size: 28px;
   font-weight: 700;
 }
 
 .game-card small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 18px;
+  line-height: 1.35;
 }
 
 .game-card-tag {
@@ -237,8 +240,8 @@ body {
   width: fit-content;
   border-radius: 999px;
   border: 1px solid var(--border-strong);
-  padding: 3px 8px;
-  font-size: 11px;
+  padding: 4px 10px;
+  font-size: 13px;
   color: #d6e6ff;
   background: rgba(16, 27, 43, 0.84);
 }
@@ -257,7 +260,8 @@ body {
 .game-view {
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 12px;
+  min-height: clamp(620px, 78vh, 980px);
 }
 
 .game-head {
@@ -270,7 +274,7 @@ body {
 .game-head p {
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .game-tabs {
@@ -296,13 +300,13 @@ body {
 
 .controls {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .control-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .control-row.tight {
@@ -310,10 +314,10 @@ body {
 }
 
 .board {
-  min-height: 350px;
+  min-height: clamp(520px, 62vh, 760px);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px;
+  border-radius: 14px;
+  padding: 14px;
   background: rgba(10, 16, 25, 0.82);
   display: grid;
   align-content: start;
@@ -321,7 +325,7 @@ body {
 }
 
 .history {
-  max-height: 180px;
+  max-height: 300px;
   overflow: auto;
   display: grid;
   gap: 8px;
@@ -331,8 +335,8 @@ body {
   border: 1px solid var(--border);
   border-radius: 9px;
   background: rgba(16, 24, 38, 0.86);
-  padding: 8px 9px;
-  font-size: 12px;
+  padding: 10px 11px;
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -344,7 +348,7 @@ body {
 
 .tower-cell,
 .mines-cell {
-  height: 42px;
+  height: 58px;
   border: 1px solid var(--border);
   border-radius: 9px;
   background: #1a263a;
@@ -388,17 +392,17 @@ body {
 }
 
 .card-tile {
-  min-width: 44px;
+  min-width: 66px;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: #1c2a40;
-  padding: 8px 10px;
+  padding: 12px 14px;
   text-align: center;
   font-weight: 700;
 }
 
 .meta-line {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--muted);
 }
 
@@ -432,6 +436,28 @@ body {
 @media (max-width: 760px) {
   .control-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .page {
+    width: 100vw;
+    margin: 0;
+    padding: 10px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .dashboard-view {
+    min-height: 72vh;
+  }
+
+  .game-view {
+    min-height: 80vh;
+  }
+
+  .board {
+    min-height: 48vh;
   }
 
   .game-head {
