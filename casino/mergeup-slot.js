@@ -32,7 +32,7 @@
     minBet: 1,
     maxBet: 5000,
     initialBalance: 50000,
-    buyBonusCostMultiplier: 120,
+    buyBonusCostMultiplier: 80,
     maxCascadesPerSpin: 80,
     freeSpinsTrigger: { 4: 15, 5: 18, 6: 20 },
     freeSpinsRetrigger: { 4: 5, 5: 8, 6: 10 },
@@ -1092,6 +1092,7 @@
     if (el.bonusWinValue) el.bonusWinValue.textContent = formatWL(state.bonusWin);
     if (el.fsValue) el.fsValue.textContent = String(state.fsLeft);
     if (el.betInput instanceof HTMLInputElement) el.betInput.value = String(state.bet);
+    if (el.buyBonusBtn instanceof HTMLButtonElement) el.buyBonusBtn.textContent = "Buy Bonus (" + gameConfig.buyBonusCostMultiplier + "x)";
     updateTopButtons();
   }
 
