@@ -316,7 +316,13 @@
             resolve(endValue);
             return;
           }
-          const t = clamp((now - started) / ms, 0, 1);
+          let speedBoost = 1;
+          try {
+            if (state && state.fastForwardUntil > Date.now()) speedBoost = state.turbo ? 2.8 : 2.2;
+          } catch (_error) {
+            speedBoost = 1;
+          }
+          const t = clamp(((now - started) * speedBoost) / ms, 0, 1);
           const eased = easeOutCubic(t);
           const current = startValue + (endValue - startValue) * eased;
           onUpdate(t >= 1 ? endValue : current);
@@ -506,6 +512,15 @@
       return sorted[0];
     }
 
+    chooseMergeAnchors(clusterCells, count) {
+      const sorted = clusterCells.slice().sort((a, b) => {
+        if (a[0] !== b[0]) return b[0] - a[0];
+        return a[1] - b[1];
+      });
+      const take = clamp(toInt(count, 1), 1, sorted.length);
+      return sorted.slice(0, take);
+    }
+
     getUpgradedSymbol(symbolId) {
       const sym = this.symbolMap[symbolId];
       if (!sym || sym.scatter) return symbolId;
@@ -558,8 +573,10 @@
       for (let i = 0; i < clusters.length; i++) {
         const cluster = clusters[i];
         const sym = this.symbolMap[cluster.symbolId];
-        const anchor = this.chooseMergeAnchor(cluster.cells);
         const upgradedSymbolId = this.getUpgradedSymbol(cluster.symbolId);
+        const upgradedCount = Math.max(1, cluster.size - (this.config.minCluster - 1));
+        const mergeAnchors = this.chooseMergeAnchors(cluster.cells, upgradedCount);
+        const anchor = mergeAnchors[0];
         const basePayout = Math.floor(bet * this.getPayoutMultiplier(cluster.symbolId, cluster.size));
 
         let multiplierApplied = 1;
@@ -584,6 +601,8 @@
           size: cluster.size,
           cells: cluster.cells.map((cell) => [cell[0], cell[1]]),
           anchor: [anchor[0], anchor[1]],
+          mergeAnchors: mergeAnchors.map((cell) => [cell[0], cell[1]]),
+          mergedCount: mergeAnchors.length,
           basePayout,
           multiplierApplied,
           payoutAfterMultiplier: payout,
@@ -594,13 +613,18 @@
           const cell = cluster.cells[k];
           gridAfterMerge[cell[0]][cell[1]] = null;
         }
-        gridAfterMerge[anchor[0]][anchor[1]] = upgradedSymbolId;
+        for (let m = 0; m < mergeAnchors.length; m++) {
+          const up = mergeAnchors[m];
+          gridAfterMerge[up[0]][up[1]] = upgradedSymbolId;
+        }
 
         mergeOps.push({
           clusterId: i + 1,
           fromSymbolId: cluster.symbolId,
           toSymbolId: upgradedSymbolId,
           anchor: [anchor[0], anchor[1]],
+          anchors: mergeAnchors.map((cell) => [cell[0], cell[1]]),
+          mergedCount: mergeAnchors.length,
           consumedCells: cluster.cells.map((cell) => [cell[0], cell[1]])
         });
       }
@@ -812,7 +836,7 @@
     turbo: Boolean(saved.turbo),
     muted: Boolean(saved.muted),
     autoplayRemaining: toInt(saved.autoplayRemaining, 0),
-    skipRequested: false,
+    fastForwardUntil: 0,
     lastResolved: null,
     history: []
   };
@@ -1301,7 +1325,11 @@
         const p = op.consumedCells[k];
         cells[p[0]][p[1]].root.classList.add("merge-source");
       }
-      cells[op.anchor[0]][op.anchor[1]].root.classList.add("merge-target");
+      const targets = Array.isArray(op.anchors) && op.anchors.length ? op.anchors : [op.anchor];
+      for (let t = 0; t < targets.length; t++) {
+        const target = targets[t];
+        cells[target[0]][target[1]].root.classList.add("merge-target");
+      }
     }
   }
 
@@ -1318,18 +1346,33 @@
     window.setTimeout(() => { if (node.parentNode) node.parentNode.removeChild(node); }, 900);
   }
 
+  function isFastForwardActive() {
+    return state.fastForwardUntil > Date.now();
+  }
+
+  function requestFastForward(durationMs) {
+    const fallback = state.turbo ? 650 : 1200;
+    const ms = Math.max(250, toInt(durationMs, fallback));
+    state.fastForwardUntil = Math.max(state.fastForwardUntil, Date.now() + ms);
+  }
+
   function pause(baseMs) {
-    const scale = state.skipRequested ? 0.07 : (state.turbo ? 0.62 : 1.35);
-    const ms = Math.max(0, Math.floor(baseMs * scale));
+    let scale = state.turbo ? 0.62 : 1.35;
+    if (isFastForwardActive()) scale = scale * 0.58;
+    const floorMs = isFastForwardActive() ? 34 : 0;
+    const ms = Math.max(floorMs, Math.floor(baseMs * scale));
     return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   function countDurationByWin(win, bet) {
     const ratio = bet > 0 ? win / bet : 0;
-    if (ratio >= 20) return state.turbo ? 1200 : 2900;
-    if (ratio >= 8) return state.turbo ? 900 : 2100;
-    if (ratio >= 3) return state.turbo ? 620 : 1400;
-    return state.turbo ? 340 : 780;
+    let duration = 0;
+    if (ratio >= 20) duration = state.turbo ? 1200 : 2900;
+    else if (ratio >= 8) duration = state.turbo ? 900 : 2100;
+    else if (ratio >= 3) duration = state.turbo ? 620 : 1400;
+    else duration = state.turbo ? 340 : 780;
+    if (isFastForwardActive()) duration = Math.max(160, Math.floor(duration * 0.56));
+    return duration;
   }
 
   function getWinTierLabel(totalWin, bet) {
@@ -1492,7 +1535,7 @@
   }
 
   async function runResolvedRound(resolved, roundCost) {
-    state.skipRequested = false;
+    state.fastForwardUntil = 0;
     state.spinWin = 0;
     state.tumbleWin = 0;
     state.bonusWin = 0;
@@ -1620,7 +1663,7 @@
 
     setControlsBusy(true);
     setPhase(SLOT_STATE.SPIN_START);
-    state.skipRequested = false;
+    state.fastForwardUntil = 0;
     counter.skip();
     audio.play("spin_start");
 
@@ -1676,7 +1719,7 @@
 
     setPhase(SLOT_STATE.IDLE);
     setControlsBusy(false);
-    state.skipRequested = false;
+    state.fastForwardUntil = 0;
 
     if (state.autoplayRemaining > 0 && !state.busy) {
       state.autoplayRemaining -= 1;
@@ -1696,7 +1739,7 @@
     if (!(el.infoContent instanceof HTMLElement)) return;
     let html = "";
     html += "<section><strong>Game Type:</strong> 6x6 cluster pays, orthogonal adjacency, minimum cluster size 5.</section>";
-    html += "<section><strong>MergeUP Rule:</strong> only clusters of 5+ matching ducks win and merge into the next level at a deterministic anchor cell (lowest row, then left-most).</section>";
+    html += "<section><strong>MergeUP Rule:</strong> only clusters of 5+ matching ducks win. Merge count scales by size: 5->1 upgrade, 6->2, 7->3, 8->4, etc. Targets are chosen deterministically from lowest row, then left-most.</section>";
     html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award 15/18/20 free spins. In free spins, marked cells gain multipliers up to x128 and retrigger with 4/5/6+ scatters for +5/+8/+10.</section>";
     html += "<section><strong>Math:</strong> RTP " + gameConfig.rtp + " (config placeholder), volatility " + gameConfig.volatility + ", max win cap " + gameConfig.maxWinMultiplier + "x bet.</section>";
 
@@ -1799,8 +1842,7 @@
       el.spinArea.addEventListener("pointerdown", () => {
         audio.unlock();
         if (!state.busy) return;
-        state.skipRequested = true;
-        counter.skip();
+        requestFastForward();
       });
     }
 
@@ -1819,8 +1861,7 @@
       if (event.key === " ") {
         event.preventDefault();
         if (state.busy) {
-          state.skipRequested = true;
-          counter.skip();
+          requestFastForward();
         } else {
           runSpin("paid");
         }
