@@ -401,233 +401,374 @@
     const style = document.createElement("style");
     style.id = "casinoVisualRefresh";
     style.textContent = `
-      body.casino-premium .page,
-      .page {
-        width: min(1520px, 96vw);
+      body.casino-premium {
+        --stake-bg-1: #0b0b14;
+        --stake-bg-2: #131325;
+        --stake-panel: rgba(20, 20, 34, 0.88);
+        --stake-panel-2: rgba(28, 28, 46, 0.95);
+        --stake-line: rgba(255, 255, 255, 0.1);
+        --stake-gold: #f6c453;
+        --stake-green: #5cff95;
+        --stake-pink: #ff63b8;
+        --stake-blue: #67d2ff;
+        --stake-text: #f5f7ff;
+        --stake-muted: #9ea5c1;
+      }
+
+      body.casino-premium,
+      body.casino-premium button,
+      body.casino-premium input,
+      body.casino-premium select {
+        font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+        letter-spacing: 0;
+      }
+
+      body.casino-premium {
+        color: var(--stake-text);
+        background:
+          radial-gradient(circle at top left, rgba(255, 99, 184, 0.16), transparent 30%),
+          radial-gradient(circle at top right, rgba(103, 210, 255, 0.16), transparent 28%),
+          linear-gradient(180deg, var(--stake-bg-2), var(--stake-bg-1));
+      }
+
+      body.casino-premium .page {
+        width: min(1460px, 96vw);
+        gap: 14px;
       }
 
       body.casino-premium .head,
-      body.casino-premium .card,
-      .head,
-      .card {
-        border-color: rgba(239, 194, 109, 0.36);
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 232, 183, 0.08),
-          0 14px 34px rgba(0, 0, 0, 0.28);
+      body.casino-premium .card {
+        border: 1px solid var(--stake-line);
+        border-radius: 18px;
+        background: var(--stake-panel);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+        backdrop-filter: blur(10px);
       }
 
-      body.casino-premium .machine-item,
-      .machine-item {
-        border-color: rgba(239, 194, 109, 0.34);
-        background: linear-gradient(180deg, rgba(34, 47, 40, 0.94), rgba(21, 30, 25, 0.96));
+      body.casino-premium .head {
+        background:
+          linear-gradient(180deg, rgba(26, 26, 42, 0.96), rgba(18, 18, 30, 0.96));
       }
 
-      body.casino-premium .machine-item .name,
-      .machine-item .name {
-        color: #ffe7b5;
+      body.casino-premium .title {
+        color: #ffffff;
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+
+      body.casino-premium .sub {
+        color: var(--stake-muted);
+        font-size: 0.82rem;
+      }
+
+      body.casino-premium button,
+      body.casino-premium .quick-btn,
+      body.casino-premium .chip {
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04));
+        color: var(--stake-text);
+        transition: transform 120ms ease, box-shadow 140ms ease, border-color 140ms ease, filter 120ms ease;
+      }
+
+      body.casino-premium button:hover:not(:disabled),
+      body.casino-premium .quick-btn:hover,
+      body.casino-premium .chip:hover {
+        transform: translateY(-1px);
+        border-color: rgba(246, 196, 83, 0.58);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.24);
+      }
+
+      body.casino-premium input,
+      body.casino-premium select {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        background: rgba(7, 12, 24, 0.9);
+        color: #edf2ff;
+      }
+
+      body.casino-premium .machine-item {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(44, 47, 70, 0.88), rgba(30, 34, 54, 0.9));
+      }
+
+      body.casino-premium .machine-item.active {
+        border-color: rgba(246, 196, 83, 0.6);
+        box-shadow: 0 0 0 1px rgba(246, 196, 83, 0.28), 0 14px 24px rgba(0, 0, 0, 0.28);
+      }
+
+      body.casino-premium .machine-item .name {
+        color: #f9fbff;
       }
 
       body.casino-premium .machine-item .info,
-      .machine-item .info {
-        color: #dae6db;
+      body.casino-premium .stake-empty {
+        color: var(--stake-muted);
       }
 
-      #viewGame .stage {
-        border-radius: 20px;
+      body.casino-premium .stake-shell {
+        grid-template-columns: 290px minmax(0, 1fr);
+        gap: 16px;
       }
 
-      #viewGame .stage-wrap {
-        max-width: min(1180px, 96vw);
-        margin-inline: auto;
-      }
-
-      #viewGame .stage.theme-slots_v2,
-      body.casino-premium #viewGame .stage.theme-slots_v2 {
-        border: 1px solid rgba(239, 194, 109, 0.68);
-        border-radius: 22px;
-        padding: 14px;
-        background:
-          radial-gradient(900px 280px at 50% -120px, rgba(245, 218, 154, 0.26), transparent 66%),
-          linear-gradient(180deg, rgba(21, 31, 26, 0.98), rgba(10, 15, 13, 0.99));
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 232, 183, 0.14),
-          0 26px 64px rgba(0, 0, 0, 0.52);
-      }
-
-      #viewGame .stage.theme-slots_v2 .premium-topbar {
-        border-color: rgba(239, 194, 109, 0.52);
-        background: linear-gradient(180deg, rgba(36, 49, 41, 0.94), rgba(22, 31, 27, 0.96));
-        box-shadow: inset 0 0 0 1px rgba(255, 235, 193, 0.1);
-      }
-
-      #viewGame .stage.theme-slots_v2 .board-wrap {
-        border: 1px solid rgba(239, 194, 109, 0.56);
+      body.casino-premium .stake-sidebar {
+        border: 1px solid var(--stake-line);
         border-radius: 18px;
+        background: var(--stake-panel-2);
+        box-shadow: 0 16px 30px rgba(0, 0, 0, 0.32);
+      }
+
+      body.casino-premium .stake-side-section {
+        border-color: rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        background: rgba(18, 21, 36, 0.88);
+      }
+
+      body.casino-premium .stake-side-title {
+        color: #d9ddf6;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+
+      body.casino-premium .stake-recent-row {
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        background: rgba(20, 24, 39, 0.9);
+        border-radius: 10px;
+        color: #cfd7ff;
+      }
+
+      body.casino-premium #viewGame .stage {
+        border: 1px solid var(--stake-line);
+        border-radius: 22px;
         padding: 12px;
         background:
-          linear-gradient(180deg, rgba(35, 45, 39, 0.97), rgba(17, 24, 21, 0.98));
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 236, 194, 0.12),
-          inset 0 10px 18px rgba(255, 255, 255, 0.02),
-          inset 0 -16px 28px rgba(0, 0, 0, 0.36);
+          radial-gradient(circle at 50% -10%, rgba(103, 210, 255, 0.14), transparent 34%),
+          linear-gradient(180deg, rgba(18, 22, 37, 0.98), rgba(13, 17, 30, 0.98));
       }
 
-      #viewGame .stage.theme-slots_v2 .board-wrap.dimmed {
-        filter: brightness(0.9) saturate(0.95);
+      body.casino-premium #viewGame .premium-topbar {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(28, 31, 50, 0.95), rgba(20, 23, 38, 0.96));
       }
 
-      #viewGame .stage.theme-slots_v2 .board {
+      body.casino-premium #viewGame .tag {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #e6edff;
+      }
+
+      body.casino-premium #viewGame .tag.good {
+        border-color: rgba(92, 255, 149, 0.5);
+        color: #bcffd8;
+        background: rgba(12, 60, 40, 0.5);
+      }
+
+      body.casino-premium #viewGame .board-wrap {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        background:
+          radial-gradient(circle at top, rgba(103, 210, 255, 0.1), transparent 36%),
+          linear-gradient(180deg, rgba(20, 22, 36, 0.96), rgba(13, 16, 27, 0.98));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 12px 20px rgba(255, 255, 255, 0.02);
+      }
+
+      body.casino-premium #viewGame .board {
         gap: 8px;
       }
 
-      #viewGame .stage.theme-slots_v2 .reel {
-        border: 1px solid rgba(239, 194, 109, 0.36);
-        border-radius: 12px;
-        background: linear-gradient(180deg, rgba(52, 67, 58, 0.95), rgba(30, 40, 34, 0.97));
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 231, 184, 0.08),
-          inset 0 -10px 18px rgba(0, 0, 0, 0.34);
+      body.casino-premium #viewGame .reel {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 11px;
+        background: linear-gradient(180deg, rgba(35, 38, 58, 0.95), rgba(20, 24, 39, 0.98));
       }
 
-      #viewGame .stage.theme-slots_v2 .cell {
-        border: 1px solid rgba(239, 194, 109, 0.28);
+      body.casino-premium #viewGame .cell {
+        border: 1px solid rgba(255, 255, 255, 0.13);
         border-radius: 10px;
-        background: linear-gradient(180deg, rgba(89, 107, 96, 0.98), rgba(51, 64, 57, 0.98));
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 238, 204, 0.1),
-          inset 0 -8px 14px rgba(0, 0, 0, 0.24);
+        background: linear-gradient(180deg, rgba(57, 62, 92, 0.94), rgba(37, 43, 70, 0.98));
+        transition: transform 180ms ease, opacity 160ms ease, box-shadow 180ms ease, filter 180ms ease;
       }
 
-      #viewGame .stage.theme-slots_v2 .cell .icon {
-        font-size: clamp(24px, 3.5vw, 34px);
-        color: #fff1d2;
-        text-shadow:
-          0 1px 0 rgba(0, 0, 0, 0.6),
-          0 0 10px rgba(255, 235, 190, 0.2);
+      body.casino-premium #viewGame .cell .icon {
+        color: #f7f9ff;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55), 0 0 10px rgba(103, 210, 255, 0.16);
       }
 
-      #viewGame .stage.theme-slots_v2 .line-list {
-        border-color: rgba(239, 194, 109, 0.42);
+      body.casino-premium #viewGame .cell.symbol-win,
+      body.casino-premium #viewGame .cell.hit {
+        transform: scale(1.03);
+        box-shadow: 0 0 0 2px rgba(246, 196, 83, 0.6), 0 0 24px rgba(246, 196, 83, 0.24);
+      }
+
+      body.casino-premium #viewGame .cell.symbol-dim {
+        opacity: 0.58;
+        filter: saturate(0.85);
+      }
+
+      body.casino-premium #viewGame .line-list {
+        border: 1px solid rgba(255, 255, 255, 0.11);
         border-radius: 12px;
-        min-height: 58px;
-        background: rgba(22, 30, 26, 0.92);
+        background: rgba(13, 17, 29, 0.9);
       }
 
-      #viewGame .stage.theme-slots_v2 .line-badge {
-        border-color: rgba(239, 194, 109, 0.38);
-        background: rgba(34, 45, 38, 0.96);
-        color: #f2f7f2;
+      body.casino-premium #viewGame .line-badge {
+        border-color: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.06);
+        color: #e9eeff;
       }
 
-      #viewGame .stage.theme-slots_v2 .line-badge.hot {
-        border-color: rgba(112, 197, 143, 0.72);
-        background: rgba(25, 65, 45, 0.95);
+      body.casino-premium #viewGame .line-badge.hot {
+        border-color: rgba(246, 196, 83, 0.6);
+        background: rgba(98, 76, 26, 0.44);
       }
 
-      #viewGame .stage.theme-slots_v2 .game-controls {
-        border-color: rgba(239, 194, 109, 0.36);
-        background: linear-gradient(180deg, rgba(29, 40, 34, 0.94), rgba(17, 24, 21, 0.96)) !important;
-        box-shadow: inset 0 0 0 1px rgba(255, 236, 194, 0.08);
+      body.casino-premium #viewGame .game-controls {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(24, 28, 45, 0.95), rgba(18, 21, 35, 0.96)) !important;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
       }
 
-      #viewGame .stage.theme-slots_v2 .quick-btn,
-      #viewGame .stage.theme-slots_v2 .chip {
-        border-color: rgba(239, 194, 109, 0.54);
-        background: linear-gradient(180deg, rgba(61, 46, 26, 0.94), rgba(43, 32, 18, 0.96));
-        color: #f8ebcf;
+      body.casino-premium #viewGame .premium-controls-row[data-row-title]::before {
+        color: #c9d2ef;
+        font-size: 10px;
       }
 
-      #viewGame .stage.theme-slots_v2 #spinBtn {
-        width: 90px;
-        height: 90px;
-        min-width: 90px !important;
-        border: 3px solid rgba(255, 226, 160, 0.88);
-        background:
-          radial-gradient(circle at 36% 26%, rgba(255, 98, 90, 0.98), rgba(164, 25, 24, 0.99));
-        color: #fff4d9;
-        box-shadow:
-          inset 0 0 0 2px rgba(255, 237, 201, 0.24),
-          0 0 0 4px rgba(19, 10, 8, 0.54),
-          0 10px 24px rgba(0, 0, 0, 0.4),
-          0 0 22px rgba(255, 100, 90, 0.28);
-      }
-
-      #viewGame .stage.theme-slots_v2 .bonus-hud {
-        border-color: rgba(239, 194, 109, 0.42);
-        background: linear-gradient(180deg, rgba(37, 48, 41, 0.94), rgba(20, 29, 24, 0.96));
-      }
-
-      #viewGame .bonus-spin-panel {
-        position: absolute;
-        left: 50%;
-        top: 10px;
-        transform: translateX(-50%);
-        width: min(420px, calc(100% - 22px));
-        border: 1px solid rgba(239, 194, 109, 0.62);
-        border-radius: 12px;
-        background:
-          linear-gradient(180deg, rgba(31, 43, 37, 0.96), rgba(16, 23, 20, 0.98));
-        box-shadow:
-          inset 0 0 0 1px rgba(255, 236, 194, 0.1),
-          0 10px 22px rgba(0, 0, 0, 0.34);
-        display: grid;
-        gap: 3px;
-        align-items: center;
-        justify-items: center;
-        padding: 7px 10px 8px;
-        z-index: 14;
-        text-align: center;
-        pointer-events: none;
-      }
-
-      #viewGame .bonus-spin-panel .bonus-spin-title {
-        font-size: 8px;
-        letter-spacing: 0.12em;
-        color: #ffe8b5;
-      }
-
-      #viewGame .bonus-spin-panel .bonus-spin-count {
-        font-size: 15px;
-        color: #f6fbf6;
-      }
-
-      #viewGame .bonus-spin-panel .bonus-spin-total {
-        font-size: 8px;
-        color: #d4e2d8;
-      }
-
-      #viewGame .bonus-spin-panel .bonus-spin-progress {
-        width: 100%;
-        height: 7px;
+      body.casino-premium #viewGame #spinBtn {
+        width: 96px;
+        height: 96px;
+        min-width: 96px !important;
         border-radius: 999px;
-        border: 1px solid rgba(239, 194, 109, 0.44);
-        background: rgba(13, 19, 16, 0.9);
-        overflow: hidden;
+        border: 2px solid rgba(246, 196, 83, 0.9);
+        background:
+          radial-gradient(circle at 30% 24%, rgba(255, 239, 194, 0.5), rgba(246, 196, 83, 0.94) 45%, rgba(196, 140, 20, 0.96) 92%);
+        color: #2a1d08;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        box-shadow:
+          inset 0 0 0 2px rgba(255, 241, 205, 0.36),
+          0 10px 20px rgba(0, 0, 0, 0.34),
+          0 0 22px rgba(246, 196, 83, 0.34);
       }
 
-      #viewGame .bonus-spin-panel .bonus-spin-progress > span {
-        display: block;
-        width: 0%;
-        height: 100%;
-        background: linear-gradient(90deg, rgba(255, 214, 133, 0.96), rgba(112, 197, 143, 0.96));
-        box-shadow: 0 0 12px rgba(255, 217, 139, 0.4);
-        transition: width 180ms ease;
+      body.casino-premium #viewGame #spinBtn.spinning {
+        box-shadow:
+          inset 0 0 0 2px rgba(255, 241, 205, 0.36),
+          0 12px 24px rgba(0, 0, 0, 0.36),
+          0 0 28px rgba(92, 255, 149, 0.38);
       }
 
-      #viewGame .stage.theme-slots_v2 .bonus-spin-panel {
-        border-color: rgba(239, 194, 109, 0.62);
+      body.casino-premium #viewGame .win-meter {
+        width: 180px;
+        height: auto;
+        min-height: 84px;
+        border-radius: 14px;
+        top: 12px;
+        right: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: linear-gradient(180deg, rgba(19, 30, 48, 0.9), rgba(12, 20, 34, 0.95));
       }
 
-      #viewGame .bonus-spin-panel.hidden {
-        display: none !important;
+      body.casino-premium #viewGame .win-meter::before {
+        display: none;
+      }
+
+      body.casino-premium #viewGame .win-meter .label {
+        color: #bed6ff;
+        font-size: 11px;
+      }
+
+      body.casino-premium #viewGame .win-meter .value {
+        font-size: 21px;
+        color: #f4f8ff;
+        text-shadow: 0 0 10px rgba(103, 210, 255, 0.34);
+      }
+
+      body.casino-premium #viewGame .win-meter .mult {
+        border-color: rgba(92, 255, 149, 0.52);
+        background: rgba(23, 60, 44, 0.6);
+        color: #d7ffeb;
+      }
+
+      body.casino-premium #viewGame .premium-drawer {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(24, 29, 46, 0.95), rgba(16, 20, 34, 0.97));
+      }
+
+      body.casino-premium #viewGame .premium-history-head {
+        color: #e2e9ff;
+      }
+
+      body.casino-premium #viewGame .premium-history-item {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        color: #dbe4ff;
+      }
+
+      body.casino-premium .head-actions button,
+      body.casino-premium #viewGame .quick-btn,
+      body.casino-premium #viewGame .chip,
+      body.casino-premium #viewGame select,
+      body.casino-premium #viewGame input {
+        font-size: 12px;
+      }
+
+      body.casino-premium #viewGame .tag {
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+
+      body.casino-premium #viewGame .line-badge {
+        font-size: 12px;
+      }
+
+      body.casino-premium #viewGame .premium-bet-readout,
+      body.casino-premium .stake-empty,
+      body.casino-premium .stake-recent-row {
+        font-size: 12px;
+      }
+
+      body.casino-premium .casino-ambient .orb {
+        background: radial-gradient(circle, rgba(103, 210, 255, 0.75), rgba(255, 99, 184, 0.35));
+      }
+
+      @media (max-width: 1200px) {
+        body.casino-premium .stake-shell {
+          grid-template-columns: 1fr;
+        }
       }
 
       @media (max-width: 980px) {
-        #viewGame .stage.theme-slots_v2 #spinBtn {
-          width: 78px;
-          height: 78px;
-          min-width: 78px !important;
-          font-size: 10px;
+        body.casino-premium #viewGame .stage {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto auto minmax(240px, auto) auto auto auto;
+          grid-template-areas:
+            "top"
+            "bonus"
+            "board"
+            "controls"
+            "line"
+            "dev";
+        }
+
+        body.casino-premium #viewGame #spinBtn {
+          width: 80px;
+          height: 80px;
+          min-width: 80px !important;
+          font-size: 12px;
+        }
+
+        body.casino-premium #viewGame .win-meter {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          width: 148px;
+          min-height: 72px;
         }
       }
     `;
@@ -1338,9 +1479,9 @@
       const pool = SYMBOL_POOL[m.type] || SYMBOL_POOL.slots;
       const safePoolLen = Math.max(1, pool.length);
       const startTs = performance.now();
-      const baseSpin = turbo ? 430 : 900;
-      const stagger = turbo ? 84 : 142;
-      const anticipationDelay = anticipation ? (turbo ? 150 : 310) : 0;
+      const baseSpin = turbo ? 360 : 760;
+      const stagger = turbo ? 72 : 168;
+      const anticipationDelay = anticipation ? (turbo ? 120 : 280) : 0;
       const stopTimes = [];
       const stopped = [];
       const reelPhase = [];
@@ -1379,7 +1520,7 @@
           if (run.quickStop) {
             for (let c = 0; c < cols; c++) {
               if (stopped[c]) continue;
-              stopTimes[c] = Math.min(stopTimes[c], ts + 48 + (c * 24));
+              stopTimes[c] = Math.min(stopTimes[c], ts + (turbo ? 72 : 145) + (c * (turbo ? 30 : 64)));
             }
           }
 
@@ -1391,22 +1532,22 @@
             const reelStop = stopTimes[c];
             const reelDuration = Math.max(160, reelStop - reelStart);
             const reelProgress = Math.max(0, Math.min(1, (ts - reelStart) / reelDuration));
-            const accelWindow = turbo ? 0.14 : 0.18;
-            const decelStart = turbo ? 0.74 : 0.69;
+            const accelWindow = turbo ? 0.18 : 0.22;
+            const decelStart = turbo ? 0.68 : 0.62;
             let speedFactor = 1;
             if (reelProgress < accelWindow) {
-              speedFactor = Math.max(0.08, easeOutCubic(reelProgress / accelWindow));
+              speedFactor = Math.max(0.08, easeOutQuint(reelProgress / accelWindow));
             } else if (reelProgress > decelStart) {
               const tail = (reelProgress - decelStart) / (1 - decelStart);
-              speedFactor = Math.max(0.06, 1 - (tail * tail * tail));
+              speedFactor = Math.max(0.05, 1 - easeOutCubic(tail));
             }
-            const dt = Math.max(8, Math.min(42, ts - reelFrameTs[c]));
+            const dt = Math.max(8, Math.min(34, ts - reelFrameTs[c]));
             reelFrameTs[c] = ts;
-            const baseSymbolsPerSecond = turbo ? 28 : 22;
-            const anticipationLift = anticipation && c === cols - 1 && reelProgress > 0.84 ? 2.2 : 0;
+            const baseSymbolsPerSecond = turbo ? 24 : 19;
+            const anticipationLift = anticipation && c === cols - 1 && reelProgress > 0.78 ? (turbo ? 1.2 : 1.8) : 0;
             const symbolsPerSecond = Math.max(2, (baseSymbolsPerSecond * speedFactor) + anticipationLift);
             reelPhase[c] += (symbolsPerSecond * dt) / 1000;
-            if (anticipation && c === (cols - 1) && reelProgress > 0.82 && !stopped[c]) {
+            if (anticipation && c === (cols - 1) && reelProgress > 0.74 && !stopped[c]) {
               SymbolAnimator.markAnticipationColumn(c);
             }
             for (let r = 0; r < rows; r++) {
@@ -1593,9 +1734,14 @@
       }
       const forceCounter = opts.forceCounter === true;
       const replayFromZero = forceCounter && opts.replayFromZero === true;
-      if (!forceCounter && pay < (stake * 2)) {
+      const quietWin = !forceCounter && tier.id === "small";
+      if (quietWin) {
         hideBanner();
-        setCurrentWinValue(pay, stake);
+        if (!opts.alreadyCounted || replayFromZero) {
+          await countTo(pay, stake, { durationScale: pay < stake ? 0.5 : 0.68 });
+        } else {
+          setCurrentWinValue(pay, stake);
+        }
         return;
       }
 
@@ -4994,7 +5140,7 @@
     state.spinTimer = window.setInterval(() => {
       tick += 1;
       // Only randomize rows that are NOT stopped in the logic handled below
-      if (!state.ephemeral.stoppedCols) {
+      if (state.ephemeral.stoppedCols == null) {
         state.ephemeral.rows = randomRowsForMachine(machine, tick);
         state.ephemeral.lineIds = [];
         state.ephemeral.lineWins = [isBonus ? "BONUS BUY..." : "Spinning..."];

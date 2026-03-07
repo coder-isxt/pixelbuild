@@ -47,14 +47,14 @@ window.GTModules = window.GTModules || {};
     var cfg = options && typeof options === "object" ? options : {};
     var d = Math.max(0, Number(delta) || 0);
     var mul = Math.max(0, Number(multiplier) || 0);
-    var minMs = Math.max(120, Math.floor(Number(cfg.minDurationMs) || 400));
+    var minMs = Math.max(120, Math.floor(Number(cfg.minDurationMs) || 300));
     var maxMs = Math.max(minMs, Math.floor(Number(cfg.maxDurationMs) || 5000));
-    var duration = 600;
-    if (mul >= 50) duration = 4200;
-    else if (mul >= 25) duration = 3000;
-    else if (mul >= 10) duration = 1800;
-    else if (mul >= 3) duration = 1050;
-    else duration = 420 + Math.min(320, (Math.log10(d + 1) * 180));
+    var duration = 540;
+    if (mul >= 50) duration = 3800;
+    else if (mul >= 25) duration = 2850;
+    else if (mul >= 10) duration = 1850;
+    else if (mul >= 3) duration = 1180;
+    else duration = 340 + Math.min(440, (Math.log10(d + 1) * 210));
     if (cfg.turbo) duration = duration * Math.max(0.2, Math.min(1, Number(cfg.turboScale) || 0.38));
     if (Number.isFinite(Number(cfg.durationScale))) duration *= Math.max(0.15, Number(cfg.durationScale) || 1);
     return Math.max(minMs, Math.min(maxMs, Math.floor(duration)));
@@ -206,4 +206,3 @@ window.GTModules = window.GTModules || {};
     easeOutQuint: easeOutQuint
   };
 })();
-
