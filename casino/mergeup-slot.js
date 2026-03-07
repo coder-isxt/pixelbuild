@@ -40,6 +40,7 @@
     maxCellMultiplier: 32,
     clusterMultiplierCombine: "sum",
     maxClusterMultiplierApplied: 96,
+    connectionBiasChance: 0.11,
     basePayoutScale: 0.72,
     maxWinMultiplier: 50000,
     highBetPayoutBoostTiers: [
@@ -419,7 +420,7 @@
           if (filtered.indexOf(id) >= 0) continue;
           filtered.push(id);
         }
-        const connectionChance = 0.18;
+        const connectionChance = clamp(Number(this.config.connectionBiasChance) || 0, 0, 0.5);
         if (filtered.length && rng.next() < connectionChance) {
           return filtered[rng.int(filtered.length)];
         }
@@ -937,6 +938,7 @@
     balanceSyncPaused: false,
     pendingWalletTotal: null,
     spinWin: 0,
+    totalBetDisplay: clamp(toInt(saved.bet, gameConfig.defaultBet), gameConfig.minBet, gameConfig.maxBet),
     tumbleWin: 0,
     bonusWin: 0,
     fsLeft: 0,
@@ -1253,7 +1255,7 @@
   function updateHUD() {
     if (el.balanceValue) el.balanceValue.textContent = formatWL(state.balance);
     if (el.betValue) el.betValue.textContent = formatWL(state.bet);
-    if (el.spinWinValue) el.spinWinValue.textContent = formatWL(state.spinWin);
+    if (el.spinWinValue) el.spinWinValue.textContent = formatWL(state.totalBetDisplay);
     if (el.tumbleWinValue) el.tumbleWinValue.textContent = formatWL(state.tumbleWin);
     if (el.bonusWinValue) el.bonusWinValue.textContent = formatWL(state.bonusWin);
     if (el.fsValue) el.fsValue.textContent = String(state.fsLeft);
@@ -2195,6 +2197,7 @@
     setControlsBusy(true);
     setPhase(SLOT_STATE.SPIN_START);
     state.fastForwardUntil = 0;
+    state.totalBetDisplay = cost;
     counter.skip();
     audio.play("spin_start");
 
@@ -2357,6 +2360,7 @@
       el.betDownBtn.addEventListener("click", () => {
         const step = Math.max(1, Math.floor(state.bet * 0.1));
         state.bet = clamp(state.bet - step, gameConfig.minBet, gameConfig.maxBet);
+        if (!state.busy) state.totalBetDisplay = state.bet;
         updateHUD();
         saveSettings();
       });
@@ -2366,6 +2370,7 @@
       el.betUpBtn.addEventListener("click", () => {
         const step = Math.max(1, Math.floor(state.bet * 0.1));
         state.bet = clamp(state.bet + step, gameConfig.minBet, gameConfig.maxBet);
+        if (!state.busy) state.totalBetDisplay = state.bet;
         updateHUD();
         saveSettings();
       });
@@ -2374,6 +2379,7 @@
     if (el.betMaxBtn instanceof HTMLButtonElement) {
       el.betMaxBtn.addEventListener("click", () => {
         state.bet = clamp(Math.min(gameConfig.maxBet, state.balance), gameConfig.minBet, gameConfig.maxBet);
+        if (!state.busy) state.totalBetDisplay = state.bet;
         updateHUD();
         saveSettings();
       });
@@ -2382,6 +2388,7 @@
     if (el.betInput instanceof HTMLInputElement) {
       el.betInput.addEventListener("change", () => {
         state.bet = clamp(toInt(el.betInput.value, state.bet), gameConfig.minBet, gameConfig.maxBet);
+        if (!state.busy) state.totalBetDisplay = state.bet;
         updateHUD();
         saveSettings();
       });
@@ -2475,6 +2482,7 @@
 
     state.walletLinked = true;
     state.bet = clamp(state.bet, gameConfig.minBet, gameConfig.maxBet);
+    state.totalBetDisplay = state.bet;
     updateHUD();
     setControlsBusy(false);
     setMessage("Wallet linked. Spin to start.");
