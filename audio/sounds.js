@@ -111,15 +111,18 @@ window.GTModules.sounds = (function createSoundsModule() {
       return candidates.length ? candidates[0] : "";
     }
 
-    function createAudio(soundId) {
+    function createAudio(soundId, options) {
       const row = registry.get(soundId);
       if (!row) return null;
       const src = resolveSource(soundId);
       if (!src) return null;
+      const optsAudio = options && typeof options === "object" ? options : {};
+      const forPreload = Boolean(optsAudio.forPreload);
       const audio = new Audio(src);
       audio.preload = "auto";
       audio.loop = Boolean(row.loop);
-      audio.volume = clamp01(row.volume * masterVolume);
+      audio.muted = forPreload;
+      audio.volume = forPreload ? 0 : clamp01(row.volume * masterVolume);
       return audio;
     }
 
@@ -134,7 +137,7 @@ window.GTModules.sounds = (function createSoundsModule() {
           continue;
         }
         const task = new Promise((resolve) => {
-          const audio = createAudio(soundId);
+          const audio = createAudio(soundId, { forPreload: true });
           if (!audio) {
             resolve(false);
             return;

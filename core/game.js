@@ -1350,6 +1350,9 @@
       const sfxUnavailableByEvent = {};
       const sfxLastPlayAtByEvent = {};
       let sfxAssetsPrimed = false;
+      let uiButtonSfxBound = false;
+      let lastUiButtonSfxAtMs = -9999;
+      const UI_BUTTON_SFX_MIN_INTERVAL_MS = 26;
       const SFX_EVENT_CONFIG = {
         hit: { file: "sfx_hit.ogg", fallbackTone: "success", fallbackLabel: "tile hit", volume: 0.42, cooldownMs: 34 },
         place: { file: "sfx_place.ogg", fallbackTone: "success", fallbackLabel: "placed block", volume: 0.4, cooldownMs: 42 },
@@ -1413,7 +1416,9 @@
           try {
             const template = new Audio(SFX_BASE_PATH + cfg.file);
             template.preload = "auto";
-            template.volume = Math.max(0, Math.min(1, Number(cfg.volume) || 0.4));
+            // Keep preload completely silent.
+            template.muted = true;
+            template.volume = 0;
             template.addEventListener("error", () => {
               sfxUnavailableByEvent[eventKey] = true;
             });
@@ -12649,6 +12654,24 @@
         switchWorld(id, true);
       }
 
+      function bindGlobalUiButtonSfx() {
+        if (uiButtonSfxBound) return;
+        uiButtonSfxBound = true;
+        eventsModule.on(document, "click", (event) => {
+          const target = event && event.target;
+          if (!(target instanceof Element)) return;
+          const clickable = target.closest("button,[role='button'],.world-chip,.machine-cat-btn,.vault-quick-btn");
+          if (!(clickable instanceof HTMLElement)) return;
+          if (clickable.hasAttribute("disabled")) return;
+          if (String(clickable.getAttribute("aria-disabled") || "").toLowerCase() === "true") return;
+          if (String(clickable.dataset.noUiSfx || "") === "1") return;
+          const now = performance.now();
+          if ((now - lastUiButtonSfxAtMs) < UI_BUTTON_SFX_MIN_INTERVAL_MS) return;
+          lastUiButtonSfxAtMs = now;
+          playSfxEvent("ui", 0.32, "input", "ui button");
+        }, { capture: true });
+      }
+
       function bindWorldControls() {
         bindChatPanelDrag();
         bindInventoryPanelDrag();
@@ -14989,6 +15012,7 @@
         }
         refreshToolbar();
         //postDailyQuestStatus();
+        bindGlobalUiButtonSfx();
         bindMobileControls();
         setInWorldState(false);
         updateOnlineCount();
