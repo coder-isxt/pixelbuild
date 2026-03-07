@@ -253,6 +253,10 @@ body {
   gap: 14px;
 }
 
+.slot-card-mount {
+  display: contents;
+}
+
 .game-card {
   border: 1px solid var(--border);
   border-radius: 14px;

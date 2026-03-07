@@ -3,6 +3,8 @@
 
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
   const SLOT_TRANSFER_KEY = "gt_casino_slot_transfer_v1";
+  const SLOT_CATALOG_URL = "./slots-config.json";
+  const DEFAULT_SLOT_KEY = "mergeup_ducks";
   const BASE_PATH = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
 
   const dbModule = (window.GTModules && window.GTModules.db) || {};
@@ -24,7 +26,7 @@
     CREDIT: "CREDIT"
   };
 
-  const gameConfig = {
+  const DEFAULT_GAME_CONFIG = {
     rows: 6,
     cols: 6,
     minCluster: 5,
@@ -35,7 +37,7 @@
     buyBonusCostMultiplier: 80,
     maxCascadesPerSpin: 80,
     freeSpinsTrigger: { 4: 15, 5: 18, 6: 20 },
-    freeSpinsRetrigger: { 3: 5, 4: 8, 5: 10 },
+    freeSpinsRetrigger: { 4: 5, 5: 8, 6: 10 },
     markerStartMultiplier: 2,
     maxCellMultiplier: 32,
     clusterMultiplierCombine: "sum",
@@ -62,23 +64,49 @@
     ]
   };
 
-  const symbolConfig = [
-    { id: "lv1", name: "Duck Lv1", level: 1, weight: 24, scatter: false, wild: false, payoutBySize: { 4: 0.16, 5: 0.24, 6: 0.33, 7: 0.44, 8: 0.58, 10: 0.8 } },
-    { id: "lv2", name: "Duck Lv2", level: 2, weight: 20, scatter: false, wild: false, payoutBySize: { 4: 0.2, 5: 0.3, 6: 0.42, 7: 0.56, 8: 0.72, 10: 1.0 } },
-    { id: "lv3", name: "Duck Lv3", level: 3, weight: 17, scatter: false, wild: false, payoutBySize: { 4: 0.26, 5: 0.38, 6: 0.54, 7: 0.7, 8: 0.92, 10: 1.25 } },
-    { id: "lv4", name: "Duck Lv4", level: 4, weight: 14, scatter: false, wild: false, payoutBySize: { 4: 0.34, 5: 0.5, 6: 0.7, 7: 0.92, 8: 1.2, 10: 1.66 } },
-    { id: "lv5", name: "Duck Lv5", level: 5, weight: 11, scatter: false, wild: false, payoutBySize: { 4: 0.46, 5: 0.66, 6: 0.92, 7: 1.2, 8: 1.56, 10: 2.2 } },
-    { id: "lv6", name: "Duck Lv6", level: 6, weight: 8, scatter: false, wild: false, payoutBySize: { 4: 0.62, 5: 0.88, 6: 1.22, 7: 1.58, 8: 2.1, 10: 3.0 } },
-    { id: "lv7", name: "Duck Lv7", level: 7, weight: 5, scatter: false, wild: false, payoutBySize: { 4: 0.88, 5: 1.2, 6: 1.7, 7: 2.2, 8: 3.0, 10: 4.6 } },
-    { id: "lv8", name: "Duck Lv8", level: 8, weight: 3, scatter: false, wild: false, payoutBySize: { 4: 1.3, 5: 1.9, 6: 2.6, 7: 3.4, 8: 4.8, 10: 7.2 } },
-    { id: "lv9", name: "Duck Lv9", level: 9, weight: 2, scatter: false, wild: false, payoutBySize: { 4: 2.0, 5: 2.8, 6: 3.9, 7: 5.2, 8: 7.4, 10: 11.0 } },
-    { id: "scatter", name: "Scatter", level: 0, weight: 2, scatter: true, wild: false, payoutBySize: {} }
+  const DEFAULT_SYMBOL_CONFIG = [
+    { id: "lv1", name: "Duck Lv1", uiLabel: "Duck", level: 1, weight: 24, scatter: false, wild: false, iconGlyph: "d1", iconColor: "#7da9ff", payoutBySize: { 4: 0.16, 5: 0.24, 6: 0.33, 7: 0.44, 8: 0.58, 10: 0.8 } },
+    { id: "lv2", name: "Duck Lv2", uiLabel: "Duck", level: 2, weight: 20, scatter: false, wild: false, iconGlyph: "d2", iconColor: "#76c5ff", payoutBySize: { 4: 0.2, 5: 0.3, 6: 0.42, 7: 0.56, 8: 0.72, 10: 1.0 } },
+    { id: "lv3", name: "Duck Lv3", uiLabel: "Duck", level: 3, weight: 17, scatter: false, wild: false, iconGlyph: "d3", iconColor: "#67dfd8", payoutBySize: { 4: 0.26, 5: 0.38, 6: 0.54, 7: 0.7, 8: 0.92, 10: 1.25 } },
+    { id: "lv4", name: "Duck Lv4", uiLabel: "Duck", level: 4, weight: 14, scatter: false, wild: false, iconGlyph: "d4", iconColor: "#75e5a3", payoutBySize: { 4: 0.34, 5: 0.5, 6: 0.7, 7: 0.92, 8: 1.2, 10: 1.66 } },
+    { id: "lv5", name: "Duck Lv5", uiLabel: "Duck", level: 5, weight: 11, scatter: false, wild: false, iconGlyph: "d5", iconColor: "#9fe36b", payoutBySize: { 4: 0.46, 5: 0.66, 6: 0.92, 7: 1.2, 8: 1.56, 10: 2.2 } },
+    { id: "lv6", name: "Duck Lv6", uiLabel: "Duck", level: 6, weight: 8, scatter: false, wild: false, iconGlyph: "d6", iconColor: "#e3d569", payoutBySize: { 4: 0.62, 5: 0.88, 6: 1.22, 7: 1.58, 8: 2.1, 10: 3.0 } },
+    { id: "lv7", name: "Duck Lv7", uiLabel: "Duck", level: 7, weight: 5, scatter: false, wild: false, iconGlyph: "d7", iconColor: "#f3b56d", payoutBySize: { 4: 0.88, 5: 1.2, 6: 1.7, 7: 2.2, 8: 3.0, 10: 4.6 } },
+    { id: "lv8", name: "Duck Lv8", uiLabel: "Duck", level: 8, weight: 3, scatter: false, wild: false, iconGlyph: "d8", iconColor: "#f59583", payoutBySize: { 4: 1.3, 5: 1.9, 6: 2.6, 7: 3.4, 8: 4.8, 10: 7.2 } },
+    { id: "lv9", name: "Duck Lv9", uiLabel: "Duck", level: 9, weight: 2, scatter: false, wild: false, iconGlyph: "d9", iconColor: "#f070ab", payoutBySize: { 4: 2.0, 5: 2.8, 6: 3.9, 7: 5.2, 8: 7.4, 10: 11.0 } },
+    { id: "scatter", name: "Scatter", uiLabel: "Scatter", level: 0, weight: 2, scatter: true, wild: false, iconGlyph: "S", payoutBySize: {} }
   ];
 
-  const symbolMap = {};
-  for (let i = 0; i < symbolConfig.length; i++) symbolMap[symbolConfig[i].id] = symbolConfig[i];
+  let gameConfig = JSON.parse(JSON.stringify(DEFAULT_GAME_CONFIG));
+  let symbolConfig = JSON.parse(JSON.stringify(DEFAULT_SYMBOL_CONFIG));
+  let currentSlotKey = DEFAULT_SLOT_KEY;
+  let currentSlotMeta = {
+    name: "MergeUp Tumble",
+    subtitle: "6x6 cluster slot demo with pre-resolved cascades",
+    tag: "Slots"
+  };
+  let symbolMap = {};
+  let visualSpinSymbols = [];
+  const iconMarkupCache = {};
+
+  function rebuildSymbolMap() {
+    symbolMap = {};
+    visualSpinSymbols = [];
+    for (let i = 0; i < symbolConfig.length; i++) {
+      const row = symbolConfig[i];
+      if (!row || !row.id) continue;
+      symbolMap[row.id] = row;
+      if (!row.scatter) visualSpinSymbols.push(row.id);
+    }
+    const keys = Object.keys(iconMarkupCache);
+    for (let i = 0; i < keys.length; i++) delete iconMarkupCache[keys[i]];
+  }
+
+  rebuildSymbolMap();
 
   const el = {
+    slotTitle: document.getElementById("slotTitle"),
+    slotSubtitle: document.getElementById("slotSubtitle"),
     phaseValue: document.getElementById("phaseValue"),
     fsValue: document.getElementById("fsValue"),
     soundBtn: document.getElementById("soundBtn"),
@@ -129,6 +157,206 @@
 
   function formatWL(value) {
     return toInt(value, 0).toLocaleString("en-US") + " WL";
+  }
+
+  function deepClone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function sanitizeSlotKey(value) {
+    return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  }
+
+  function getRequestedSlotKey() {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      return sanitizeSlotKey(params.get("slot") || "");
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function normalizeSpinAwardMap(input, fallback) {
+    const base = fallback && typeof fallback === "object" ? fallback : {};
+    const source = input && typeof input === "object" ? input : {};
+    const out = {};
+    const keys = Object.keys(base);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const fallbackValue = Math.max(0, toInt(base[key], 0));
+      const nextValue = Math.max(0, toInt(source[key], fallbackValue));
+      out[key] = nextValue;
+    }
+    return out;
+  }
+
+  function normalizePayoutBySize(input, fallback) {
+    const base = fallback && typeof fallback === "object" ? fallback : {};
+    const source = input && typeof input === "object" ? input : {};
+    const out = {};
+    const keys = Object.keys(base);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const fallbackValue = Math.max(0, Number(base[key]) || 0);
+      const nextValue = Math.max(0, Number(source[key]));
+      out[key] = Number.isFinite(nextValue) && nextValue > 0 ? nextValue : fallbackValue;
+    }
+    return out;
+  }
+
+  function normalizeHighBetBoostRows(input, fallback) {
+    const rows = Array.isArray(input) ? input : (Array.isArray(fallback) ? fallback : []);
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] && typeof rows[i] === "object" ? rows[i] : null;
+      if (!row) continue;
+      out.push({
+        minBet: Math.max(0, toInt(row.minBet, 0)),
+        multiplier: Math.max(1, Number(row.multiplier) || 1)
+      });
+    }
+    out.sort((a, b) => a.minBet - b.minBet);
+    return out.length ? out : deepClone(DEFAULT_GAME_CONFIG.highBetPayoutBoostTiers);
+  }
+
+  function normalizeSymbolList(inputSymbols) {
+    const fallbackRows = deepClone(DEFAULT_SYMBOL_CONFIG);
+    const fallbackById = {};
+    for (let i = 0; i < fallbackRows.length; i++) fallbackById[fallbackRows[i].id] = fallbackRows[i];
+    if (!Array.isArray(inputSymbols) || !inputSymbols.length) return fallbackRows;
+
+    const out = [];
+    const seen = {};
+    for (let i = 0; i < inputSymbols.length; i++) {
+      const raw = inputSymbols[i] && typeof inputSymbols[i] === "object" ? inputSymbols[i] : null;
+      if (!raw) continue;
+      const id = sanitizeSlotKey(raw.id);
+      if (!id || seen[id]) continue;
+      seen[id] = true;
+      const fallback = fallbackById[id] || {};
+      const scatter = Boolean(raw.scatter || fallback.scatter);
+      const level = scatter ? 0 : Math.max(1, toInt(raw.level, toInt(fallback.level, 1)));
+      const row = {
+        id,
+        name: String(raw.name || fallback.name || id).trim() || id,
+        uiLabel: String(raw.uiLabel || fallback.uiLabel || raw.name || fallback.name || id).trim().slice(0, 16),
+        level,
+        weight: Math.max(1, toInt(raw.weight, toInt(fallback.weight, 1))),
+        scatter,
+        wild: Boolean(raw.wild || fallback.wild),
+        iconGlyph: String(raw.iconGlyph || fallback.iconGlyph || "").trim().slice(0, 3),
+        iconColor: String(raw.iconColor || fallback.iconColor || "").trim(),
+        iconRingColor: String(raw.iconRingColor || fallback.iconRingColor || "").trim(),
+        payoutBySize: scatter ? {} : normalizePayoutBySize(raw.payoutBySize, fallback.payoutBySize)
+      };
+      out.push(row);
+    }
+
+    let hasScatter = false;
+    let nonScatterCount = 0;
+    for (let i = 0; i < out.length; i++) {
+      if (out[i].scatter) hasScatter = true;
+      else nonScatterCount += 1;
+    }
+
+    if (!hasScatter) out.push(deepClone(fallbackById.scatter || DEFAULT_SYMBOL_CONFIG[DEFAULT_SYMBOL_CONFIG.length - 1]));
+    if (!nonScatterCount) return fallbackRows;
+
+    out.sort((a, b) => {
+      if (a.scatter !== b.scatter) return a.scatter ? 1 : -1;
+      if (a.level !== b.level) return a.level - b.level;
+      return a.id < b.id ? -1 : 1;
+    });
+    return out;
+  }
+
+  function applySlotHeader() {
+    const title = String(currentSlotMeta.name || "MergeUp Tumble").trim() || "MergeUp Tumble";
+    const subtitle = String(currentSlotMeta.subtitle || "").trim() || "Config based tumble slot";
+    if (el.slotTitle instanceof HTMLElement) el.slotTitle.textContent = title.toUpperCase();
+    if (el.slotSubtitle instanceof HTMLElement) el.slotSubtitle.textContent = subtitle;
+    document.title = "PIXELBUILD " + title;
+  }
+
+  function applySlotDefinition(slotDef) {
+    const row = slotDef && typeof slotDef === "object" ? slotDef : {};
+    currentSlotKey = sanitizeSlotKey(row.key || DEFAULT_SLOT_KEY) || DEFAULT_SLOT_KEY;
+    currentSlotMeta = {
+      name: String(row.name || "MergeUp Tumble").trim() || "MergeUp Tumble",
+      subtitle: String(row.subtitle || "Config based tumble slot").trim() || "Config based tumble slot",
+      tag: String(row.tag || "Slots").trim() || "Slots"
+    };
+
+    const cfgSource = row.config && typeof row.config === "object" ? row.config : {};
+    const cfg = deepClone(DEFAULT_GAME_CONFIG);
+    const keys = Object.keys(cfgSource);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (!Object.prototype.hasOwnProperty.call(cfg, key)) continue;
+      cfg[key] = cfgSource[key];
+    }
+    cfg.rows = Math.max(3, toInt(cfg.rows, DEFAULT_GAME_CONFIG.rows));
+    cfg.cols = Math.max(3, toInt(cfg.cols, DEFAULT_GAME_CONFIG.cols));
+    cfg.minCluster = Math.max(4, toInt(cfg.minCluster, DEFAULT_GAME_CONFIG.minCluster));
+    cfg.defaultBet = Math.max(1, toInt(cfg.defaultBet, DEFAULT_GAME_CONFIG.defaultBet));
+    cfg.minBet = Math.max(1, toInt(cfg.minBet, DEFAULT_GAME_CONFIG.minBet));
+    cfg.maxBet = Math.max(cfg.minBet, toInt(cfg.maxBet, DEFAULT_GAME_CONFIG.maxBet));
+    cfg.buyBonusCostMultiplier = Math.max(1, toInt(cfg.buyBonusCostMultiplier, DEFAULT_GAME_CONFIG.buyBonusCostMultiplier));
+    cfg.maxCascadesPerSpin = Math.max(8, toInt(cfg.maxCascadesPerSpin, DEFAULT_GAME_CONFIG.maxCascadesPerSpin));
+    cfg.markerStartMultiplier = Math.max(1, toInt(cfg.markerStartMultiplier, DEFAULT_GAME_CONFIG.markerStartMultiplier));
+    cfg.maxCellMultiplier = Math.max(cfg.markerStartMultiplier, toInt(cfg.maxCellMultiplier, DEFAULT_GAME_CONFIG.maxCellMultiplier));
+    cfg.maxClusterMultiplierApplied = Math.max(1, toInt(cfg.maxClusterMultiplierApplied, DEFAULT_GAME_CONFIG.maxClusterMultiplierApplied));
+    cfg.connectionBiasChance = clamp(Number(cfg.connectionBiasChance) || 0, 0, 0.5);
+    cfg.basePayoutScale = Math.max(0.05, Number(cfg.basePayoutScale) || DEFAULT_GAME_CONFIG.basePayoutScale);
+    cfg.maxWinMultiplier = Math.max(100, toInt(cfg.maxWinMultiplier, DEFAULT_GAME_CONFIG.maxWinMultiplier));
+    cfg.clusterMultiplierCombine = String(cfg.clusterMultiplierCombine || DEFAULT_GAME_CONFIG.clusterMultiplierCombine).trim().toLowerCase();
+    cfg.freeSpinsTrigger = normalizeSpinAwardMap(cfg.freeSpinsTrigger, DEFAULT_GAME_CONFIG.freeSpinsTrigger);
+    cfg.freeSpinsRetrigger = normalizeSpinAwardMap(cfg.freeSpinsRetrigger, DEFAULT_GAME_CONFIG.freeSpinsRetrigger);
+    cfg.highBetPayoutBoostTiers = normalizeHighBetBoostRows(cfg.highBetPayoutBoostTiers, DEFAULT_GAME_CONFIG.highBetPayoutBoostTiers);
+    cfg.tierByBetMultiplier = Array.isArray(cfg.tierByBetMultiplier) && cfg.tierByBetMultiplier.length
+      ? cfg.tierByBetMultiplier
+      : deepClone(DEFAULT_GAME_CONFIG.tierByBetMultiplier);
+    cfg.autoplayOptions = Array.isArray(cfg.autoplayOptions) && cfg.autoplayOptions.length
+      ? cfg.autoplayOptions.map((v) => Math.max(0, toInt(v, 0)))
+      : deepClone(DEFAULT_GAME_CONFIG.autoplayOptions);
+    cfg.rtp = String(cfg.rtp || DEFAULT_GAME_CONFIG.rtp);
+    cfg.volatility = String(cfg.volatility || DEFAULT_GAME_CONFIG.volatility);
+
+    gameConfig = cfg;
+    symbolConfig = normalizeSymbolList(row.symbols);
+    rebuildSymbolMap();
+    applySlotHeader();
+  }
+
+  async function loadSlotDefinitionFromCatalog() {
+    const requested = getRequestedSlotKey();
+    let selected = null;
+    try {
+      const response = await fetch(SLOT_CATALOG_URL, { cache: "no-store" });
+      if (response.ok) {
+        const raw = await response.json();
+        const slots = raw && Array.isArray(raw.slots) ? raw.slots : [];
+        const byKey = {};
+        for (let i = 0; i < slots.length; i++) {
+          const row = slots[i] && typeof slots[i] === "object" ? slots[i] : null;
+          if (!row) continue;
+          const key = sanitizeSlotKey(row.key);
+          if (!key) continue;
+          byKey[key] = row;
+        }
+        const fallbackKey = sanitizeSlotKey(raw && raw.defaultSlot ? raw.defaultSlot : DEFAULT_SLOT_KEY) || DEFAULT_SLOT_KEY;
+        selected = byKey[requested] || byKey[fallbackKey] || null;
+      }
+    } catch (_error) {
+      selected = null;
+    }
+
+    if (!selected) {
+      applySlotDefinition({ key: DEFAULT_SLOT_KEY, name: "MergeUp Tumble", subtitle: "6x6 cluster slot demo with pre-resolved cascades", tag: "Slots" });
+      return false;
+    }
+    applySlotDefinition(selected);
+    return true;
   }
 
   function resolveLockCurrencies() {
@@ -379,16 +607,28 @@
       this.config = config;
       this.symbols = symbols;
       this.symbolMap = {};
+      this.levelToId = {};
+      this.maxLevel = 1;
       this.weightedPool = [];
       this.weightedNoScatterPool = [];
       for (let i = 0; i < symbols.length; i++) {
         const sym = symbols[i];
         this.symbolMap[sym.id] = sym;
+        if (!sym.scatter) {
+          const level = Math.max(1, toInt(sym.level, 1));
+          if (!this.levelToId[level]) this.levelToId[level] = sym.id;
+          this.maxLevel = Math.max(this.maxLevel, level);
+        }
         for (let w = 0; w < Math.max(1, toInt(sym.weight, 1)); w++) {
           this.weightedPool.push(sym.id);
           if (!sym.scatter) this.weightedNoScatterPool.push(sym.id);
         }
       }
+    }
+
+    getSymbolIdByLevel(level) {
+      const target = clamp(toInt(level, 1), 1, this.maxLevel);
+      return this.levelToId[target] || this.levelToId[this.maxLevel] || "lv1";
     }
 
     scatterToFreeSpins(scatterCount) {
@@ -433,16 +673,20 @@
       const text = String(rawText || "").trim();
       if (!text) return null;
       const parsed = JSON.parse(text);
-      if (!Array.isArray(parsed) || parsed.length !== this.config.rows) throw new Error("Custom grid must have 6 rows.");
+      if (!Array.isArray(parsed) || parsed.length !== this.config.rows) {
+        throw new Error("Custom grid must have " + this.config.rows + " rows.");
+      }
       const out = [];
       for (let r = 0; r < this.config.rows; r++) {
         const rowRaw = parsed[r];
-        if (!Array.isArray(rowRaw) || rowRaw.length !== this.config.cols) throw new Error("Each custom row must have 6 symbols.");
+        if (!Array.isArray(rowRaw) || rowRaw.length !== this.config.cols) {
+          throw new Error("Each custom row must have " + this.config.cols + " symbols.");
+        }
         const row = [];
         for (let c = 0; c < this.config.cols; c++) {
           const tokenRaw = String(rowRaw[c]).trim().toLowerCase();
           const token = tokenRaw === "s" || tokenRaw === "sc" ? "scatter" : tokenRaw;
-          const normalized = /^\d+$/.test(token) ? ("lv" + token) : token;
+          const normalized = /^\d+$/.test(token) ? this.getSymbolIdByLevel(toInt(token, 1)) : token;
           if (!this.symbolMap[normalized]) throw new Error("Unknown symbol: " + tokenRaw);
           row.push(normalized);
         }
@@ -626,7 +870,7 @@
     getUpgradedSymbol(symbolId) {
       const sym = this.symbolMap[symbolId];
       if (!sym || sym.scatter) return symbolId;
-      return "lv" + clamp(sym.level + 1, 1, 9);
+      return this.getSymbolIdByLevel(sym.level + 1);
     }
 
     refillGrid(gridAfterMerge, rng) {
@@ -919,7 +1163,7 @@
 
   const audio = new AudioManager();
   const counter = new WinCounter();
-  const engine = new MergeUpEngine(gameConfig, symbolConfig);
+  let engine = null;
 
   const settingsKey = "mergeup_slot_ui_v1";
   const saved = loadSettings();
@@ -1308,20 +1552,20 @@
   }
 
   function symbolLabel(symbolId) {
-    if (symbolId === "scatter") return "SCATTER";
     const sym = symbolMap[symbolId];
-    if (!sym) return "?";
-    return "DUCK";
+    if (!sym) return symbolId ? String(symbolId).toUpperCase() : "?";
+    const value = String(sym.uiLabel || sym.name || symbolId).trim();
+    if (!value) return "?";
+    return value.slice(0, 14).toUpperCase();
   }
 
   function symbolLevelText(symbolId) {
-    if (symbolId === "scatter") return "BONUS";
     const sym = symbolMap[symbolId];
-    return sym ? ("L" + sym.level) : "";
+    if (!sym) return "";
+    if (sym.scatter) return String(sym.bonusLabel || "BONUS").slice(0, 8).toUpperCase();
+    if (sym.level <= 0) return "";
+    return "L" + toInt(sym.level, 1);
   }
-
-  const iconMarkupCache = {};
-  const visualSpinSymbols = symbolConfig.filter((row) => !row.scatter).map((row) => row.id);
 
   function levelColor(level) {
     const palette = [
@@ -1339,39 +1583,37 @@
     return palette[idx];
   }
 
+  function escapeSvgText(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function symbolIconMarkup(symbolId) {
     const id = String(symbolId || "");
     if (!id) return "";
     if (iconMarkupCache[id]) return iconMarkupCache[id];
 
-    let html = "";
-    if (id === "scatter") {
-      html = (
-        "<svg viewBox=\"0 0 48 48\" aria-hidden=\"true\" focusable=\"false\">" +
-          "<circle cx=\"24\" cy=\"24\" r=\"19\" fill=\"rgba(17,25,40,0.85)\" stroke=\"rgba(255,210,138,0.68)\" stroke-width=\"2\" />" +
-          "<path d=\"M24 8l4.2 8.9 9.8 1.2-7.3 6.6 1.9 9.6L24 30l-8.6 4.3 1.9-9.6-7.3-6.6 9.8-1.2z\" fill=\"#ffc978\" />" +
-          "<path d=\"M24 11.8l3.2 6.8 7.6.9-5.7 5.2 1.4 7.4L24 28.8l-6.5 3.3 1.4-7.4-5.7-5.2 7.6-.9z\" fill=\"#ff9b62\" opacity=\"0.72\" />" +
-          "<circle cx=\"24\" cy=\"24\" r=\"4\" fill=\"#fff1cb\" />" +
-        "</svg>"
-      );
-    } else {
-      const sym = symbolMap[id];
-      const level = sym ? toInt(sym.level, 1) : 1;
-      const body = levelColor(level);
-      const wing = "rgba(10,16,28,0.28)";
-      html = (
-        "<svg viewBox=\"0 0 48 48\" aria-hidden=\"true\" focusable=\"false\">" +
-          "<circle cx=\"24\" cy=\"24\" r=\"20\" fill=\"rgba(17,25,40,0.84)\" stroke=\"rgba(166,195,238,0.42)\" stroke-width=\"2\" />" +
-          "<ellipse cx=\"23\" cy=\"27\" rx=\"11\" ry=\"8.8\" fill=\"" + body + "\" />" +
-          "<circle cx=\"30\" cy=\"20\" r=\"5.6\" fill=\"" + body + "\" />" +
-          "<ellipse cx=\"19\" cy=\"27\" rx=\"4.2\" ry=\"2.8\" fill=\"" + wing + "\" />" +
-          "<polygon points=\"34,21 40,23 34,25\" fill=\"#ffc76d\" />" +
-          "<circle cx=\"31.6\" cy=\"19.3\" r=\"1.1\" fill=\"#0e1726\" />" +
-          "<rect x=\"15\" y=\"33\" width=\"18\" height=\"2.6\" rx=\"1.3\" fill=\"rgba(255,255,255,0.2)\" />" +
-          "<text x=\"24\" y=\"15\" text-anchor=\"middle\" font-size=\"8\" font-weight=\"700\" fill=\"#f0f7ff\">L" + level + "</text>" +
-        "</svg>"
-      );
-    }
+    const sym = symbolMap[id] || {};
+    const level = Math.max(0, toInt(sym.level, 0));
+    const bodyColor = String(sym.iconColor || levelColor(level || 1));
+    const ringColor = String(sym.iconRingColor || (sym.scatter ? "rgba(255,210,138,0.72)" : "rgba(166,195,238,0.42)"));
+    const glyphRaw = String(sym.iconGlyph || (sym.scatter ? "S" : (level > 0 ? ("L" + level) : ""))).trim();
+    const glyph = escapeSvgText(glyphRaw.slice(0, 3).toUpperCase());
+    const underText = sym.scatter ? "BONUS" : ("L" + Math.max(1, level));
+
+    const html =
+      "<svg viewBox=\"0 0 48 48\" aria-hidden=\"true\" focusable=\"false\">" +
+        "<circle cx=\"24\" cy=\"24\" r=\"20\" fill=\"rgba(17,25,40,0.84)\" stroke=\"" + ringColor + "\" stroke-width=\"2\" />" +
+        "<circle cx=\"24\" cy=\"24\" r=\"11.5\" fill=\"" + bodyColor + "\" />" +
+        "<circle cx=\"24\" cy=\"24\" r=\"11.5\" fill=\"url(#shine_" + id + ")\" opacity=\"0.26\" />" +
+        "<defs><radialGradient id=\"shine_" + id + "\" cx=\"35%\" cy=\"30%\" r=\"75%\"><stop offset=\"0%\" stop-color=\"#ffffff\" stop-opacity=\"0.95\"/><stop offset=\"100%\" stop-color=\"#ffffff\" stop-opacity=\"0\"/></radialGradient></defs>" +
+        "<text x=\"24\" y=\"26.8\" text-anchor=\"middle\" font-size=\"8.6\" font-weight=\"800\" fill=\"#f5faff\" letter-spacing=\"0.2\">" + glyph + "</text>" +
+        "<text x=\"24\" y=\"39.5\" text-anchor=\"middle\" font-size=\"6.2\" font-weight=\"700\" fill=\"rgba(236,245,255,0.92)\" letter-spacing=\"0.25\">" + escapeSvgText(underText) + "</text>" +
+      "</svg>";
 
     iconMarkupCache[id] = html;
     return html;
@@ -2271,10 +2513,16 @@
 
   function buildInfoContent() {
     if (!(el.infoContent instanceof HTMLElement)) return;
+    const trigger4 = toInt(gameConfig.freeSpinsTrigger && gameConfig.freeSpinsTrigger[4], 15);
+    const trigger5 = toInt(gameConfig.freeSpinsTrigger && gameConfig.freeSpinsTrigger[5], 18);
+    const trigger6 = toInt(gameConfig.freeSpinsTrigger && gameConfig.freeSpinsTrigger[6], 20);
+    const retrig4 = toInt(gameConfig.freeSpinsRetrigger && gameConfig.freeSpinsRetrigger[4], 5);
+    const retrig5 = toInt(gameConfig.freeSpinsRetrigger && gameConfig.freeSpinsRetrigger[5], 8);
+    const retrig6 = toInt(gameConfig.freeSpinsRetrigger && gameConfig.freeSpinsRetrigger[6], 10);
     let html = "";
-    html += "<section><strong>Game Type:</strong> 6x6 cluster pays, orthogonal adjacency, minimum cluster size 5.</section>";
-    html += "<section><strong>MergeUP Rule:</strong> only clusters of 5+ matching ducks win. Merge count scales by size: 5->1 upgrade, 6->2, 7->3, 8->4, etc. Targets are chosen deterministically from lowest row, then left-most.</section>";
-    html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award 15/18/20 free spins. In free spins, marked cells gain multipliers up to x" + gameConfig.maxCellMultiplier + ", cluster multipliers stack into one additive multiplier across marked cascade cells, and 4/5/6+ scatters retrigger for +5/+8/+10.</section>";
+    html += "<section><strong>Game Type:</strong> " + gameConfig.rows + "x" + gameConfig.cols + " cluster pays, orthogonal adjacency, minimum cluster size " + gameConfig.minCluster + ".</section>";
+    html += "<section><strong>MergeUP Rule:</strong> clusters of " + gameConfig.minCluster + "+ matching symbols win. Merge count scales by size: " + gameConfig.minCluster + "->1 upgrade, " + (gameConfig.minCluster + 1) + "->2, " + (gameConfig.minCluster + 2) + "->3, etc. Targets are chosen deterministically from lowest row, then left-most.</section>";
+    html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award " + trigger4 + "/" + trigger5 + "/" + trigger6 + " free spins. In free spins, marked cells gain multipliers up to x" + gameConfig.maxCellMultiplier + ", cluster multipliers stack into one additive multiplier across marked cascade cells, and 4/5/6+ scatters retrigger for +" + retrig4 + "/+" + retrig5 + "/+" + retrig6 + ".</section>";
     const boostRows = Array.isArray(gameConfig.highBetPayoutBoostTiers) ? gameConfig.highBetPayoutBoostTiers : [];
     let boostText = "none";
     if (boostRows.length) {
@@ -2453,6 +2701,11 @@
   }
 
   async function init() {
+    await loadSlotDefinitionFromCatalog();
+    engine = new MergeUpEngine(gameConfig, symbolConfig);
+    state.bet = clamp(toInt(state.bet, gameConfig.defaultBet), gameConfig.minBet, gameConfig.maxBet);
+    state.totalBetDisplay = state.bet;
+
     buildGridDom();
     buildInfoContent();
     bindEvents();
@@ -2481,7 +2734,7 @@
     }
 
     state.walletLinked = true;
-    state.bet = clamp(state.bet, gameConfig.minBet, gameConfig.maxBet);
+    state.bet = clamp(toInt(state.bet, gameConfig.defaultBet), gameConfig.minBet, gameConfig.maxBet);
     state.totalBetDisplay = state.bet;
     updateHUD();
     setControlsBusy(false);

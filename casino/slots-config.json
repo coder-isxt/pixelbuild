@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "defaultSlot": "mergeup_ducks",
+  "slots": [
+    {
+      "key": "mergeup_ducks",
+      "name": "MergeUp Tumble",
+      "tag": "Slots",
+      "subtitle": "Duck clusters merge up with bonus multipliers.",
+      "config": {
+        "defaultBet": 20,
+        "minBet": 1,
+        "maxBet": 5000,
+        "buyBonusCostMultiplier": 80,
+        "freeSpinsTrigger": { "4": 15, "5": 18, "6": 20 },
+        "freeSpinsRetrigger": { "4": 5, "5": 8, "6": 10 },
+        "markerStartMultiplier": 2,
+        "maxCellMultiplier": 32,
+        "clusterMultiplierCombine": "sum",
+        "maxClusterMultiplierApplied": 96,
+        "connectionBiasChance": 0.11,
+        "basePayoutScale": 0.72,
+        "maxWinMultiplier": 50000,
+        "rtp": "96.00%",
+        "volatility": "High"
+      },
+      "symbols": [
+        { "id": "lv1", "name": "Duckling", "uiLabel": "Duck", "level": 1, "weight": 24, "iconGlyph": "d1", "iconColor": "#7da9ff", "payoutBySize": { "4": 0.16, "5": 0.24, "6": 0.33, "7": 0.44, "8": 0.58, "10": 0.8 } },
+        { "id": "lv2", "name": "Blue Duck", "uiLabel": "Duck", "level": 2, "weight": 20, "iconGlyph": "d2", "iconColor": "#76c5ff", "payoutBySize": { "4": 0.2, "5": 0.3, "6": 0.42, "7": 0.56, "8": 0.72, "10": 1.0 } },
+        { "id": "lv3", "name": "Aqua Duck", "uiLabel": "Duck", "level": 3, "weight": 17, "iconGlyph": "d3", "iconColor": "#67dfd8", "payoutBySize": { "4": 0.26, "5": 0.38, "6": 0.54, "7": 0.7, "8": 0.92, "10": 1.25 } },
+        { "id": "lv4", "name": "Mint Duck", "uiLabel": "Duck", "level": 4, "weight": 14, "iconGlyph": "d4", "iconColor": "#75e5a3", "payoutBySize": { "4": 0.34, "5": 0.5, "6": 0.7, "7": 0.92, "8": 1.2, "10": 1.66 } },
+        { "id": "lv5", "name": "Lime Duck", "uiLabel": "Duck", "level": 5, "weight": 11, "iconGlyph": "d5", "iconColor": "#9fe36b", "payoutBySize": { "4": 0.46, "5": 0.66, "6": 0.92, "7": 1.2, "8": 1.56, "10": 2.2 } },
+        { "id": "lv6", "name": "Gold Duck", "uiLabel": "Duck", "level": 6, "weight": 8, "iconGlyph": "d6", "iconColor": "#e3d569", "payoutBySize": { "4": 0.62, "5": 0.88, "6": 1.22, "7": 1.58, "8": 2.1, "10": 3.0 } },
+        { "id": "lv7", "name": "Amber Duck", "uiLabel": "Duck", "level": 7, "weight": 5, "iconGlyph": "d7", "iconColor": "#f3b56d", "payoutBySize": { "4": 0.88, "5": 1.2, "6": 1.7, "7": 2.2, "8": 3.0, "10": 4.6 } },
+        { "id": "lv8", "name": "Coral Duck", "uiLabel": "Duck", "level": 8, "weight": 3, "iconGlyph": "d8", "iconColor": "#f59583", "payoutBySize": { "4": 1.3, "5": 1.9, "6": 2.6, "7": 3.4, "8": 4.8, "10": 7.2 } },
+        { "id": "lv9", "name": "Mythic Duck", "uiLabel": "Duck", "level": 9, "weight": 2, "iconGlyph": "d9", "iconColor": "#f070ab", "payoutBySize": { "4": 2.0, "5": 2.8, "6": 3.9, "7": 5.2, "8": 7.4, "10": 11.0 } },
+        { "id": "scatter", "name": "Scatter", "uiLabel": "Scatter", "level": 0, "weight": 2, "scatter": true, "iconGlyph": "S" }
+      ]
+    },
+    {
+      "key": "crystal-core",
+      "name": "Crystal Core",
+      "tag": "Slots",
+      "subtitle": "Neon crystal clusters with steadier bonus flow.",
+      "config": {
+        "defaultBet": 25,
+        "minBet": 1,
+        "maxBet": 7000,
+        "buyBonusCostMultiplier": 85,
+        "freeSpinsTrigger": { "4": 14, "5": 17, "6": 20 },
+        "freeSpinsRetrigger": { "4": 4, "5": 7, "6": 10 },
+        "markerStartMultiplier": 2,
+        "maxCellMultiplier": 24,
+        "clusterMultiplierCombine": "sum",
+        "maxClusterMultiplierApplied": 84,
+        "connectionBiasChance": 0.095,
+        "basePayoutScale": 0.76,
+        "maxWinMultiplier": 45000,
+        "rtp": "95.80%",
+        "volatility": "Medium-High"
+      },
+      "symbols": [
+        { "id": "lv1", "name": "Quartz", "uiLabel": "Quartz", "level": 1, "weight": 25, "iconGlyph": "Q", "iconColor": "#8fb3ff", "payoutBySize": { "4": 0.15, "5": 0.22, "6": 0.31, "7": 0.41, "8": 0.54, "10": 0.75 } },
+        { "id": "lv2", "name": "Sapphire", "uiLabel": "Sapphire", "level": 2, "weight": 20, "iconGlyph": "Sa", "iconColor": "#73c0ff", "payoutBySize": { "4": 0.19, "5": 0.28, "6": 0.39, "7": 0.52, "8": 0.67, "10": 0.95 } },
+        { "id": "lv3", "name": "Topaz", "uiLabel": "Topaz", "level": 3, "weight": 17, "iconGlyph": "T", "iconColor": "#67d8e1", "payoutBySize": { "4": 0.24, "5": 0.35, "6": 0.5, "7": 0.65, "8": 0.86, "10": 1.2 } },
+        { "id": "lv4", "name": "Emerald", "uiLabel": "Emerald", "level": 4, "weight": 14, "iconGlyph": "E", "iconColor": "#70dfac", "payoutBySize": { "4": 0.32, "5": 0.46, "6": 0.65, "7": 0.84, "8": 1.1, "10": 1.52 } },
+        { "id": "lv5", "name": "Amber", "uiLabel": "Amber", "level": 5, "weight": 11, "iconGlyph": "A", "iconColor": "#97d96f", "payoutBySize": { "4": 0.42, "5": 0.6, "6": 0.84, "7": 1.08, "8": 1.4, "10": 1.95 } },
+        { "id": "lv6", "name": "Ruby", "uiLabel": "Ruby", "level": 6, "weight": 8, "iconGlyph": "R", "iconColor": "#d5c768", "payoutBySize": { "4": 0.56, "5": 0.8, "6": 1.1, "7": 1.44, "8": 1.9, "10": 2.7 } },
+        { "id": "lv7", "name": "Diamond", "uiLabel": "Diamond", "level": 7, "weight": 5, "iconGlyph": "D", "iconColor": "#f0b96f", "payoutBySize": { "4": 0.78, "5": 1.08, "6": 1.52, "7": 1.98, "8": 2.7, "10": 4.1 } },
+        { "id": "lv8", "name": "Prism", "uiLabel": "Prism", "level": 8, "weight": 3, "iconGlyph": "P", "iconColor": "#f7948a", "payoutBySize": { "4": 1.18, "5": 1.7, "6": 2.4, "7": 3.1, "8": 4.4, "10": 6.6 } },
+        { "id": "lv9", "name": "Nova", "uiLabel": "Nova", "level": 9, "weight": 2, "iconGlyph": "N", "iconColor": "#ec71b5", "payoutBySize": { "4": 1.8, "5": 2.55, "6": 3.55, "7": 4.8, "8": 6.8, "10": 10.0 } },
+        { "id": "scatter", "name": "Portal Scatter", "uiLabel": "Scatter", "level": 0, "weight": 2, "scatter": true, "iconGlyph": "*" }
+      ]
+    },
+    {
+      "key": "relic-rush",
+      "name": "Relic Rush",
+      "tag": "Slots",
+      "subtitle": "Relic symbols, lower hit rate, heavier top-end.",
+      "config": {
+        "defaultBet": 30,
+        "minBet": 1,
+        "maxBet": 9000,
+        "buyBonusCostMultiplier": 95,
+        "freeSpinsTrigger": { "4": 13, "5": 16, "6": 20 },
+        "freeSpinsRetrigger": { "4": 4, "5": 6, "6": 9 },
+        "markerStartMultiplier": 2,
+        "maxCellMultiplier": 20,
+        "clusterMultiplierCombine": "sum",
+        "maxClusterMultiplierApplied": 72,
+        "connectionBiasChance": 0.085,
+        "basePayoutScale": 0.82,
+        "maxWinMultiplier": 50000,
+        "rtp": "95.40%",
+        "volatility": "High"
+      },
+      "symbols": [
+        { "id": "lv1", "name": "Rune", "uiLabel": "Rune", "level": 1, "weight": 26, "iconGlyph": "r1", "iconColor": "#86a9ff", "payoutBySize": { "4": 0.14, "5": 0.2, "6": 0.28, "7": 0.37, "8": 0.49, "10": 0.69 } },
+        { "id": "lv2", "name": "Coin", "uiLabel": "Coin", "level": 2, "weight": 20, "iconGlyph": "C", "iconColor": "#73beff", "payoutBySize": { "4": 0.18, "5": 0.26, "6": 0.37, "7": 0.49, "8": 0.63, "10": 0.9 } },
+        { "id": "lv3", "name": "Mask", "uiLabel": "Mask", "level": 3, "weight": 17, "iconGlyph": "M", "iconColor": "#67d5dc", "payoutBySize": { "4": 0.23, "5": 0.33, "6": 0.47, "7": 0.61, "8": 0.8, "10": 1.12 } },
+        { "id": "lv4", "name": "Torch", "uiLabel": "Torch", "level": 4, "weight": 14, "iconGlyph": "T", "iconColor": "#75e3a6", "payoutBySize": { "4": 0.3, "5": 0.43, "6": 0.6, "7": 0.78, "8": 1.03, "10": 1.45 } },
+        { "id": "lv5", "name": "Relic", "uiLabel": "Relic", "level": 5, "weight": 11, "iconGlyph": "Re", "iconColor": "#a2de71", "payoutBySize": { "4": 0.4, "5": 0.57, "6": 0.8, "7": 1.04, "8": 1.36, "10": 1.95 } },
+        { "id": "lv6", "name": "Orb", "uiLabel": "Orb", "level": 6, "weight": 8, "iconGlyph": "O", "iconColor": "#dfcb68", "payoutBySize": { "4": 0.54, "5": 0.76, "6": 1.06, "7": 1.38, "8": 1.82, "10": 2.65 } },
+        { "id": "lv7", "name": "Crown", "uiLabel": "Crown", "level": 7, "weight": 5, "iconGlyph": "Cr", "iconColor": "#efb26e", "payoutBySize": { "4": 0.78, "5": 1.08, "6": 1.52, "7": 1.98, "8": 2.74, "10": 4.2 } },
+        { "id": "lv8", "name": "Phoenix", "uiLabel": "Phoenix", "level": 8, "weight": 3, "iconGlyph": "Ph", "iconColor": "#f78f88", "payoutBySize": { "4": 1.2, "5": 1.75, "6": 2.45, "7": 3.2, "8": 4.6, "10": 7.0 } },
+        { "id": "lv9", "name": "Ancient", "uiLabel": "Ancient", "level": 9, "weight": 2, "iconGlyph": "An", "iconColor": "#ee6fb0", "payoutBySize": { "4": 1.9, "5": 2.7, "6": 3.8, "7": 5.1, "8": 7.3, "10": 10.8 } },
+        { "id": "scatter", "name": "Relic Scatter", "uiLabel": "Scatter", "level": 0, "weight": 2, "scatter": true, "iconGlyph": "!" }
+      ]
+    }
+  ]
+}

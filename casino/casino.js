@@ -7,6 +7,7 @@ window.GTModules = window.GTModules || {};
   const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
   const SESSION_NAV_TRANSFER_KEY = "gt_session_nav_transfer_v1";
   const BASE_PATH = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+  const SLOT_CATALOG_URL = "./slots-config.json";
   const HOUSE_EDGE_MINES = 0.04;
   const TOWER_DIFFICULTY = {
     easy: { traps: 1, stepMult: 1.19 },
@@ -37,6 +38,7 @@ window.GTModules = window.GTModules || {};
     walletById: {},
     view: "auth",
     activeGame: "blackjack",
+    slotCatalog: [],
     bet: 10,
     busy: false,
     lockRows: resolveLockCurrencies(),
@@ -60,6 +62,7 @@ window.GTModules = window.GTModules || {};
     authCard: document.getElementById("authCard"),
     dashboardView: document.getElementById("dashboardView"),
     dashboardCards: document.getElementById("dashboardCards"),
+    slotCardsMount: document.getElementById("slotCardsMount"),
     gameView: document.getElementById("gameView"),
     backToDashboardBtn: document.getElementById("backToDashboardBtn"),
     tabBlackjack: document.getElementById("tabBlackjack"),
@@ -427,6 +430,82 @@ window.GTModules = window.GTModules || {};
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
   }
+
+  function normalizeSlotCatalog(raw) {
+    const rows = raw && Array.isArray(raw.slots) ? raw.slots : [];
+    const out = [];
+    const used = {};
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] && typeof rows[i] === "object" ? rows[i] : null;
+      if (!row) continue;
+      const key = String(row.key || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+      if (!key || used[key]) continue;
+      used[key] = true;
+      out.push({
+        key,
+        name: String(row.name || "Slot Game").trim() || "Slot Game",
+        tag: String(row.tag || "Slots").trim() || "Slots",
+        subtitle: String(row.subtitle || "Config-based tumble slot").trim() || "Config-based tumble slot"
+      });
+    }
+    return out;
+  }
+
+  async function loadSlotCatalog() {
+    try {
+      const response = await fetch(SLOT_CATALOG_URL, { cache: "no-store" });
+      if (!response.ok) throw new Error("slot catalog fetch failed");
+      const raw = await response.json();
+      state.slotCatalog = normalizeSlotCatalog(raw);
+    } catch (_error) {
+      state.slotCatalog = [];
+    }
+  }
+
+  function renderSlotCards() {
+    if (!(els.slotCardsMount instanceof HTMLElement)) return;
+    const slots = Array.isArray(state.slotCatalog) ? state.slotCatalog : [];
+    if (!slots.length) {
+      els.slotCardsMount.innerHTML =
+        "<button type=\"button\" class=\"game-card\" data-slot-key=\"mergeup_ducks\">" +
+        "<span class=\"game-card-tag\">Slots</span>" +
+        "<strong>MergeUp Tumble</strong>" +
+        "<small>6x6 cluster slot with cascades and free spins</small>" +
+        "</button>";
+      return;
+    }
+    let html = "";
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i];
+      html += "<button type=\"button\" class=\"game-card\" data-slot-key=\"" + escapeHtml(slot.key) + "\">" +
+        "<span class=\"game-card-tag\">" + escapeHtml(slot.tag) + "</span>" +
+        "<strong>" + escapeHtml(slot.name) + "</strong>" +
+        "<small>" + escapeHtml(slot.subtitle) + "</small>" +
+        "</button>";
+    }
+    els.slotCardsMount.innerHTML = html;
+  }
+
+  function storeSlotSessionTransfer() {
+    try {
+      if (!state.user || !state.user.accountId) return;
+      sessionStorage.setItem("gt_casino_slot_transfer_v1", JSON.stringify({
+        accountId: String(state.user.accountId || "").trim(),
+        username: String(state.user.username || "").trim().toLowerCase(),
+        role: String(state.user.role || "none").trim().toLowerCase(),
+        issuedAt: Date.now()
+      }));
+    } catch (_error) {
+      // ignore session transfer storage errors
+    }
+  }
+
+  function openSlotGame(slotKey) {
+    const key = String(slotKey || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    storeSlotSessionTransfer();
+    window.location.href = "./mergeup-slot.html?slot=" + encodeURIComponent(key || "mergeup_ducks");
+  }
+
   function setGame(gameId) {
     state.activeGame = (gameId === "tower" || gameId === "mines" || gameId === "plinko") ? gameId : "blackjack";
     if (els.tabBlackjack instanceof HTMLElement) els.tabBlackjack.classList.toggle("active", state.activeGame === "blackjack");
@@ -436,6 +515,10 @@ window.GTModules = window.GTModules || {};
       const cards = els.dashboardCards.querySelectorAll("[data-game-card]");
       for (let i = 0; i < cards.length; i++) {
         const node = cards[i];
+        if (String(node.getAttribute("data-slot-key") || "").trim()) {
+          node.classList.remove("active");
+          continue;
+        }
         const id = String(node.getAttribute("data-game-card") || "").trim().toLowerCase();
         node.classList.toggle("active", id === state.activeGame);
       }
@@ -1561,25 +1644,14 @@ window.GTModules = window.GTModules || {};
       els.dashboardCards.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const card = target.closest("[data-game-card]");
+        const card = target.closest(".game-card");
         if (!(card instanceof HTMLElement)) return;
-        const gameId = String(card.getAttribute("data-game-card") || "").trim().toLowerCase();
-        if (gameId === "mergeup-slot") {
-          try {
-            if (state.user && state.user.accountId) {
-              sessionStorage.setItem("gt_casino_slot_transfer_v1", JSON.stringify({
-                accountId: String(state.user.accountId || "").trim(),
-                username: String(state.user.username || "").trim().toLowerCase(),
-                role: String(state.user.role || "none").trim().toLowerCase(),
-                issuedAt: Date.now()
-              }));
-            }
-          } catch (_error) {
-            // ignore session transfer storage errors
-          }
-          window.location.href = "./mergeup-slot.html";
+        const slotKey = String(card.getAttribute("data-slot-key") || "").trim().toLowerCase();
+        if (slotKey) {
+          openSlotGame(slotKey);
           return;
         }
+        const gameId = String(card.getAttribute("data-game-card") || "").trim().toLowerCase();
         setGame(gameId);
         setView("game");
       });
@@ -1670,6 +1742,8 @@ window.GTModules = window.GTModules || {};
 
   async function init() {
     bindEvents();
+    await loadSlotCatalog();
+    renderSlotCards();
     renderHistory();
     setGame("blackjack");
     setView("auth");
