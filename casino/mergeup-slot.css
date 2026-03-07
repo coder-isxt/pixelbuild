@@ -331,6 +331,41 @@ body {
   color: #ffe8be;
 }
 
+.win-counter-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -56%);
+  z-index: 5;
+  min-width: min(540px, 84%);
+  text-align: center;
+  pointer-events: none;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(126, 212, 255, 0.42);
+  background: linear-gradient(180deg, rgba(6, 13, 23, 0.7), rgba(4, 10, 19, 0.74));
+  box-shadow: 0 26px 54px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+}
+
+.win-counter-label {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(186, 223, 255, 0.92);
+  margin-bottom: 4px;
+}
+
+.win-counter-value {
+  font-size: clamp(36px, 4.4vw, 72px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.02;
+  color: #eaf6ff;
+  text-shadow: 0 0 24px rgba(123, 216, 255, 0.42);
+}
+
 .message {
   margin-top: 9px;
   border: 1px solid var(--line);
