@@ -2137,7 +2137,7 @@
 
     if (els.openSlotsSiteBtn instanceof HTMLButtonElement) {
       els.openSlotsSiteBtn.addEventListener("click", () => {
-        window.location.href = "gambling_slots.html";
+        window.location.href = "casino.html";
       });
     }
 

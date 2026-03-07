@@ -1,0 +1,215 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>PIXELBUILD Casino</title>
+  <link rel="icon" href="assets/logo.ico" type="image/x-icon">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap">
+  <style>
+    :root {
+      --bg: #0a0f16;
+      --panel: #121a24;
+      --panel-2: #172232;
+      --line: rgba(123, 160, 212, 0.26);
+      --line-strong: rgba(123, 160, 212, 0.42);
+      --text: #eef4ff;
+      --muted: #9fb0c6;
+      --good: #5de7ad;
+      --danger: #ff7d93;
+      --accent: #6fe2ff;
+      --chip: #1c2737;
+      --chip-active: #24344a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: radial-gradient(circle at 12% 12%, rgba(111, 226, 255, 0.12), transparent 42%),
+                  radial-gradient(circle at 86% 8%, rgba(93, 231, 173, 0.09), transparent 40%),
+                  linear-gradient(180deg, #0a0f16, #0d1420 42%, #0b1018);
+    }
+    .page { width: min(1360px, 96vw); margin: 18px auto; display: grid; gap: 12px; }
+    .top {
+      display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
+      box-shadow: 0 18px 44px rgba(0,0,0,0.26);
+    }
+    .brand { display: grid; gap: 4px; }
+    .brand h1 {
+      margin: 0; font-family: "Press Start 2P", monospace; font-size: 14px; letter-spacing: .4px; color: var(--accent);
+    }
+    .brand p { margin: 0; color: var(--muted); font-size: 12px; }
+    .top-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .chip {
+      border: 1px solid var(--line); background: var(--chip); color: var(--text);
+      border-radius: 999px; padding: 8px 11px; font-size: 12px; font-weight: 600;
+    }
+    .btn, .input, .select {
+      border-radius: 10px; border: 1px solid var(--line-strong);
+      background: #182334; color: var(--text); font: inherit;
+      padding: 10px 12px;
+    }
+    .btn { cursor: pointer; font-weight: 700; transition: transform .1s ease, filter .15s ease, background .2s ease; }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn.primary { background: linear-gradient(180deg, #2a4769, #213a57); border-color: rgba(111,226,255,.48); }
+    .btn.good { background: linear-gradient(180deg, #1f4a39, #17392c); border-color: rgba(93,231,173,.46); }
+    .btn.danger { background: linear-gradient(180deg, #5a2937, #45202b); border-color: rgba(255,125,147,.48); }
+    .grid { display: grid; grid-template-columns: 320px 1fr; gap: 12px; min-height: calc(100vh - 120px); }
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--line); border-radius: 14px; padding: 12px;
+    }
+    .card h2 {
+      margin: 0 0 10px 0; font-family: "Press Start 2P", monospace; letter-spacing: .3px; font-size: 11px;
+    }
+    .auth-fields { display: grid; gap: 8px; }
+    .input, .select { width: 100%; font-size: 14px; }
+    .status {
+      margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(12,20,31,.72);
+      color: var(--muted); padding: 9px 10px; font-size: 12px; min-height: 38px; line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .status.ok { color: var(--good); border-color: rgba(93,231,173,.38); }
+    .status.error { color: var(--danger); border-color: rgba(255,125,147,.4); }
+    .game-tabs { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-bottom: 10px; }
+    .game-tab { background: #152131; border: 1px solid var(--line); border-radius: 10px; padding: 10px; text-align: center; font-weight: 700; cursor: pointer; }
+    .game-tab.active { background: var(--chip-active); border-color: rgba(111,226,255,.52); color: var(--accent); }
+    .board {
+      min-height: 420px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: rgba(10,16,25,.78);
+      display: grid; align-content: start; gap: 8px;
+    }
+    .controls { display: grid; gap: 8px; margin-top: 10px; }
+    .control-row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+    .control-row.tight { grid-template-columns: 1fr 1fr; }
+    .history { max-height: 180px; overflow: auto; display: grid; gap: 8px; }
+    .history-item {
+      border: 1px solid var(--line); border-radius: 9px; background: rgba(16,24,38,.86); padding: 8px 9px; font-size: 12px;
+      color: var(--muted);
+    }
+    .tower-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 6px; }
+    .tower-cell, .mines-cell {
+      height: 42px; border: 1px solid var(--line); border-radius: 9px; background: #192438;
+      display: grid; place-items: center; font-weight: 700; cursor: pointer; user-select: none;
+    }
+    .tower-cell.active, .mines-cell.hidden:hover { background: #22334b; border-color: rgba(111,226,255,.45); }
+    .tower-cell.safe, .mines-cell.safe { background: #1f4234; border-color: rgba(93,231,173,.48); color: #b9ffe0; }
+    .tower-cell.trap, .mines-cell.mine { background: #512736; border-color: rgba(255,125,147,.55); color: #ffd6df; }
+    .mines-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 6px; }
+    .cards { display: flex; flex-wrap: wrap; gap: 8px; }
+    .card-tile {
+      min-width: 44px; border: 1px solid var(--line-strong); border-radius: 8px;
+      background: #1a2639; padding: 8px 10px; text-align: center; font-weight: 700;
+    }
+    .meta-line { font-size: 13px; color: var(--muted); }
+    .meta-line strong { color: var(--text); font-weight: 700; }
+    .hidden { display: none !important; }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .control-row { grid-template-columns: 1fr 1fr; }
+      .top { grid-template-columns: 1fr; }
+      .top-actions { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="top">
+      <div class="brand">
+        <h1>PIXELBUILD CASINO</h1>
+        <p>Risk & table games only for now.</p>
+      </div>
+      <div class="top-actions">
+        <span class="chip" id="sessionChip">Session: Guest</span>
+        <span class="chip" id="walletChip">Wallet: 0 WL</span>
+        <button class="btn" id="toGameBtn" type="button">Back To Game</button>
+      </div>
+    </header>
+
+    <section class="grid">
+      <aside class="card">
+        <h2>Account</h2>
+        <div class="auth-fields">
+          <input id="authUsername" class="input" type="text" maxlength="20" placeholder="Username">
+          <input id="authPassword" class="input" type="password" maxlength="64" placeholder="Password">
+          <div class="control-row tight">
+            <button id="authCreateBtn" class="btn" type="button">Create</button>
+            <button id="authLoginBtn" class="btn primary" type="button">Login</button>
+          </div>
+        </div>
+        <div id="authStatus" class="status">Ready.</div>
+
+        <h2 style="margin-top:14px;">Game Selection</h2>
+        <div class="game-tabs">
+          <button id="tabBlackjack" class="game-tab active" type="button">Blackjack</button>
+          <button id="tabTower" class="game-tab" type="button">Tower</button>
+          <button id="tabMines" class="game-tab" type="button">Mines</button>
+        </div>
+
+        <div class="controls">
+          <div class="control-row">
+            <button id="betDownBtn" class="btn" type="button">- Bet</button>
+            <input id="betInput" class="input" type="number" min="1" step="1" value="10">
+            <button id="betUpBtn" class="btn" type="button">+ Bet</button>
+            <button id="betMaxBtn" class="btn" type="button">Max</button>
+          </div>
+          <div class="control-row tight" id="towerDifficultyWrap" style="display:none;">
+            <select id="towerDifficulty" class="select">
+              <option value="easy">Easy</option>
+              <option value="normal" selected>Normal</option>
+              <option value="hard">Hard</option>
+              <option value="extreme">Extreme</option>
+            </select>
+            <button id="towerCashoutBtn" class="btn good" type="button">Cashout</button>
+          </div>
+          <div class="control-row tight" id="minesConfigWrap" style="display:none;">
+            <select id="minesCount" class="select">
+              <option value="1">1 mine</option>
+              <option value="3">3 mines</option>
+              <option value="5" selected>5 mines</option>
+              <option value="7">7 mines</option>
+              <option value="10">10 mines</option>
+              <option value="15">15 mines</option>
+              <option value="20">20 mines</option>
+              <option value="24">24 mines</option>
+            </select>
+            <button id="minesCashoutBtn" class="btn good" type="button">Cashout</button>
+          </div>
+          <div class="control-row">
+            <button id="spinBtn" class="btn primary" type="button">Spin / Start</button>
+            <button id="bjHitBtn" class="btn" type="button" style="display:none;">Hit</button>
+            <button id="bjStandBtn" class="btn" type="button" style="display:none;">Stand</button>
+            <button id="bjDealBtn" class="btn" type="button" style="display:none;">Deal</button>
+          </div>
+        </div>
+
+        <div id="gameStatus" class="status" style="margin-top:12px;">Choose a game and press Start.</div>
+      </aside>
+
+      <main class="card">
+        <h2 id="boardTitle">Blackjack</h2>
+        <div id="board" class="board"></div>
+
+        <h2 style="margin-top:10px;">Recent Results</h2>
+        <div id="history" class="history"></div>
+      </main>
+    </section>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+
+  <script src="config/firebase-config.js"></script>
+  <script src="config/settings.js"></script>
+  <script src="items/catalog.js"></script>
+  <script src="system/db.js"></script>
+  <script src="system/auth.js"></script>
+  <script src="system/auth_storage.js"></script>
+  <script src="ui/casino.js"></script>
+</body>
+</html>

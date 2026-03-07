@@ -1950,7 +1950,7 @@
 
       function isSessionTransferTarget(value) {
         const target = normalizeSessionTransferTarget(value);
-        return target === "gambling_slots.html" || target === "gambling.html";
+        return target === "casino.html" || target === "gambling_slots.html" || target === "gambling.html";
       }
 
       function shouldPreserveSessionOnNavigation() {
