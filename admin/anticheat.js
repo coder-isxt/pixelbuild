@@ -51,6 +51,14 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     let movementGraceUntilMs = 0;
     let lastCountedActionAtMs = 0;
     let lastStorageCheckAtMs = 0;
+    let speedViolationStreak = 0;
+    let teleportViolationStreak = 0;
+    let reachViolationStreak = 0;
+    let lastSpeedViolationAtMs = 0;
+    let lastTeleportViolationAtMs = 0;
+    let lastReachViolationAtMs = 0;
+    let lastActionKey = "";
+    let lastActionKeyAtMs = 0;
 
     const SETTINGS = window.GT_SETTINGS || {};
     const MAX_SPEED_PX_S = Math.max(160, Number(SETTINGS.AC_MAX_SPEED_PX_S) || 4600);
@@ -61,6 +69,15 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     const ACTION_RATE_DEBOUNCE_MS = Math.max(20, Number(SETTINGS.AC_ACTION_DEBOUNCE_MS) || 60);
     const MOVEMENT_GRACE_MS = Math.max(1200, Number(SETTINGS.AC_MOVEMENT_GRACE_MS) || 2600);
     const STORAGE_CHECK_EVERY_MS = Math.max(1000, Number(SETTINGS.AC_STORAGE_CHECK_EVERY_MS) || 2500);
+    const STREAK_RESET_MS = Math.max(350, Number(SETTINGS.AC_STREAK_RESET_MS) || 900);
+    const SPEED_SOFT_RATIO = Math.max(1.02, Number(SETTINGS.AC_SPEED_SOFT_RATIO) || 1.16);
+    const SPEED_HARD_RATIO = Math.max(SPEED_SOFT_RATIO + 0.06, Number(SETTINGS.AC_SPEED_HARD_RATIO) || 1.42);
+    const SPEED_STREAK_MIN = Math.max(1, Number(SETTINGS.AC_SPEED_STREAK_MIN) || 2);
+    const TELEPORT_HARD_RATIO = Math.max(1.1, Number(SETTINGS.AC_TELEPORT_HARD_RATIO) || 1.26);
+    const REACH_BASE_BUFFER_TILES = Math.max(1.5, Number(SETTINGS.AC_REACH_BUFFER_TILES) || 3.5);
+    const REACH_HARD_EXCESS_TILES = Math.max(2, Number(SETTINGS.AC_REACH_HARD_EXCESS_TILES) || 4.4);
+    const REACH_STREAK_MIN = Math.max(1, Number(SETTINGS.AC_REACH_STREAK_MIN) || 2);
+    const ACTION_REPEAT_IGNORE_MS = Math.max(80, Number(SETTINGS.AC_ACTION_REPEAT_IGNORE_MS) || 140);
     let lastWebhookFailNoticeAt = 0;
 
     function get(k, fallback) {
@@ -98,16 +115,21 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
         return "Invalid values in physics state (x/y/vx/vy).";
       }
       if (rule === "teleport_like_move") {
-        return "Moved " + formatNum(data.dist) + "px in " + formatNum(data.dtMs) + "ms (teleport threshold exceeded).";
+        const ratio = Number.isFinite(Number(data.teleportRatio)) ? (" ratio " + formatNum(data.teleportRatio, 2)) : "";
+        return "Moved " + formatNum(data.dist) + "px in " + formatNum(data.dtMs) + "ms (teleport threshold exceeded" + ratio + ").";
       }
       if (rule === "speed_anomaly") {
-        return "Speed " + formatNum(data.speed) + "px/s for " + formatNum(data.dist) + "px in " + formatNum(data.dtMs) + "ms (too fast).";
+        const cap = Number.isFinite(Number(data.speedCapPxS)) ? (" cap " + formatNum(data.speedCapPxS) + "px/s") : "";
+        const ratio = Number.isFinite(Number(data.capRatio)) ? (" ratio " + formatNum(data.capRatio, 2)) : "";
+        const extras = (cap + ratio).trim();
+        return "Speed " + formatNum(data.speed) + "px/s for " + formatNum(data.dist) + "px in " + formatNum(data.dtMs) + "ms " + (extras ? ("(" + extras + ").") : "(too fast).");
       }
       if (rule === "action_rate") {
         return "Action rate " + formatNum(data.actionsIn2s) + " in 2s (spam threshold exceeded).";
       }
       if (rule === "reach_anomaly") {
-        return "Action at " + formatNum(data.distTiles, 2) + " tiles while allowed reach is " + formatNum(data.reachTiles, 2) + ".";
+        const allowed = Number.isFinite(Number(data.allowedTiles)) ? Number(data.allowedTiles) : Number(data.reachTiles);
+        return "Action at " + formatNum(data.distTiles, 2) + " tiles while allowed reach is " + formatNum(allowed, 2) + ".";
       }
       if (rule === "chat_rate") {
         return "Chat rate " + formatNum(data.messagesIn10s) + " in 10s (spam threshold exceeded).";
@@ -119,7 +141,7 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
     function buildRawDataShort(details) {
       if (!details || typeof details !== "object") return "";
       const parts = [];
-      const keys = Object.keys(details).slice(0, 7);
+      const keys = Object.keys(details).filter((k) => k !== "summary" && k !== "metrics").slice(0, 8);
       for (let i = 0; i < keys.length; i++) {
         const k = keys[i];
         let v = details[k];
@@ -127,6 +149,72 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
         parts.push(k + "=" + String(v));
       }
       return parts.join(" | ").slice(0, 260);
+    }
+
+    function clamp(value, min, max) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return min;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function formatRuleLabel(rule) {
+      const key = String(rule || "unknown").trim().toLowerCase();
+      if (!key) return "Unknown Rule";
+      const info = RULE_INFO[key];
+      if (info && info.title) return info.title;
+      return key.replace(/[_-]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+    }
+
+    function getConfidenceScore(rule, severity, details) {
+      const data = details && typeof details === "object" ? details : {};
+      const explicit = Number(data.confidence);
+      if (Number.isFinite(explicit) && explicit > 0) {
+        return Math.round(clamp(explicit, 1, 99));
+      }
+      let score = String(severity || "").toLowerCase() === "critical" ? 84 : 48;
+      if (rule === "speed_anomaly") {
+        const ratio = Math.max(1, Number(data.capRatio) || 1);
+        const streak = Math.max(0, Math.floor(Number(data.streak) || 0));
+        score = 35 + ((ratio - 1) * 70) + (streak * 8);
+      } else if (rule === "teleport_like_move") {
+        const ratio = Math.max(1, Number(data.teleportRatio) || 1);
+        const streak = Math.max(0, Math.floor(Number(data.streak) || 0));
+        score = 48 + ((ratio - 1) * 78) + (streak * 10);
+      } else if (rule === "reach_anomaly") {
+        const exceed = Math.max(0, Number(data.exceedTiles) || 0);
+        const streak = Math.max(0, Math.floor(Number(data.streak) || 0));
+        score = 40 + (exceed * 12) + (streak * 7);
+      } else if (rule === "action_rate") {
+        const amount = Math.max(0, Number(data.actionsIn2s) || 0);
+        score = 36 + ((amount - MAX_ACTIONS_PER_2S) * 3.6);
+      } else if (rule === "chat_rate") {
+        const amount = Math.max(0, Number(data.messagesIn10s) || 0);
+        score = 34 + ((amount - MAX_CHAT_PER_10S) * 5.2);
+      }
+      return Math.round(clamp(score, 12, 99));
+    }
+
+    function getConfidenceLabel(score) {
+      const n = Math.round(clamp(score, 1, 99));
+      if (n >= 85) return "Very High";
+      if (n >= 70) return "High";
+      if (n >= 55) return "Medium";
+      return "Low";
+    }
+
+    function buildLogPayload(rule, severity, details) {
+      const info = getRuleInfo(rule);
+      const detailText = buildReadableDetail(rule, details);
+      const rawShort = buildRawDataShort(details);
+      const confidence = getConfidenceScore(rule, severity, details);
+      const summary = (info.title + ": " + detailText).slice(0, 220);
+      const mergedDetails = (summary + (rawShort ? (" | " + rawShort) : "")).slice(0, 760);
+      return {
+        summary,
+        metrics: rawShort,
+        confidence,
+        details: mergedDetails
+      };
     }
 
     function getDynamicMotionCaps() {
@@ -179,11 +267,17 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const safeSeverity = String(severity || "warn").toLowerCase();
       const severityLabel = safeSeverity === "critical" ? "CRITICAL" : (safeSeverity === "warn" ? "WARN" : safeSeverity.toUpperCase());
       const color = safeSeverity === "critical" ? 0xe74c3c : (safeSeverity === "warn" ? 0xf39c12 : 0x3498db);
+      const confidence = getConfidenceScore(rule, safeSeverity, details);
+      const confidenceText = getConfidenceLabel(confidence) + " (" + confidence + "%)";
+      const ruleLabel = formatRuleLabel(rule);
+      const summary = "[" + severityLabel + "] " + ruleLabel + " | @" + username + (worldId ? (" | " + worldId) : "");
       let content = [
         "**Anti-Cheat Alert**",
+        summary,
         "Type: `" + info.title + "`",
         "Rule: `" + rule + "`",
         "Severity: `" + severityLabel + "`",
+        "Confidence: `" + confidenceText + "`",
         "User: @" + username,
         accountId ? ("Account: `" + accountId + "`") : "",
         sessionId ? ("Session: `" + sessionId + "`") : "",
@@ -197,17 +291,20 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
         content = content.slice(0, 1897) + "...";
       }
       const embed = {
-        title: "Anti-Cheat: " + info.title,
+        title: "Anti-Cheat: " + info.title + " (" + severityLabel + ")",
         color,
         description: [
           "**Rule**: `" + rule + "`",
+          "**Rule Name**: " + ruleLabel,
           "**Severity**: `" + severityLabel + "`",
+          "**Confidence**: `" + confidenceText + "`",
           "**Reason**: " + info.reason,
           "**Detected**: " + detailText
         ].join("\n"),
         fields: [
           { name: "User", value: "@" + username, inline: true },
           { name: "World", value: worldId || "menu", inline: true },
+          { name: "Rule", value: "`" + String(rule || "unknown").slice(0, 48) + "`", inline: true },
           { name: "Session", value: sessionId || "-", inline: false }
         ],
         timestamp
@@ -233,19 +330,20 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
 
     function report(rule, severity, details) {
       if (!shouldReport(rule)) return;
-      const info = getRuleInfo(rule);
-      const detailText = buildReadableDetail(rule, details);
-      const rawShort = buildRawDataShort(details);
-      const detailsForLog = (info.title + ": " + detailText + (rawShort ? (" | " + rawShort) : "")).slice(0, 760);
+      const safeSeverity = String(severity || "warn").toLowerCase().slice(0, 16);
+      const payload = buildLogPayload(rule, safeSeverity, details || {});
       const appendLogEntry = opts.appendLogEntry;
       if (typeof appendLogEntry === "function") {
         appendLogEntry({
           rule: String(rule || "unknown").slice(0, 48),
-          severity: String(severity || "warn").toLowerCase().slice(0, 16),
-          details: detailsForLog
+          severity: safeSeverity,
+          details: payload.details,
+          summary: payload.summary,
+          metrics: payload.metrics,
+          confidence: payload.confidence
         });
       }
-      sendWebhook(rule, severity || "warn", details || {}).then((ok) => {
+      sendWebhook(rule, safeSeverity || "warn", details || {}).then((ok) => {
         if (ok) return;
         const now = Date.now();
         if ((now - lastWebhookFailNoticeAt) > 60000) {
@@ -309,6 +407,14 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       movementGraceUntilMs = performance.now() + MOVEMENT_GRACE_MS;
       lastCountedActionAtMs = 0;
       lastStorageCheckAtMs = 0;
+      speedViolationStreak = 0;
+      teleportViolationStreak = 0;
+      reachViolationStreak = 0;
+      lastSpeedViolationAtMs = 0;
+      lastTeleportViolationAtMs = 0;
+      lastReachViolationAtMs = 0;
+      lastActionKey = "";
+      lastActionKeyAtMs = 0;
     }
 
     function onWorldSwitch(nextWorldId) {
@@ -316,6 +422,14 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       lastPos = null;
       worldIdAtLastPos = String(nextWorldId || "");
       movementGraceUntilMs = performance.now() + MOVEMENT_GRACE_MS;
+      speedViolationStreak = 0;
+      teleportViolationStreak = 0;
+      reachViolationStreak = 0;
+      lastSpeedViolationAtMs = 0;
+      lastTeleportViolationAtMs = 0;
+      lastReachViolationAtMs = 0;
+      lastActionKey = "";
+      lastActionKeyAtMs = 0;
     }
 
     function onFrame() {
@@ -323,6 +437,8 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const player = get("getPlayer", null);
       if (!inWorld || !player) {
         lastPos = null;
+        speedViolationStreak = 0;
+        teleportViolationStreak = 0;
         return;
       }
       const x = Number(player.x);
@@ -362,28 +478,61 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const horizontalSpeedCapPxS = Math.max(120, caps.maxHorizontalPxS * 1.45);
       const dynamicTeleportPx = Math.max(caps.dynamicTeleportPxBase, speedCapPxS * (dtMs / 1000) * 2.8);
       const horizontalSpeed = Math.abs(dx) / (dtMs / 1000);
+      const speedRatio = speedCapPxS > 0 ? (speed / speedCapPxS) : 0;
+      const horizontalRatio = horizontalSpeedCapPxS > 0 ? (horizontalSpeed / horizontalSpeedCapPxS) : 0;
+      const capRatio = Math.max(speedRatio, horizontalRatio);
+      const velocityPxS = Math.hypot(Number(vx) || 0, Number(vy) || 0) * caps.tickRate;
+      const velocityRatio = speedCapPxS > 0 ? (velocityPxS / speedCapPxS) : 0;
+      const teleportRatio = dynamicTeleportPx > 0 ? (dist / dynamicTeleportPx) : 0;
+      if ((now - lastSpeedViolationAtMs) > STREAK_RESET_MS) speedViolationStreak = 0;
+      if ((now - lastTeleportViolationAtMs) > STREAK_RESET_MS) teleportViolationStreak = 0;
 
       if (dist > dynamicTeleportPx) {
-        report("teleport_like_move", "warn", {
-          dist: Math.round(dist),
-          dtMs: Math.round(dtMs),
-          x: Math.round(x),
-          y: Math.round(y),
-          capPx: Math.round(dynamicTeleportPx),
-          speedCapPxS: Math.round(speedCapPxS)
-        });
-      } else if (speed > speedCapPxS || horizontalSpeed > horizontalSpeedCapPxS) {
-        report("speed_anomaly", "warn", {
-          speed: Math.round(speed),
-          horizontalSpeed: Math.round(horizontalSpeed),
-          dist: Math.round(dist),
-          dtMs: Math.round(dtMs),
-          speedCapPxS: Math.round(speedCapPxS),
-          horizontalCapPxS: Math.round(horizontalSpeedCapPxS),
-          gravityPerTick: Number(caps.gravityPerTick.toFixed(4)),
-          vx,
-          vy
-        });
+        teleportViolationStreak += 1;
+        lastTeleportViolationAtMs = now;
+        const shouldFlagTeleport = teleportRatio >= TELEPORT_HARD_RATIO || teleportViolationStreak >= SPEED_STREAK_MIN;
+        if (shouldFlagTeleport) {
+          report("teleport_like_move", teleportRatio >= (TELEPORT_HARD_RATIO + 0.35) ? "critical" : "warn", {
+            dist: Math.round(dist),
+            dtMs: Math.round(dtMs),
+            x: Math.round(x),
+            y: Math.round(y),
+            capPx: Math.round(dynamicTeleportPx),
+            speedCapPxS: Math.round(speedCapPxS),
+            teleportRatio: Number(teleportRatio.toFixed(2)),
+            capRatio: Number(capRatio.toFixed(2)),
+            streak: teleportViolationStreak,
+            confidence: Math.round(clamp(35 + ((teleportRatio - 1) * 72) + (teleportViolationStreak * 8), 1, 99))
+          });
+        }
+      } else {
+        teleportViolationStreak = Math.max(0, teleportViolationStreak - 1);
+        if (capRatio > SPEED_SOFT_RATIO) {
+          speedViolationStreak += 1;
+          lastSpeedViolationAtMs = now;
+          const tinyCorrection = dist <= (caps.tileSize * 0.72) && dtMs <= 28;
+          const likelyPredictionCatchup = capRatio <= (SPEED_SOFT_RATIO + 0.24) && velocityRatio <= 1.08;
+          const shouldFlagSpeed = capRatio >= SPEED_HARD_RATIO || speedViolationStreak >= SPEED_STREAK_MIN;
+          if (shouldFlagSpeed && !tinyCorrection && !likelyPredictionCatchup) {
+            report("speed_anomaly", "warn", {
+              speed: Math.round(speed),
+              horizontalSpeed: Math.round(horizontalSpeed),
+              dist: Math.round(dist),
+              dtMs: Math.round(dtMs),
+              speedCapPxS: Math.round(speedCapPxS),
+              horizontalCapPxS: Math.round(horizontalSpeedCapPxS),
+              capRatio: Number(capRatio.toFixed(2)),
+              velocityPxS: Math.round(velocityPxS),
+              velocityRatio: Number(velocityRatio.toFixed(2)),
+              gravityPerTick: Number(caps.gravityPerTick.toFixed(4)),
+              streak: speedViolationStreak,
+              vx,
+              vy
+            });
+          }
+        } else {
+          speedViolationStreak = Math.max(0, speedViolationStreak - 1);
+        }
       }
 
       lastPos = { x, y, t: now };
@@ -391,18 +540,31 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
 
     function onActionAttempt(payload) {
       const now = performance.now();
-      if ((now - lastCountedActionAtMs) >= ACTION_RATE_DEBOUNCE_MS) {
+      const data = payload || {};
+      const tx = Number(data.tx);
+      const ty = Number(data.ty);
+      const action = String(data.action || "use").toLowerCase().slice(0, 24);
+      const actionKey = Number.isInteger(tx) && Number.isInteger(ty)
+        ? (action + ":" + tx + ":" + ty)
+        : action;
+      const repeatedTap = actionKey === lastActionKey && (now - lastActionKeyAtMs) <= ACTION_REPEAT_IGNORE_MS;
+      if (!repeatedTap && actionKey) {
+        lastActionKey = actionKey;
+        lastActionKeyAtMs = now;
+      }
+      if (!repeatedTap && (now - lastCountedActionAtMs) >= ACTION_RATE_DEBOUNCE_MS) {
         lastCountedActionAtMs = now;
         actionTimes.push(now);
         while (actionTimes.length && (now - actionTimes[0]) > 2000) actionTimes.shift();
         if (actionTimes.length > MAX_ACTIONS_PER_2S) {
-          report("action_rate", "warn", { actionsIn2s: actionTimes.length });
+          report("action_rate", "warn", {
+            actionsIn2s: actionTimes.length,
+            action,
+            debounceMs: ACTION_RATE_DEBOUNCE_MS
+          });
         }
       }
 
-      const data = payload || {};
-      const tx = Number(data.tx);
-      const ty = Number(data.ty);
       if (!Number.isInteger(tx) || !Number.isInteger(ty)) return;
       const tileSize = Math.max(1, Number(get("getTileSize", 32)) || 32);
       const reachTiles = Math.max(1, Number(get("getEditReachTiles", 5)) || 5);
@@ -414,14 +576,32 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
       const targetX = tx * tileSize + tileSize * 0.5;
       const targetY = ty * tileSize + tileSize * 0.5;
       const distTiles = Math.hypot(targetX - centerX, targetY - centerY) / tileSize;
-      if (distTiles > (reachTiles + 3.5)) {
-        report("reach_anomaly", "warn", {
-          distTiles: Number(distTiles.toFixed(2)),
-          reachTiles: Number(reachTiles.toFixed(2)),
-          tx,
-          ty,
-          action: String(data.action || "use")
-        });
+      if ((now - lastReachViolationAtMs) > STREAK_RESET_MS) reachViolationStreak = 0;
+      const speedTilesPerSec = (Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) * (Number(get("getTickRate", 60)) || 60)) / tileSize;
+      const dynamicReachCompensation = Math.min(1.35, speedTilesPerSec * 0.024);
+      const actionBuffer = action.indexOf("wrench") !== -1
+        ? 1.15
+        : (action === "rotate" ? 0.95 : 0.72);
+      const allowedReachTiles = reachTiles + REACH_BASE_BUFFER_TILES + dynamicReachCompensation + actionBuffer;
+      const exceedTiles = distTiles - allowedReachTiles;
+      if (exceedTiles > 0) {
+        reachViolationStreak += 1;
+        lastReachViolationAtMs = now;
+        if (exceedTiles >= REACH_HARD_EXCESS_TILES || reachViolationStreak >= REACH_STREAK_MIN) {
+          report("reach_anomaly", "warn", {
+            distTiles: Number(distTiles.toFixed(2)),
+            reachTiles: Number(reachTiles.toFixed(2)),
+            allowedTiles: Number(allowedReachTiles.toFixed(2)),
+            exceedTiles: Number(exceedTiles.toFixed(2)),
+            speedTilesPerSec: Number(speedTilesPerSec.toFixed(2)),
+            tx,
+            ty,
+            action,
+            streak: reachViolationStreak
+          });
+        }
+      } else {
+        reachViolationStreak = Math.max(0, reachViolationStreak - 1);
       }
     }
 

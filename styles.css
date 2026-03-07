@@ -1308,6 +1308,14 @@ canvas {
   color: rgba(232, 242, 255, 0.92);
 }
 
+.admin-audit-meta {
+  display: inline-block;
+  margin-top: 2px;
+  opacity: 0.82;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .admin-audit-row.level-info {
   border-left-color: rgba(173, 203, 232, 0.8);
   background: rgba(173, 203, 232, 0.08);

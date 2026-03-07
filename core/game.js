@@ -1179,10 +1179,15 @@
         const safeRule = String(rule || "unknown").trim().slice(0, 48);
         if (!safeRule) return;
         const safeSeverity = String(severity || "warn").trim().toLowerCase().slice(0, 16) || "warn";
-        const detailText = typeof details === "string"
-          ? details
-          : JSON.stringify(details || {}).slice(0, 800);
-        network.db.ref(BASE_PATH + "/anti-cheat-logs").push({
+        const detailObj = details && typeof details === "object" ? details : null;
+        const detailText = detailObj
+          ? String(detailObj.details || detailObj.summary || detailObj.metrics || JSON.stringify(detailObj || {})).slice(0, 800)
+          : String(details || "").slice(0, 800);
+        const summaryText = detailObj ? String(detailObj.summary || "").slice(0, 220) : "";
+        const metricsText = detailObj ? String(detailObj.metrics || "").slice(0, 260) : "";
+        const confidenceRaw = detailObj ? Math.floor(Number(detailObj.confidence) || 0) : 0;
+        const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(99, confidenceRaw)) : 0;
+        const payload = {
           rule: safeRule,
           severity: safeSeverity,
           details: detailText,
@@ -1191,7 +1196,11 @@
           sessionId: playerSessionId || "",
           world: inWorld ? (currentWorldId || "") : "menu",
           createdAt: firebase.database.ServerValue.TIMESTAMP
-        }).catch(() => {});
+        };
+        if (summaryText) payload.summary = summaryText;
+        if (metricsText) payload.metrics = metricsText;
+        if (confidence > 0) payload.confidence = confidence;
+        network.db.ref(BASE_PATH + "/anti-cheat-logs").push(payload).catch(() => {});
       }
 
       const antiCheatController = typeof anticheatModule.createController === "function"
@@ -1217,7 +1226,7 @@
           ]),
           appendLogEntry: (entry) => {
             if (!entry || !entry.rule) return;
-            logAntiCheatEvent(entry.rule, entry.severity, entry.details);
+            logAntiCheatEvent(entry.rule, entry.severity, entry);
           }
         })
         : null;
@@ -3268,7 +3277,22 @@
         const antiCheatRows = antiCheatMessages.slice(-220).map((entry) => {
           const sev = (entry.severity || "warn").toString().toLowerCase();
           const level = sev === "critical" ? "danger" : (sev === "warn" ? "warn" : "info");
-          return `<div class="admin-audit-row level-${escapeHtml(level)}">${escapeHtml(formatChatTimestamp(entry.createdAt || 0))} | [${escapeHtml(sev.toUpperCase())}] ${escapeHtml(entry.text || "")}</div>`;
+          const rawRule = String(entry.rule || "unknown").trim();
+          const ruleLabel = String(entry.ruleLabel || rawRule.replace(/[_-]+/g, " ")).replace(/\b\w/g, (m) => m.toUpperCase());
+          const username = String(entry.username || "").trim();
+          const world = String(entry.world || "menu").trim() || "menu";
+          const summary = String(entry.summary || entry.text || "").trim();
+          const metrics = String(entry.metrics || "").trim();
+          const confidence = Math.max(0, Math.min(99, Math.floor(Number(entry.confidence) || 0)));
+          const head = [
+            "[" + sev.toUpperCase() + "]",
+            ruleLabel,
+            username ? ("@" + username) : "",
+            world ? ("world=" + world) : "",
+            confidence > 0 ? ("confidence=" + confidence + "%") : ""
+          ].filter(Boolean).join(" | ");
+          const body = [summary, metrics].filter(Boolean).join(" | ");
+          return `<div class="admin-audit-row level-${escapeHtml(level)}">${escapeHtml(formatChatTimestamp(entry.createdAt || 0))} | ${escapeHtml(head)}${body ? `<br><span class="admin-audit-meta">${escapeHtml(body)}</span>` : ""}</div>`;
         }).join("");
         const antiCheatMarkup = canViewAntiCheatLogs()
           ? `<div class="admin-audit admin-card">
@@ -13697,6 +13721,13 @@
               rows.forEach((item) => antiCheatMessages.push({
                 text: (item && item.text || "").toString().slice(0, 220),
                 severity: (item && item.severity || "warn").toString().slice(0, 16) || "warn",
+                rule: (item && item.rule || "").toString().slice(0, 48),
+                ruleLabel: (item && item.ruleLabel || "").toString().slice(0, 64),
+                username: (item && item.username || "").toString().slice(0, 24),
+                world: (item && item.world || "").toString().slice(0, 24),
+                summary: (item && item.summary || "").toString().slice(0, 220),
+                metrics: (item && item.metrics || "").toString().slice(0, 260),
+                confidence: Math.max(0, Math.min(99, Math.floor(Number(item && item.confidence) || 0))),
                 createdAt: Number(item && item.createdAt) || 0
               }));
               renderAdminPanelFromLiveUpdate();

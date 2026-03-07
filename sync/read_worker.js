@@ -156,12 +156,31 @@ function processAntiCheatLogs(payload) {
   const row = cleanObject(payload);
   const data = cleanObject(row.value);
   const flattened = [];
+  const ruleLabelByKey = {
+    non_finite_state: "Invalid Physics State",
+    teleport_like_move: "Teleport-like Movement",
+    speed_anomaly: "Speed Anomaly",
+    action_rate: "Action Spam",
+    reach_anomaly: "Reach Anomaly",
+    chat_rate: "Chat Spam",
+    storage_plaintext: "Storage Tamper (Plaintext)",
+    storage_corrupt: "Storage Tamper (Corrupt)"
+  };
+  function toRuleLabel(rule) {
+    const key = cleanString(rule, 48).trim().toLowerCase();
+    if (!key) return "Unknown Rule";
+    if (ruleLabelByKey[key]) return ruleLabelByKey[key];
+    return key.replace(/[_-]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+  }
   Object.keys(data).forEach((id) => {
     const value = cleanObject(data[id]);
     const rule = cleanString(value.rule || "unknown", 48);
+    const ruleLabel = toRuleLabel(rule);
     const sev = cleanString(value.severity || "warn", 16).toLowerCase();
     const uname = cleanString(value.username || value.accountId || "unknown", 24);
     const worldId = cleanString(value.world || "", 24);
+    const confidenceRaw = Math.floor(Number(value.confidence) || 0);
+    const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(99, confidenceRaw)) : 0;
     let detailRaw = value.details;
     if (detailRaw && typeof detailRaw === "object") {
       try {
@@ -171,10 +190,26 @@ function processAntiCheatLogs(payload) {
       }
     }
     const detail = cleanString(detailRaw == null ? "" : detailRaw, 220);
-    const text = "@" + uname + " | " + rule + (worldId ? (" | " + worldId) : "") + (detail ? (" | " + detail) : "");
+    let summary = cleanString(value.summary || "", 220);
+    let metrics = cleanString(value.metrics || "", 260);
+    if (!summary) {
+      const splitIdx = detail.indexOf(" | ");
+      summary = splitIdx >= 0 ? cleanString(detail.slice(0, splitIdx), 220) : detail;
+      if (!metrics && splitIdx >= 0) {
+        metrics = cleanString(detail.slice(splitIdx + 3), 260);
+      }
+    }
+    const text = summary || detail || ("@" + uname + " | " + ruleLabel);
     flattened.push({
       text,
+      summary,
+      metrics,
       severity: sev || "warn",
+      rule,
+      ruleLabel,
+      username: uname,
+      world: worldId,
+      confidence,
       createdAt: Number.isFinite(Number(value.createdAt)) ? Number(value.createdAt) : 0
     });
   });
