@@ -6432,3 +6432,135 @@ textarea:focus,
   background: linear-gradient(180deg, rgba(128, 201, 255, 0.28), rgba(74, 136, 255, 0.14)) !important;
   color: #edf6ff !important;
 }
+
+/* Neon Arcade Strong (v3): hard override for remaining legacy pieces */
+:root {
+  --na-cyan: #6ee8ff;
+  --na-blue: #5f95ff;
+  --na-mint: #44ffd8;
+  --na-ink-1: rgba(8, 16, 31, 0.96);
+  --na-ink-2: rgba(11, 22, 40, 0.95);
+  --na-line: rgba(118, 205, 255, 0.74);
+  --na-line-deep: rgba(17, 52, 94, 0.96);
+  --na-glow: 0 0 0 1px rgba(110, 232, 255, 0.26), 0 0 20px rgba(95, 149, 255, 0.22);
+}
+
+.auth-card,
+.menu-card,
+.menu-screen .menu-card,
+.vending-card,
+.shop-card,
+.trade-card,
+.admin-panel,
+.admin-card,
+.logs-panel,
+.chat-panel,
+.toolbar,
+.gt-panel,
+.gt-quick-popup,
+#chatDragHandle,
+#inventoryPanelHandle,
+#gameShell #menuScreen .menu-footer-online,
+.world-chip,
+.menu-card .world-chip {
+  border-color: var(--na-line) !important;
+  border-right-color: var(--na-line-deep) !important;
+  border-bottom-color: var(--na-line-deep) !important;
+  background: linear-gradient(180deg, var(--na-ink-2), var(--na-ink-1)) !important;
+  color: #ebf7ff !important;
+  box-shadow: var(--na-glow), 0 12px 26px rgba(0, 0, 0, 0.32) !important;
+}
+
+button,
+.hud button,
+.menu-screen button,
+.menu-card .world-enter button,
+.menu-card .world-buttons button,
+.world-chip,
+.gt-quick-btn,
+.gt-quick-popup button,
+.chat-input-row button,
+.vending-actions button,
+.trade-actions button,
+#tradePanelActions button,
+.admin-actions button,
+.admin-actions-row button,
+.admin-card-header button,
+#friendsActions button,
+#profileActions button {
+  border-color: rgba(118, 205, 255, 0.9) !important;
+  border-right-color: rgba(17, 52, 94, 0.98) !important;
+  border-bottom-color: rgba(17, 52, 94, 0.98) !important;
+  background: linear-gradient(180deg, rgba(133, 211, 255, 0.34), rgba(72, 135, 255, 0.2)) !important;
+  color: #eff8ff !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.48);
+}
+
+button:hover,
+.hud button:hover,
+.menu-screen button:hover,
+.menu-card .world-enter button:hover,
+.menu-card .world-buttons button:hover,
+.world-chip:hover,
+.gt-quick-btn:hover,
+.gt-quick-popup button:hover,
+.chat-input-row button:hover,
+.vending-actions button:hover,
+.trade-actions button:hover,
+#tradePanelActions button:hover,
+.admin-actions button:hover,
+.admin-actions-row button:hover,
+.admin-card-header button:hover,
+#friendsActions button:hover,
+#profileActions button:hover {
+  filter: brightness(1.08) saturate(1.08);
+  box-shadow: 0 0 0 1px rgba(110, 232, 255, 0.28), 0 0 18px rgba(95, 149, 255, 0.24), 0 9px 16px rgba(0, 0, 0, 0.3) !important;
+}
+
+button:active,
+.hud button:active,
+.menu-screen button:active,
+.menu-card .world-enter button:active,
+.menu-card .world-buttons button:active,
+.world-chip:active,
+.gt-quick-btn:active,
+.gt-quick-popup button:active,
+.chat-input-row button:active,
+.vending-actions button:active,
+.trade-actions button:active,
+#tradePanelActions button:active,
+.admin-actions button:active,
+.admin-actions-row button:active,
+.admin-card-header button:active,
+#friendsActions button:active,
+#profileActions button:active {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+
+.tag,
+.admin-status,
+.trade-chip,
+.world-tag,
+.line-badge,
+.status,
+.auth-status {
+  border-color: rgba(118, 205, 255, 0.58) !important;
+  background: linear-gradient(180deg, rgba(13, 28, 49, 0.94), rgba(9, 19, 34, 0.94)) !important;
+  color: #e7f5ff !important;
+}
+
+.tag.good,
+.admin-status.online,
+.trade-chip.ready {
+  border-color: rgba(68, 255, 216, 0.76) !important;
+  background: linear-gradient(180deg, rgba(13, 59, 62, 0.9), rgba(9, 36, 38, 0.92)) !important;
+  color: #cffff2 !important;
+}
+
+.tag.warn,
+.line-badge.hot {
+  border-color: rgba(110, 232, 255, 0.82) !important;
+  background: linear-gradient(180deg, rgba(20, 44, 73, 0.92), rgba(11, 28, 49, 0.94)) !important;
+  color: #dcf4ff !important;
+}
