@@ -6197,7 +6197,7 @@ body.admin-dashboard-open .admin-inventory-modal {
   --ui-panel-1: rgba(11, 20, 35, 0.92);
   --ui-panel-2: rgba(18, 32, 54, 0.88);
   --ui-line-soft: rgba(128, 171, 224, 0.34);
-  --ui-line-strong: rgba(255, 210, 117, 0.78);
+  --ui-line-strong: rgba(118, 198, 255, 0.82);
   --ui-accent: #67d9ff;
   --ui-accent-2: #37d6b6;
   --ui-text: #eef6ff;
@@ -6255,11 +6255,11 @@ button,
 #friendsActions button,
 #profileActions button {
   border: 1px solid var(--ui-line-strong) !important;
-  border-right-color: rgba(88, 58, 24, 0.94) !important;
-  border-bottom-color: rgba(88, 58, 24, 0.94) !important;
+  border-right-color: rgba(20, 49, 84, 0.94) !important;
+  border-bottom-color: rgba(20, 49, 84, 0.94) !important;
   border-radius: 10px !important;
-  background: linear-gradient(180deg, rgba(255, 214, 130, 0.28), rgba(255, 160, 62, 0.12)) !important;
-  color: #fff6dc !important;
+  background: linear-gradient(180deg, rgba(128, 201, 255, 0.28), rgba(74, 136, 255, 0.14)) !important;
+  color: #edf6ff !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 5px 12px rgba(0, 0, 0, 0.24) !important;
   transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
 }
@@ -6362,9 +6362,9 @@ textarea:focus,
 }
 
 .gt-quick-btn {
-  border-color: rgba(255, 210, 117, 0.76) !important;
-  background: linear-gradient(180deg, rgba(255, 214, 130, 0.24), rgba(255, 160, 62, 0.1)) !important;
-  color: #fff6dc !important;
+  border-color: rgba(118, 198, 255, 0.76) !important;
+  background: linear-gradient(180deg, rgba(128, 201, 255, 0.24), rgba(74, 136, 255, 0.1)) !important;
+  color: #edf6ff !important;
 }
 
 .tag,
@@ -6397,4 +6397,38 @@ textarea:focus,
   border: 1px solid rgba(118, 165, 222, 0.42) !important;
   background: linear-gradient(180deg, rgba(8, 16, 28, 0.88), rgba(6, 12, 21, 0.88)) !important;
   color: var(--ui-text-dim) !important;
+}
+
+/* Legacy Theme Cleanup: force old gold/brown frames + buttons to modern palette */
+:root {
+  --gt-brown-0: #040913;
+  --gt-brown-1: #091427;
+  --gt-brown-2: #13233d;
+  --gt-brown-3: #1a3153;
+  --gt-gold-1: #7bd1ff;
+  --gt-gold-2: #4b8dff;
+  --gt-cream: #edf6ff;
+}
+
+.gt-quick-popup,
+#chatDragHandle,
+#gameShell #menuScreen .menu-footer-online,
+.world-chip,
+.menu-card .world-chip {
+  border-color: rgba(118, 198, 255, 0.62) !important;
+  border-right-color: rgba(20, 49, 84, 0.92) !important;
+  border-bottom-color: rgba(20, 49, 84, 0.92) !important;
+  background: linear-gradient(180deg, rgba(14, 28, 48, 0.94), rgba(8, 17, 31, 0.94)) !important;
+  color: #e9f5ff !important;
+}
+
+.gt-quick-popup button,
+#gameShell #menuScreen .menu-footer-links button,
+#gameShell #menuScreen .menu-footer-actions button,
+.world-chip.owned {
+  border-color: rgba(118, 198, 255, 0.8) !important;
+  border-right-color: rgba(20, 49, 84, 0.94) !important;
+  border-bottom-color: rgba(20, 49, 84, 0.94) !important;
+  background: linear-gradient(180deg, rgba(128, 201, 255, 0.28), rgba(74, 136, 255, 0.14)) !important;
+  color: #edf6ff !important;
 }
