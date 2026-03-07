@@ -439,6 +439,65 @@ body {
   margin-top: 6px;
 }
 
+.plinko-shell {
+  width: min(100%, 860px);
+  margin-top: 8px;
+  border: 1px solid rgba(135, 162, 204, 0.28);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(9, 16, 28, 0.6);
+}
+
+.plinko-row {
+  --pegs: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--pegs), minmax(0, 1fr));
+  gap: 10px;
+  width: min(100%, 620px);
+  margin: 0 auto 8px;
+}
+
+.plinko-peg {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin: 0 auto;
+  background: #31435d;
+  border: 1px solid rgba(111, 226, 255, 0.28);
+}
+
+.plinko-peg.path {
+  background: #5fd2ff;
+  border-color: rgba(111, 226, 255, 0.8);
+  box-shadow: 0 0 0 3px rgba(111, 226, 255, 0.18);
+}
+
+.plinko-bins {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.plinko-bin {
+  border-radius: 8px;
+  border: 1px solid rgba(135, 162, 204, 0.28);
+  background: rgba(28, 40, 58, 0.8);
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.plinko-bin.win {
+  border-color: rgba(77, 217, 161, 0.62);
+  background: rgba(28, 74, 55, 0.9);
+  color: #d9ffef;
+  box-shadow: 0 0 0 2px rgba(77, 217, 161, 0.2) inset;
+}
+
 .cards {
   display: flex;
   flex-wrap: wrap;
@@ -596,6 +655,10 @@ body {
 
   .board {
     min-height: 48vh;
+  }
+
+  .plinko-bins {
+    grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
   }
 
   .game-head {

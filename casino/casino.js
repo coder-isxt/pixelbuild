@@ -16,9 +16,12 @@ window.GTModules = window.GTModules || {};
   };
   const GAMES = {
     blackjack: { id: "blackjack", label: "Blackjack", minBet: 1, maxBet: 50000000 },
+    plinko: { id: "plinko", label: "Plinko", minBet: 1, maxBet: 50000000 },
     tower: { id: "tower", label: "Tower", minBet: 1, maxBet: 50000000 },
     mines: { id: "mines", label: "Mines", minBet: 1, maxBet: 50000000 }
   };
+  const PLINKO_ROWS = 12;
+  const PLINKO_MULTIPLIERS = [16, 9, 4, 2, 1.4, 1.1, 0.7, 1.1, 1.4, 2, 4, 9, 16];
 
   const authModule = (window.GTModules && window.GTModules.auth) || {};
   const dbModule = (window.GTModules && window.GTModules.db) || {};
@@ -38,6 +41,7 @@ window.GTModules = window.GTModules || {};
     lockRows: resolveLockCurrencies(),
     history: [],
     bj: null,
+    plinko: null,
     tower: null,
     mines: null
   };
@@ -261,7 +265,7 @@ window.GTModules = window.GTModules || {};
       .replace(/'/g, "&#39;");
   }
   function setGame(gameId) {
-    state.activeGame = (gameId === "tower" || gameId === "mines") ? gameId : "blackjack";
+    state.activeGame = (gameId === "tower" || gameId === "mines" || gameId === "plinko") ? gameId : "blackjack";
     if (els.tabBlackjack instanceof HTMLElement) els.tabBlackjack.classList.toggle("active", state.activeGame === "blackjack");
     if (els.tabTower instanceof HTMLElement) els.tabTower.classList.toggle("active", state.activeGame === "tower");
     if (els.tabMines instanceof HTMLElement) els.tabMines.classList.toggle("active", state.activeGame === "mines");
@@ -289,7 +293,8 @@ window.GTModules = window.GTModules || {};
     if (els.boardTitle instanceof HTMLElement) els.boardTitle.textContent = label;
     if (els.spinBtn instanceof HTMLButtonElement) {
       if (state.activeGame === "tower") els.spinBtn.textContent = state.tower && state.tower.active ? "Run Active" : "Start Tower";
-      else els.spinBtn.textContent = state.mines && state.mines.active ? "Run Active" : "Start Mines";
+      else if (state.activeGame === "mines") els.spinBtn.textContent = state.mines && state.mines.active ? "Run Active" : "Start Mines";
+      else els.spinBtn.textContent = "Drop Ball";
     }
 
     setBet(state.bet);
@@ -669,6 +674,76 @@ window.GTModules = window.GTModules || {};
     renderBoard();
   }
 
+  function renderPlinkoBoard() {
+    if (!(els.board instanceof HTMLElement)) return;
+    const last = state.plinko && state.plinko.lastDrop ? state.plinko.lastDrop : null;
+    const rows = PLINKO_ROWS;
+    const bins = rows + 1;
+    const path = last && Array.isArray(last.pathCols) ? last.pathCols : [];
+    const winIndex = last ? Math.max(0, Math.min(bins - 1, Math.floor(Number(last.binIndex) || 0))) : -1;
+
+    let html = "";
+    html += "<div class=\"meta-line\"><strong>Rows:</strong> " + rows + " | <strong>Slots:</strong> " + bins + "</div>";
+    if (last) {
+      html += "<div class=\"meta-line\"><strong>Last Drop:</strong> Bet " + escapeHtml(formatLocks(last.bet)) +
+        " | x" + Number(last.multiplier || 0).toFixed(2) +
+        " | Payout " + escapeHtml(formatLocks(last.payout)) + "</div>";
+    } else {
+      html += "<div class=\"meta-line\">Drop a ball to start Plinko.</div>";
+    }
+
+    html += "<div class=\"plinko-shell\">";
+    for (let r = 0; r < rows; r++) {
+      html += "<div class=\"plinko-row\" style=\"--pegs:" + (r + 1) + "\">";
+      for (let c = 0; c <= r; c++) {
+        const isPath = path.length && path[r] === c;
+        html += "<span class=\"plinko-peg" + (isPath ? " path" : "") + "\"></span>";
+      }
+      html += "</div>";
+    }
+    html += "<div class=\"plinko-bins\">";
+    for (let i = 0; i < bins; i++) {
+      const mult = Number(PLINKO_MULTIPLIERS[i] || 1);
+      const cls = i === winIndex ? "plinko-bin win" : "plinko-bin";
+      html += "<div class=\"" + cls + "\"><span>x" + mult.toFixed(1).replace(".0", "") + "</span></div>";
+    }
+    html += "</div>";
+    html += "</div>";
+    els.board.innerHTML = html;
+  }
+
+  async function startPlinko() {
+    const bet = clampBetByGame(state.bet);
+    const spend = await applyWalletDelta(-bet);
+    if (!spend.ok) {
+      setStatus("Not enough locks for plinko bet.", "error");
+      return;
+    }
+
+    let rights = 0;
+    const pathCols = [];
+    for (let r = 0; r < PLINKO_ROWS; r++) {
+      if (Math.random() >= 0.5) rights += 1;
+      pathCols.push(rights);
+    }
+    const binIndex = Math.max(0, Math.min(PLINKO_ROWS, rights));
+    const multiplier = Number(PLINKO_MULTIPLIERS[binIndex] || 1);
+    const payout = Math.max(0, Math.floor(bet * multiplier));
+    const credit = await applyWalletDelta(payout);
+    if (!credit.ok) {
+      setStatus("Plinko payout failed to credit.", "error");
+      return;
+    }
+
+    state.plinko = {
+      lastDrop: { bet, payout, multiplier, binIndex, pathCols }
+    };
+    const msg = "Plinko hit x" + multiplier.toFixed(2) + " -> +" + formatLocks(payout);
+    setStatus(msg, payout > 0 ? "ok" : "error");
+    pushHistory(msg);
+    renderBoard();
+  }
+
   async function startTower() {
     if (state.tower && state.tower.active) {
       setStatus("Tower run already active. Pick a tile or cash out.", "ok");
@@ -943,11 +1018,13 @@ window.GTModules = window.GTModules || {};
   function renderBoard() {
     if (state.activeGame === "tower") renderTowerBoard();
     else if (state.activeGame === "mines") renderMinesBoard();
+    else if (state.activeGame === "plinko") renderPlinkoBoard();
     else renderBlackjackBoard();
 
     if (els.spinBtn instanceof HTMLButtonElement) {
       if (state.activeGame === "tower") els.spinBtn.textContent = state.tower && state.tower.active ? "Run Active" : "Start Tower";
-      else els.spinBtn.textContent = state.mines && state.mines.active ? "Run Active" : "Start Mines";
+      else if (state.activeGame === "mines") els.spinBtn.textContent = state.mines && state.mines.active ? "Run Active" : "Start Mines";
+      else els.spinBtn.textContent = "Drop Ball";
     }
   }
 
@@ -1236,6 +1313,7 @@ window.GTModules = window.GTModules || {};
           return;
         }
         if (state.activeGame === "blackjack") startBlackjack();
+        else if (state.activeGame === "plinko") startPlinko();
         else if (state.activeGame === "tower") startTower();
         else startMines();
       });
