@@ -6185,3 +6185,216 @@ body.admin-dashboard-open .admin-inventory-modal {
     flex-wrap: wrap;
   }
 }
+
+/* =========================================================
+   Global Theme Polish (v2)
+   ========================================================= */
+:root {
+  --ui-bg-0: #040913;
+  --ui-bg-1: #091427;
+  --ui-bg-2: #13233d;
+  --ui-panel-0: rgba(7, 13, 24, 0.9);
+  --ui-panel-1: rgba(11, 20, 35, 0.92);
+  --ui-panel-2: rgba(18, 32, 54, 0.88);
+  --ui-line-soft: rgba(128, 171, 224, 0.34);
+  --ui-line-strong: rgba(255, 210, 117, 0.78);
+  --ui-accent: #67d9ff;
+  --ui-accent-2: #37d6b6;
+  --ui-text: #eef6ff;
+  --ui-text-dim: rgba(208, 226, 248, 0.82);
+  --ui-shadow-lg: 0 18px 38px rgba(0, 0, 0, 0.44);
+  --ui-shadow-md: 0 10px 24px rgba(0, 0, 0, 0.34);
+}
+
+body {
+  color: var(--ui-text);
+  background:
+    radial-gradient(1000px 580px at 15% -20%, rgba(103, 217, 255, 0.16), transparent 62%),
+    radial-gradient(860px 540px at 92% -12%, rgba(84, 132, 255, 0.14), transparent 64%),
+    radial-gradient(940px 540px at 50% 110%, rgba(55, 214, 182, 0.08), transparent 70%),
+    linear-gradient(180deg, var(--ui-bg-0), var(--ui-bg-1) 48%, var(--ui-bg-2));
+}
+
+.auth-card,
+.menu-card,
+.admin-panel,
+.vending-card,
+.trade-card,
+.sign-card,
+.camera-card,
+.weather-card,
+.logs-panel,
+.announcement-popup,
+.shop-card {
+  border: 1px solid var(--ui-line-soft) !important;
+  background: linear-gradient(180deg, var(--ui-panel-1), var(--ui-panel-0)) !important;
+  box-shadow: var(--ui-shadow-lg) !important;
+}
+
+.auth-card h2,
+.menu-title,
+.admin-header strong,
+.vending-header strong,
+.trade-header strong,
+.shop-head strong,
+.logs-header strong {
+  color: #f4fbff !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.42);
+}
+
+button,
+.hud button,
+.menu-screen button,
+.vending-actions button,
+.trade-actions button,
+#tradePanelActions button,
+.admin-actions button,
+.admin-actions-row button,
+.admin-header button,
+.admin-card-header button,
+#friendsActions button,
+#profileActions button {
+  border: 1px solid var(--ui-line-strong) !important;
+  border-right-color: rgba(88, 58, 24, 0.94) !important;
+  border-bottom-color: rgba(88, 58, 24, 0.94) !important;
+  border-radius: 10px !important;
+  background: linear-gradient(180deg, rgba(255, 214, 130, 0.28), rgba(255, 160, 62, 0.12)) !important;
+  color: #fff6dc !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 5px 12px rgba(0, 0, 0, 0.24) !important;
+  transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+button:hover,
+.hud button:hover,
+.menu-screen button:hover,
+.vending-actions button:hover,
+.trade-actions button:hover,
+#tradePanelActions button:hover,
+.admin-actions button:hover,
+.admin-actions-row button:hover,
+.admin-header button:hover,
+.admin-card-header button:hover,
+#friendsActions button:hover,
+#profileActions button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 8px 16px rgba(0, 0, 0, 0.28) !important;
+}
+
+button:disabled,
+.hud button:disabled,
+.menu-screen button:disabled,
+.vending-actions button:disabled,
+.trade-actions button:disabled,
+#tradePanelActions button:disabled,
+.admin-actions button:disabled,
+.admin-actions-row button:disabled,
+.admin-header button:disabled,
+.admin-card-header button:disabled,
+#friendsActions button:disabled,
+#profileActions button:disabled {
+  opacity: 0.58;
+  filter: grayscale(0.08);
+  transform: none;
+}
+
+input,
+select,
+textarea,
+.auth-card input,
+.menu-screen input,
+.chat-input-row input,
+.admin-header input,
+.worldlock-add-row input,
+.sign-body textarea {
+  border: 1px solid rgba(122, 168, 224, 0.44) !important;
+  border-radius: 10px !important;
+  background: linear-gradient(180deg, rgba(7, 14, 25, 0.95), rgba(5, 10, 19, 0.95)) !important;
+  color: var(--ui-text) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.auth-card input:focus,
+.menu-screen input:focus,
+.chat-input-row input:focus,
+.admin-header input:focus,
+.worldlock-add-row input:focus,
+.sign-body textarea:focus {
+  border-color: rgba(103, 217, 255, 0.78) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 2px rgba(103, 217, 255, 0.2) !important;
+}
+
+.toolbar,
+.chat-panel {
+  border: 1px solid rgba(118, 165, 222, 0.44) !important;
+  background: linear-gradient(180deg, rgba(7, 14, 25, 0.95), rgba(5, 10, 19, 0.95)) !important;
+  box-shadow: var(--ui-shadow-md) !important;
+}
+
+.chat-messages,
+.logs-messages,
+.vending-body,
+.shop-body {
+  color: var(--ui-text-dim);
+}
+
+.chat-row.self {
+  color: #c9f6eb;
+}
+
+.chat-row.system {
+  color: #ffdba9;
+}
+
+.gt-panel,
+.gt-quick-popup,
+.bonus-hud,
+.worldlock-admins,
+.admin-card {
+  border: 1px solid rgba(120, 169, 228, 0.38) !important;
+  background: linear-gradient(180deg, rgba(12, 22, 39, 0.9), rgba(8, 15, 28, 0.9)) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28) !important;
+}
+
+.gt-quick-btn {
+  border-color: rgba(255, 210, 117, 0.76) !important;
+  background: linear-gradient(180deg, rgba(255, 214, 130, 0.24), rgba(255, 160, 62, 0.1)) !important;
+  color: #fff6dc !important;
+}
+
+.tag,
+.admin-status,
+.trade-chip,
+.world-tag,
+.line-badge {
+  border: 1px solid rgba(118, 165, 222, 0.48) !important;
+  background: linear-gradient(180deg, rgba(13, 24, 42, 0.92), rgba(9, 17, 31, 0.92)) !important;
+  color: #e8f4ff !important;
+}
+
+.tag.good,
+.admin-status.online,
+.trade-chip.ready {
+  border-color: rgba(55, 214, 182, 0.74) !important;
+  background: linear-gradient(180deg, rgba(14, 51, 55, 0.88), rgba(10, 34, 36, 0.9)) !important;
+  color: #c9fff2 !important;
+}
+
+.tag.warn,
+.line-badge.hot {
+  border-color: rgba(255, 210, 117, 0.84) !important;
+  background: linear-gradient(180deg, rgba(56, 40, 18, 0.9), rgba(37, 26, 12, 0.9)) !important;
+  color: #ffe8be !important;
+}
+
+.auth-status,
+.status {
+  border: 1px solid rgba(118, 165, 222, 0.42) !important;
+  background: linear-gradient(180deg, rgba(8, 16, 28, 0.88), rgba(6, 12, 21, 0.88)) !important;
+  color: var(--ui-text-dim) !important;
+}
