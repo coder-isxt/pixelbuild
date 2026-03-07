@@ -274,6 +274,7 @@
         this.ping(280, 180, "triangle", 0.07);
         this.ping(520, 260, "triangle", 0.07);
       } else if (e === "multiplier") this.ping(760, 110, "square", 0.055);
+      else if (e === "spin_tick") this.ping(200, 70, "triangle", 0.04);
       else if (e === "big_win") {
         this.ping(240, 220, "sawtooth", 0.08);
         this.ping(460, 240, "triangle", 0.075);
@@ -1104,6 +1105,84 @@
     return sym ? ("L" + sym.level) : "";
   }
 
+  const iconMarkupCache = {};
+  const visualSpinSymbols = symbolConfig.filter((row) => !row.scatter).map((row) => row.id);
+
+  function levelColor(level) {
+    const palette = [
+      "#7da9ff",
+      "#76c5ff",
+      "#67dfd8",
+      "#75e5a3",
+      "#9fe36b",
+      "#e3d569",
+      "#f3b56d",
+      "#f59583",
+      "#f070ab"
+    ];
+    const idx = clamp(toInt(level, 1) - 1, 0, palette.length - 1);
+    return palette[idx];
+  }
+
+  function symbolIconMarkup(symbolId) {
+    const id = String(symbolId || "");
+    if (!id) return "";
+    if (iconMarkupCache[id]) return iconMarkupCache[id];
+
+    let html = "";
+    if (id === "scatter") {
+      html = (
+        "<svg viewBox=\"0 0 48 48\" aria-hidden=\"true\" focusable=\"false\">" +
+          "<circle cx=\"24\" cy=\"24\" r=\"19\" fill=\"rgba(17,25,40,0.85)\" stroke=\"rgba(255,210,138,0.68)\" stroke-width=\"2\" />" +
+          "<path d=\"M24 8l4.2 8.9 9.8 1.2-7.3 6.6 1.9 9.6L24 30l-8.6 4.3 1.9-9.6-7.3-6.6 9.8-1.2z\" fill=\"#ffc978\" />" +
+          "<path d=\"M24 11.8l3.2 6.8 7.6.9-5.7 5.2 1.4 7.4L24 28.8l-6.5 3.3 1.4-7.4-5.7-5.2 7.6-.9z\" fill=\"#ff9b62\" opacity=\"0.72\" />" +
+          "<circle cx=\"24\" cy=\"24\" r=\"4\" fill=\"#fff1cb\" />" +
+        "</svg>"
+      );
+    } else {
+      const sym = symbolMap[id];
+      const level = sym ? toInt(sym.level, 1) : 1;
+      const body = levelColor(level);
+      const wing = "rgba(10,16,28,0.28)";
+      html = (
+        "<svg viewBox=\"0 0 48 48\" aria-hidden=\"true\" focusable=\"false\">" +
+          "<circle cx=\"24\" cy=\"24\" r=\"20\" fill=\"rgba(17,25,40,0.84)\" stroke=\"rgba(166,195,238,0.42)\" stroke-width=\"2\" />" +
+          "<ellipse cx=\"23\" cy=\"27\" rx=\"11\" ry=\"8.8\" fill=\"" + body + "\" />" +
+          "<circle cx=\"30\" cy=\"20\" r=\"5.6\" fill=\"" + body + "\" />" +
+          "<ellipse cx=\"19\" cy=\"27\" rx=\"4.2\" ry=\"2.8\" fill=\"" + wing + "\" />" +
+          "<polygon points=\"34,21 40,23 34,25\" fill=\"#ffc76d\" />" +
+          "<circle cx=\"31.6\" cy=\"19.3\" r=\"1.1\" fill=\"#0e1726\" />" +
+          "<rect x=\"15\" y=\"33\" width=\"18\" height=\"2.6\" rx=\"1.3\" fill=\"rgba(255,255,255,0.2)\" />" +
+          "<text x=\"24\" y=\"15\" text-anchor=\"middle\" font-size=\"8\" font-weight=\"700\" fill=\"#f0f7ff\">L" + level + "</text>" +
+        "</svg>"
+      );
+    }
+
+    iconMarkupCache[id] = html;
+    return html;
+  }
+
+  function randomVisualSymbol() {
+    if (!visualSpinSymbols.length) return "lv1";
+    if (Math.random() < 0.06) return "scatter";
+    const idx = Math.floor(Math.random() * visualSpinSymbols.length);
+    return visualSpinSymbols[idx];
+  }
+
+  function buildSpinPreviewGrid(finalGrid, revealedColumnInclusive) {
+    const grid = [];
+    const revealUntil = toInt(revealedColumnInclusive, -1);
+    for (let r = 0; r < gameConfig.rows; r++) {
+      const row = [];
+      for (let c = 0; c < gameConfig.cols; c++) {
+        if (c <= revealUntil) row.push(finalGrid[r][c]);
+        else row.push(randomVisualSymbol());
+      }
+      grid.push(row);
+    }
+    return grid;
+  }
+
   function buildGridDom() {
     if (!(el.grid instanceof HTMLElement)) return;
     el.grid.innerHTML = "";
@@ -1114,7 +1193,10 @@
         cell.className = "cell empty";
         cell.dataset.row = String(r);
         cell.dataset.col = String(c);
+        cell.dataset.symbol = "";
 
+        const icon = document.createElement("div");
+        icon.className = "icon";
         const symbol = document.createElement("div");
         symbol.className = "symbol";
         const level = document.createElement("div");
@@ -1122,11 +1204,12 @@
         const marker = document.createElement("div");
         marker.className = "marker hidden";
 
+        cell.appendChild(icon);
         cell.appendChild(symbol);
         cell.appendChild(level);
         cell.appendChild(marker);
         el.grid.appendChild(cell);
-        row.push({ root: cell, symbol, level, marker });
+        row.push({ root: cell, icon, symbol, level, marker });
       }
       cells.push(row);
     }
@@ -1136,7 +1219,7 @@
     for (let r = 0; r < cells.length; r++) {
       for (let c = 0; c < cells[r].length; c++) {
         const root = cells[r][c].root;
-        root.classList.remove("win", "dim", "merge-source", "merge-target", "drop-in", "scatter-hit");
+        root.classList.remove("win", "dim", "merge-source", "merge-target", "drop-in", "scatter-hit", "spin-cycling", "reveal-pop");
         root.style.animationDelay = "0ms";
       }
     }
@@ -1146,6 +1229,9 @@
     const opts = options || {};
     const drop = Boolean(opts.dropIn);
     const scatterPulse = Boolean(opts.scatterPulse);
+    const spinCycle = Boolean(opts.spinCycle);
+    const revealPop = Boolean(opts.revealPop);
+    const revealColumn = toInt(opts.revealColumn, -1);
     clearHighlights();
 
     for (let r = 0; r < gameConfig.rows; r++) {
@@ -1157,10 +1243,16 @@
 
         if (!symbolId) {
           root.classList.add("empty");
+          root.dataset.symbol = "";
+          view.icon.innerHTML = "";
           view.symbol.textContent = "";
           view.level.textContent = "";
         } else {
           root.classList.add("sym-" + symbolId);
+          if (root.dataset.symbol !== symbolId) {
+            root.dataset.symbol = symbolId;
+            view.icon.innerHTML = symbolIconMarkup(symbolId);
+          }
           view.symbol.textContent = symbolLabel(symbolId);
           view.level.textContent = symbolLevelText(symbolId);
           if (symbolId === "scatter" && scatterPulse) root.classList.add("scatter-hit");
@@ -1169,6 +1261,14 @@
         if (drop && symbolId) {
           root.classList.add("drop-in");
           root.style.animationDelay = String((r * 22) + (c * 10)) + "ms";
+        }
+        if (spinCycle && symbolId) root.classList.add("spin-cycling");
+        if (revealPop && symbolId) {
+          root.classList.add("reveal-pop");
+          root.style.animationDelay = String((c * 30) + (r * 8)) + "ms";
+        } else if (revealColumn >= 0 && c <= revealColumn && symbolId) {
+          root.classList.add("reveal-pop");
+          root.style.animationDelay = String((c * 34) + (r * 6)) + "ms";
         }
 
         const marker = markers && markers[r] && markers[r][c] ? markers[r][c] : null;
@@ -1340,7 +1440,23 @@
 
   async function presentSpinChain(chain, isBonus, bet, markerSnapshotBefore) {
     setPhase(SLOT_STATE.REVEAL);
-    renderGrid(chain.initialGrid, isBonus ? markerSnapshotBefore : null, { dropIn: true, scatterPulse: true });
+    const markerGrid = isBonus ? markerSnapshotBefore : null;
+    setMessage("Spinning...");
+    const cycleCount = state.turbo ? 4 : 8;
+    for (let i = 0; i < cycleCount; i++) {
+      renderGrid(buildSpinPreviewGrid(chain.initialGrid, -1), markerGrid, { spinCycle: true });
+      if ((i % 2) === 0) audio.play("spin_tick");
+      await pause(60);
+    }
+
+    for (let col = 0; col < gameConfig.cols; col++) {
+      const revealGrid = buildSpinPreviewGrid(chain.initialGrid, col);
+      renderGrid(revealGrid, markerGrid, { spinCycle: true, revealColumn: col });
+      audio.play("land");
+      await pause(95);
+    }
+
+    renderGrid(chain.initialGrid, markerGrid, { dropIn: true, scatterPulse: true, revealPop: true });
     const scatters = countScatterCells(chain.initialGrid);
     if (scatters >= 3) {
       setMessage("Scatter suspense: " + scatters + " visible.");
