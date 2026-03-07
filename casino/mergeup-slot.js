@@ -272,7 +272,10 @@
     play(eventName) {
       const e = String(eventName || "");
       if (e === "spin_start") this.ping(160, 140, "triangle", 0.06);
+      else if (e === "ui_click") this.ping(380, 75, "triangle", 0.038);
+      else if (e === "spin_reveal") this.ping(185, 65, "triangle", 0.042);
       else if (e === "land") this.ping(220, 85, "square", 0.045);
+      else if (e === "drop_swish") this.ping(170, 95, "sawtooth", 0.038);
       else if (e === "cluster_small") this.ping(300, 100, "triangle", 0.05);
       else if (e === "cluster_mid") {
         this.ping(360, 120, "triangle", 0.06);
@@ -280,18 +283,37 @@
       } else if (e === "cluster_big") {
         this.ping(250, 160, "sawtooth", 0.07);
         this.ping(460, 220, "triangle", 0.065);
+      } else if (e === "cluster_burst") {
+        this.ping(310, 95, "triangle", 0.055);
+        this.ping(520, 115, "square", 0.048);
       } else if (e === "merge") this.ping(540, 110, "square", 0.055);
+      else if (e === "merge_flux") {
+        this.ping(430, 95, "triangle", 0.05);
+        this.ping(630, 120, "square", 0.048);
+      }
       else if (e === "scatter") this.ping(620, 170, "triangle", 0.065);
       else if (e === "anticipation") this.ping(190, 190, "sawtooth", 0.055);
       else if (e === "bonus_intro") {
         this.ping(280, 180, "triangle", 0.07);
         this.ping(520, 260, "triangle", 0.07);
+      } else if (e === "bonus_retrigger") {
+        this.ping(360, 150, "triangle", 0.062);
+        this.ping(620, 190, "triangle", 0.062);
       } else if (e === "multiplier") this.ping(760, 110, "square", 0.055);
+      else if (e === "multiplier_burst") {
+        this.ping(780, 120, "square", 0.058);
+        this.ping(940, 90, "triangle", 0.053);
+      }
       else if (e === "spin_tick") this.ping(200, 70, "triangle", 0.04);
+      else if (e === "count_tick") this.ping(510, 56, "triangle", 0.028);
       else if (e === "big_win") {
         this.ping(240, 220, "sawtooth", 0.08);
         this.ping(460, 240, "triangle", 0.075);
         this.ping(780, 260, "triangle", 0.07);
+      } else if (e === "max_win") {
+        this.ping(180, 240, "sawtooth", 0.085);
+        this.ping(420, 300, "triangle", 0.078);
+        this.ping(760, 340, "triangle", 0.075);
       } else if (e === "credit") this.ping(430, 110, "triangle", 0.055);
     }
   }
@@ -1521,6 +1543,135 @@
     window.setTimeout(() => { if (node.parentNode) node.parentNode.removeChild(node); }, 900);
   }
 
+  function getWinSfxByAmount(winAmount, bet) {
+    const ratio = bet > 0 ? (toInt(winAmount, 0) / bet) : 0;
+    if (ratio >= 10) return "cluster_big";
+    if (ratio >= 3) return "cluster_mid";
+    return "cluster_small";
+  }
+
+  function triggerAreaFx(className, durationMs) {
+    if (!(el.spinArea instanceof HTMLElement)) return;
+    const cls = String(className || "").trim();
+    if (!cls) return;
+    const duration = Math.max(120, toInt(durationMs, 280));
+    el.spinArea.classList.remove(cls);
+    window.requestAnimationFrame(() => {
+      el.spinArea.classList.add(cls);
+      window.setTimeout(() => el.spinArea.classList.remove(cls), duration);
+    });
+  }
+
+  function triggerOverlayFx(className, durationMs) {
+    if (!(el.winCounterOverlay instanceof HTMLElement)) return;
+    const cls = String(className || "").trim();
+    if (!cls) return;
+    const duration = Math.max(120, toInt(durationMs, 420));
+    el.winCounterOverlay.classList.remove(cls);
+    window.requestAnimationFrame(() => {
+      el.winCounterOverlay.classList.add(cls);
+      window.setTimeout(() => el.winCounterOverlay.classList.remove(cls), duration);
+    });
+  }
+
+  function appendFxNode(node, ttlMs) {
+    if (!(el.floatingLayer instanceof HTMLElement) || !(node instanceof HTMLElement)) return;
+    el.floatingLayer.appendChild(node);
+    const cleanup = () => {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    };
+    node.addEventListener("animationend", cleanup, { once: true });
+    window.setTimeout(cleanup, Math.max(220, toInt(ttlMs, 900)));
+  }
+
+  function spawnParticlesAtPercent(x, y, options) {
+    if (!(el.floatingLayer instanceof HTMLElement)) return;
+    const opts = options || {};
+    const kind = String(opts.kind || "win").trim();
+    const count = clamp(toInt(opts.count, 10), 1, 56);
+    const spread = clamp(toInt(opts.spread, 54), 14, 160);
+    const duration = clamp(toInt(opts.duration, 760), 320, 2000);
+    const sizeBase = clamp(toInt(opts.size, 8), 4, 16);
+    for (let i = 0; i < count; i++) {
+      const node = document.createElement("div");
+      node.className = "fx-particle " + kind;
+      const angle = Math.random() * Math.PI * 2;
+      const distance = spread * (0.35 + (Math.random() * 0.75));
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance - (12 + Math.random() * 22);
+      const dur = duration * (0.8 + Math.random() * 0.5);
+      node.style.left = x.toFixed(3) + "%";
+      node.style.top = y.toFixed(3) + "%";
+      node.style.setProperty("--dx", dx.toFixed(2) + "px");
+      node.style.setProperty("--dy", dy.toFixed(2) + "px");
+      node.style.setProperty("--dur", Math.max(300, Math.floor(dur)) + "ms");
+      node.style.setProperty("--size", (sizeBase * (0.82 + Math.random() * 0.55)).toFixed(2) + "px");
+      appendFxNode(node, dur + 180);
+    }
+  }
+
+  function spawnRingAtPercent(x, y, kind) {
+    const node = document.createElement("div");
+    node.className = "fx-ring " + String(kind || "win");
+    node.style.left = x.toFixed(3) + "%";
+    node.style.top = y.toFixed(3) + "%";
+    appendFxNode(node, 800);
+  }
+
+  function spawnCellFx(row, col, kind, strength) {
+    const x = ((toInt(col, 0) + 0.5) / gameConfig.cols) * 100;
+    const y = ((toInt(row, 0) + 0.5) / gameConfig.rows) * 100;
+    const count = clamp(toInt(strength, 8), 4, 28);
+    const tone = String(kind || "win");
+    spawnRingAtPercent(x, y, tone);
+    spawnParticlesAtPercent(x, y, {
+      kind: tone,
+      count,
+      spread: tone === "bonus" ? 84 : 62,
+      duration: tone === "bonus" ? 980 : 760,
+      size: tone === "bonus" ? 10 : 8
+    });
+  }
+
+  function spawnClusterFx(cluster, kind) {
+    if (!cluster || !Array.isArray(cluster.cells) || !cluster.cells.length) return;
+    const tone = String(kind || "win");
+    const cellsInCluster = cluster.cells;
+    const sampleCount = Math.min(4, cellsInCluster.length);
+    const step = Math.max(1, Math.floor(cellsInCluster.length / sampleCount));
+    let emitted = 0;
+    for (let i = 0; i < cellsInCluster.length && emitted < sampleCount; i += step) {
+      const cell = cellsInCluster[i];
+      spawnCellFx(cell[0], cell[1], tone, 7 + Math.floor(Math.random() * 5));
+      emitted += 1;
+    }
+    if (cluster.anchor && cluster.anchor.length >= 2) {
+      spawnCellFx(cluster.anchor[0], cluster.anchor[1], tone, 11 + Math.min(12, Math.floor(cluster.size / 2)));
+    }
+  }
+
+  function spawnCenterFx(kind, count) {
+    spawnParticlesAtPercent(50, 48, {
+      kind: String(kind || "win"),
+      count: clamp(toInt(count, 18), 8, 64),
+      spread: 120,
+      duration: 1100,
+      size: 10
+    });
+    spawnRingAtPercent(50, 48, String(kind || "win"));
+  }
+
+  function flashScatterCells(grid) {
+    if (!Array.isArray(grid)) return;
+    for (let r = 0; r < grid.length; r++) {
+      const row = grid[r] || [];
+      for (let c = 0; c < row.length; c++) {
+        if (row[c] !== "scatter") continue;
+        spawnCellFx(r, c, "scatter", 13);
+      }
+    }
+  }
+
   function isFastForwardActive() {
     return state.fastForwardUntil > Date.now();
   }
@@ -1581,15 +1732,43 @@
     setWinCounterValue(0);
 
     const ratio = bet > 0 ? (finalTotal / bet) : 0;
-    if (ratio >= 40) audio.play("big_win");
-    else if (ratio >= 20) audio.play("cluster_big");
-    else if (ratio >= 8) audio.play("cluster_mid");
-    else audio.play("cluster_small");
+    const labelText = String(label || "").toUpperCase();
+    if (labelText.indexOf("MAX") >= 0) {
+      audio.play("max_win");
+      triggerOverlayFx("fx-tier-max", 1700);
+      triggerAreaFx("fx-big-impact", 1100);
+      spawnCenterFx("max", state.turbo ? 26 : 36);
+    } else if (ratio >= 40) {
+      audio.play("big_win");
+      triggerOverlayFx("fx-tier-mega", 1400);
+      triggerAreaFx("fx-win-pulse", 860);
+      spawnCenterFx("bonus", state.turbo ? 22 : 30);
+    } else if (ratio >= 20) {
+      audio.play("cluster_big");
+      triggerOverlayFx("fx-tier-big", 1180);
+      triggerAreaFx("fx-win-pulse", 740);
+      spawnCenterFx("gold", state.turbo ? 16 : 22);
+    } else if (ratio >= 8) {
+      audio.play("cluster_mid");
+      triggerOverlayFx("fx-tier-mid", 980);
+      spawnCenterFx("win", state.turbo ? 12 : 16);
+    } else {
+      audio.play("cluster_small");
+      triggerOverlayFx("fx-tier-small", 760);
+      spawnCenterFx("win", 10);
+    }
 
     const duration = countDurationByWin(finalTotal, bet) + (state.turbo ? 170 : 360);
+    const tickEvery = state.turbo ? 190 : 250;
+    const tickHandle = window.setInterval(() => {
+      if (!isWinCounterVisible()) return;
+      audio.play("count_tick");
+      if (!state.turbo && Math.random() < 0.45) spawnCenterFx("win", 5);
+    }, tickEvery);
     await counter.animate(0, finalTotal, duration, (value) => {
       setWinCounterValue(toInt(Math.round(value), 0));
     });
+    window.clearInterval(tickHandle);
     setWinCounterValue(finalTotal);
     queueHideWinCounter(state.turbo ? 170 : 320);
     await waitForWinCounterDismiss();
@@ -1654,6 +1833,7 @@
     setPhase(SLOT_STATE.EVALUATE);
     state.tumbleWin = 0;
     renderGrid(step.gridBefore, isBonus ? step.markerBefore : null, {});
+    triggerAreaFx("fx-cascade-start", 420);
 
     for (let i = 0; i < step.clusters.length; i++) {
       const cluster = step.clusters[i];
@@ -1664,6 +1844,10 @@
       const hasMultiplierStage = cluster.multiplierApplied > 1 && baseWin > 0 && clusterWin > baseWin;
       state.tumbleWin += clusterWin;
       updateHUD();
+      showFloatingText(cluster.anchor[0], cluster.anchor[1], "+" + formatWL(clusterWin), false);
+      spawnClusterFx(cluster, hasMultiplierStage ? "gold" : "win");
+      triggerAreaFx("fx-cluster-hit", 300);
+      audio.play("cluster_burst");
 
       const preClusterTotal = state.spinWin;
       const targetTotal = preClusterTotal + clusterWin;
@@ -1673,28 +1857,26 @@
         const boostedWin = Math.max(0, clusterWin - baseWin);
         const markedCount = Math.max(1, toInt(cluster.activeMarkedCells, 1));
 
-        const baseRatio = bet > 0 ? (baseWin / bet) : 0;
-        if (baseRatio >= 10) audio.play("cluster_big");
-        else if (baseRatio >= 3) audio.play("cluster_mid");
-        else audio.play("cluster_small");
+        audio.play(getWinSfxByAmount(baseWin, bet));
 
         await animateSpinWinTo(baseTarget, countDurationByWin(baseWin, bet), { label: "WIN", showOverlay: false });
         await pause(120);
 
         showFloatingText(cluster.anchor[0], cluster.anchor[1], "x" + cluster.multiplierApplied + " (" + markedCount + " cells)", true);
-        audio.play("multiplier");
+        spawnClusterFx(cluster, "multiplier");
+        triggerAreaFx("fx-multiplier-hit", 360);
+        audio.play("multiplier_burst");
         await animateSpinWinTo(targetTotal, countDurationByWin(boostedWin, bet) + 100, { label: "WIN", showOverlay: false });
       } else {
         if (cluster.multiplierApplied > 1) {
           const markedCount = Math.max(1, toInt(cluster.activeMarkedCells, 1));
           showFloatingText(cluster.anchor[0], cluster.anchor[1], "x" + cluster.multiplierApplied + " (" + markedCount + " cells)", true);
+          spawnClusterFx(cluster, "multiplier");
+          triggerAreaFx("fx-multiplier-hit", 320);
           audio.play("multiplier");
         }
 
-        const ratio = bet > 0 ? (clusterWin / bet) : 0;
-        if (ratio >= 10) audio.play("cluster_big");
-        else if (ratio >= 3) audio.play("cluster_mid");
-        else audio.play("cluster_small");
+        audio.play(getWinSfxByAmount(clusterWin, bet));
 
         await animateSpinWinTo(targetTotal, duration, { label: "WIN", showOverlay: false });
       }
@@ -1706,7 +1888,17 @@
     setPhase(SLOT_STATE.MERGE);
     showMergeOps(step.mergeOps);
     setMessage("Merge Up: winning ducks combine into higher levels.");
+    for (let i = 0; i < step.mergeOps.length; i++) {
+      const op = step.mergeOps[i] || {};
+      const targets = Array.isArray(op.anchors) && op.anchors.length ? op.anchors : (op.anchor ? [op.anchor] : []);
+      for (let k = 0; k < targets.length; k++) {
+        const t = targets[k];
+        spawnCellFx(t[0], t[1], "merge", 10 + Math.min(8, toInt(op.mergedCount, 1)));
+      }
+    }
+    triggerAreaFx("fx-merge-hit", 340);
     audio.play("merge");
+    audio.play("merge_flux");
     await pause(340);
 
     renderGrid(step.gridAfterMerge, isBonus ? step.markerAfter : null, {});
@@ -1719,6 +1911,8 @@
       dropDistances: buildRefillDropDistanceMap(step)
     });
     setMessage("TUMBLE " + step.index + " | Step win: " + formatWL(step.stepWin));
+    triggerAreaFx("fx-refill-drop", 280);
+    audio.play("drop_swish");
     audio.play("land");
     await pause(420);
   }
@@ -1727,6 +1921,7 @@
     setPhase(SLOT_STATE.REVEAL);
     const markerGrid = isBonus ? markerSnapshotBefore : null;
     setMessage("Spinning...");
+    triggerAreaFx("fx-spin-start", 520);
     const cycleCount = state.turbo ? 4 : 8;
     for (let i = 0; i < cycleCount; i++) {
       renderGrid(buildSpinPreviewGrid(chain.initialGrid, -1), markerGrid, { spinCycle: true });
@@ -1742,6 +1937,7 @@
         dropIn: true,
         dropDistances: buildRevealColumnDropDistanceMap(col)
       });
+      if (col >= gameConfig.cols - 2) audio.play("spin_reveal");
       audio.play("land");
       await pause(95);
     }
@@ -1755,6 +1951,9 @@
     const scatters = countScatterCells(chain.initialGrid);
     if (scatters >= 3) {
       setMessage("Scatter suspense: " + scatters + " visible.");
+      flashScatterCells(chain.initialGrid);
+      triggerAreaFx("fx-scatter-alert", 560);
+      audio.play("scatter");
       audio.play("anticipation");
       await pause(460);
     } else {
@@ -1773,6 +1972,8 @@
     setPhase(SLOT_STATE.BONUS_INTRO);
     setBanner("FREE SPINS\n" + spins + " AWARDED", true);
     setMessage("Bonus mode: marked cells can scale multipliers up to x128.");
+    triggerAreaFx("fx-bonus-intro", 1400);
+    spawnCenterFx("bonus", state.turbo ? 22 : 34);
     audio.play("bonus_intro");
     await pause(1350);
     setBanner("");
@@ -1782,6 +1983,8 @@
     setPhase(SLOT_STATE.BONUS_SUMMARY);
     setBanner("BONUS COMPLETE\n" + formatWL(bonusWin) + "\nTop cell x" + topMultiplier, true);
     setMessage("Free spins complete.");
+    triggerAreaFx("fx-bonus-summary", 1300);
+    spawnCenterFx("bonus", state.turbo ? 16 : 24);
     await pause(1250);
     setBanner("");
   }
@@ -1817,7 +2020,9 @@
 
         if (spin.retriggerAward > 0) {
           setBanner("RETRIGGER +" + spin.retriggerAward, false);
-          audio.play("bonus_intro");
+          triggerAreaFx("fx-retrigger", 760);
+          spawnCenterFx("gold", state.turbo ? 10 : 16);
+          audio.play("bonus_retrigger");
           await pause(760);
           setBanner("");
         }
@@ -1837,6 +2042,7 @@
       await presentFinalWinCounter(totalWin, resolved.bet, finalWinLabel);
 
       setMessage("Crediting " + formatWL(totalWin) + " to balance...");
+      triggerAreaFx("fx-crediting", 760);
       let creditResult = null;
       if (state.walletLinked) {
         state.balanceSyncPaused = true;
@@ -1859,6 +2065,7 @@
         state.balanceSyncPaused = false;
         applyPendingWalletTotal();
         audio.play("credit");
+        spawnCenterFx("win", state.turbo ? 8 : 12);
 
         const credited = targetBalance - startBalance;
         const displayed = toInt(resolved.totalWin, 0);
@@ -2026,6 +2233,15 @@
   }
 
   function bindEvents() {
+    const btnNodes = document.querySelectorAll(".btn");
+    for (let i = 0; i < btnNodes.length; i++) {
+      const btn = btnNodes[i];
+      btn.addEventListener("pointerdown", () => {
+        audio.unlock();
+        audio.play("ui_click");
+      }, { passive: true });
+    }
+
     if (el.backBtn instanceof HTMLButtonElement) el.backBtn.addEventListener("click", () => { window.location.href = "./index.html"; });
 
     if (el.soundBtn instanceof HTMLButtonElement) {
