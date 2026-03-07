@@ -1,6 +1,14 @@
 window.GTModules = window.GTModules || {};
 
 window.GTModules.drawImplSource = `
+      const fallbackBlockTextureCache = new Map();
+      const fallbackColorProbeCanvas = (typeof document !== "undefined" && document && typeof document.createElement === "function")
+        ? document.createElement("canvas")
+        : null;
+      const fallbackColorProbeCtx = fallbackColorProbeCanvas && typeof fallbackColorProbeCanvas.getContext === "function"
+        ? fallbackColorProbeCanvas.getContext("2d")
+        : null;
+
 function drawBackground() {
         const viewW = getCameraViewWidth();
         const viewH = getCameraViewHeight();
@@ -96,6 +104,313 @@ function drawBackground() {
           ctx.stroke();
           ctx.restore();
         });
+      }
+
+      function clampRgbByte(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return 0;
+        return Math.max(0, Math.min(255, Math.round(n)));
+      }
+
+      function colorToRgb(rawColor, fallbackHex) {
+        const fallback = String(fallbackHex || "#6f86a7");
+        if (fallbackColorProbeCtx) {
+          try {
+            fallbackColorProbeCtx.fillStyle = fallback;
+            fallbackColorProbeCtx.fillStyle = String(rawColor || fallback);
+            const normalized = String(fallbackColorProbeCtx.fillStyle || fallback).trim().toLowerCase();
+            let match = normalized.match(/^#([0-9a-f]{3})$/i);
+            if (match) {
+              const h = match[1];
+              return {
+                r: parseInt(h[0] + h[0], 16),
+                g: parseInt(h[1] + h[1], 16),
+                b: parseInt(h[2] + h[2], 16)
+              };
+            }
+            match = normalized.match(/^#([0-9a-f]{6})$/i);
+            if (match) {
+              const h = match[1];
+              return {
+                r: parseInt(h.slice(0, 2), 16),
+                g: parseInt(h.slice(2, 4), 16),
+                b: parseInt(h.slice(4, 6), 16)
+              };
+            }
+            match = normalized.match(/^rgb\\(\\s*([0-9]+),\\s*([0-9]+),\\s*([0-9]+)\\s*\\)$/i);
+            if (match) {
+              return {
+                r: clampRgbByte(match[1]),
+                g: clampRgbByte(match[2]),
+                b: clampRgbByte(match[3])
+              };
+            }
+          } catch (error) {
+            // ignore color parsing failures
+          }
+        }
+        return { r: 111, g: 134, b: 167 };
+      }
+
+      function mixRgb(a, b, t) {
+        const blend = Math.max(0, Math.min(1, Number(t) || 0));
+        return {
+          r: clampRgbByte((a.r || 0) + ((b.r || 0) - (a.r || 0)) * blend),
+          g: clampRgbByte((a.g || 0) + ((b.g || 0) - (a.g || 0)) * blend),
+          b: clampRgbByte((a.b || 0) + ((b.b || 0) - (a.b || 0)) * blend)
+        };
+      }
+
+      function shiftRgb(rgb, amount) {
+        const base = {
+          r: clampRgbByte(rgb && rgb.r),
+          g: clampRgbByte(rgb && rgb.g),
+          b: clampRgbByte(rgb && rgb.b)
+        };
+        const factor = Math.max(-1, Math.min(1, Number(amount) || 0));
+        if (factor >= 0) {
+          return mixRgb(base, { r: 255, g: 255, b: 255 }, factor);
+        }
+        return mixRgb(base, { r: 0, g: 0, b: 0 }, -factor);
+      }
+
+      function rgbToCss(rgb, alpha) {
+        const r = clampRgbByte(rgb && rgb.r);
+        const g = clampRgbByte(rgb && rgb.g);
+        const b = clampRgbByte(rgb && rgb.b);
+        if (alpha === undefined) return "rgb(" + r + "," + g + "," + b + ")";
+        const a = Math.max(0, Math.min(1, Number(alpha) || 0));
+        return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+      }
+
+      function hashTextSeed(value) {
+        const text = String(value || "");
+        let hash = 2166136261 >>> 0;
+        for (let i = 0; i < text.length; i++) {
+          hash ^= text.charCodeAt(i);
+          hash = Math.imul(hash, 16777619) >>> 0;
+        }
+        return hash >>> 0;
+      }
+
+      function createSeededRand(seed) {
+        let state = (Number(seed) >>> 0) || 1;
+        return function nextRand() {
+          state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+          return state / 4294967296;
+        };
+      }
+
+      function resolveFallbackBlockMaterial(def, id) {
+        if (def && def.liquid) return "water";
+        const text = (String((def && (def.key || def.name)) || "") + " " + String(id || "")).toLowerCase();
+        if (/wood|plank|log|bamboo|board|timber|branch/.test(text)) return "wood";
+        if (/metal|steel|iron|copper|bronze|machine|circuit|lock|vending|camera|generator/.test(text)) return "metal";
+        if (/sand|dirt|soil|mud|clay|gravel|ash/.test(text)) return "earth";
+        if (/grass|leaf|moss|vine|bush|plant|tree|seed/.test(text)) return "organic";
+        if (/ice|snow|frost|crystal|glass/.test(text)) return "ice";
+        return "stone";
+      }
+
+      function getFallbackMaterialBaseColor(material) {
+        if (material === "wood") return "#8a6645";
+        if (material === "metal") return "#6d819e";
+        if (material === "earth") return "#7f6750";
+        if (material === "organic") return "#5f8663";
+        if (material === "ice") return "#8bb2d0";
+        if (material === "water") return "#4d89cf";
+        return "#7386a1";
+      }
+
+      function drawMaterialPattern(patternCtx, material, baseRgb, tileSize, seedText) {
+        const rand = createSeededRand(hashTextSeed(seedText));
+        const size = Math.max(8, Math.floor(Number(tileSize) || 32));
+        if (material === "wood") {
+          for (let y = 3; y < size; y += 4) {
+            const wobble = (rand() - 0.5) * 2;
+            patternCtx.fillStyle = rgbToCss(shiftRgb(baseRgb, -0.14 + rand() * 0.12), 0.42);
+            patternCtx.fillRect(1, Math.floor(y + wobble), size - 2, 1);
+          }
+          for (let i = 0; i < 3; i++) {
+            const cx = 5 + rand() * (size - 10);
+            const cy = 5 + rand() * (size - 10);
+            const rx = 2 + rand() * 4;
+            const ry = 1.5 + rand() * 3;
+            patternCtx.strokeStyle = rgbToCss(shiftRgb(baseRgb, -0.2), 0.45);
+            patternCtx.beginPath();
+            patternCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+            patternCtx.stroke();
+          }
+          return;
+        }
+        if (material === "metal") {
+          for (let i = -size; i < size * 2; i += 5) {
+            patternCtx.strokeStyle = rgbToCss(shiftRgb(baseRgb, 0.18), 0.16);
+            patternCtx.beginPath();
+            patternCtx.moveTo(i, 0);
+            patternCtx.lineTo(i + size, size);
+            patternCtx.stroke();
+          }
+          const rivet = Math.max(1, Math.floor(size * 0.08));
+          const points = [
+            [Math.max(2, rivet + 1), Math.max(2, rivet + 1)],
+            [size - Math.max(2, rivet + 1), Math.max(2, rivet + 1)],
+            [Math.max(2, rivet + 1), size - Math.max(2, rivet + 1)],
+            [size - Math.max(2, rivet + 1), size - Math.max(2, rivet + 1)]
+          ];
+          for (let i = 0; i < points.length; i++) {
+            patternCtx.fillStyle = rgbToCss(shiftRgb(baseRgb, 0.28), 0.6);
+            patternCtx.beginPath();
+            patternCtx.arc(points[i][0], points[i][1], rivet, 0, Math.PI * 2);
+            patternCtx.fill();
+          }
+          return;
+        }
+        if (material === "earth") {
+          for (let i = 0; i < 18; i++) {
+            const px = 1 + rand() * (size - 2);
+            const py = 1 + rand() * (size - 2);
+            const rad = 0.7 + rand() * 1.4;
+            patternCtx.fillStyle = rgbToCss(shiftRgb(baseRgb, -0.24 + rand() * 0.18), 0.42);
+            patternCtx.beginPath();
+            patternCtx.arc(px, py, rad, 0, Math.PI * 2);
+            patternCtx.fill();
+          }
+          return;
+        }
+        if (material === "organic") {
+          for (let i = 0; i < 10; i++) {
+            const px = 1 + rand() * (size - 2);
+            const py = 1 + rand() * (size - 2);
+            const rw = 1.4 + rand() * 3.1;
+            const rh = 1.1 + rand() * 2.5;
+            patternCtx.fillStyle = rgbToCss(shiftRgb(baseRgb, -0.12 + rand() * 0.2), 0.35);
+            patternCtx.beginPath();
+            patternCtx.ellipse(px, py, rw, rh, rand() * Math.PI, 0, Math.PI * 2);
+            patternCtx.fill();
+          }
+          patternCtx.strokeStyle = rgbToCss(shiftRgb(baseRgb, 0.25), 0.2);
+          for (let i = 0; i < 4; i++) {
+            const y = Math.floor(3 + i * ((size - 6) / 3));
+            patternCtx.beginPath();
+            patternCtx.moveTo(2, y);
+            patternCtx.lineTo(size - 2, y + (rand() - 0.5) * 2);
+            patternCtx.stroke();
+          }
+          return;
+        }
+        if (material === "ice") {
+          for (let i = 0; i < 8; i++) {
+            const sx = 1 + rand() * (size - 2);
+            const sy = 1 + rand() * (size - 2);
+            const ex = sx + (rand() - 0.5) * (size * 0.6);
+            const ey = sy + (rand() - 0.5) * (size * 0.6);
+            patternCtx.strokeStyle = rgbToCss(shiftRgb(baseRgb, 0.45), 0.32);
+            patternCtx.beginPath();
+            patternCtx.moveTo(sx, sy);
+            patternCtx.lineTo(ex, ey);
+            patternCtx.stroke();
+          }
+          patternCtx.fillStyle = rgbToCss(shiftRgb(baseRgb, 0.5), 0.14);
+          patternCtx.fillRect(2, 2, size - 4, Math.max(2, Math.floor(size * 0.22)));
+          return;
+        }
+        if (material === "water") {
+          for (let i = 0; i < 4; i++) {
+            const y = 3 + i * Math.max(3, Math.floor(size * 0.18));
+            patternCtx.fillStyle = rgbToCss(shiftRgb(baseRgb, 0.25), 0.2 + i * 0.03);
+            patternCtx.fillRect(1, y, size - 2, 1);
+          }
+          return;
+        }
+        for (let i = 0; i < 14; i++) {
+          const px = 1 + rand() * (size - 3);
+          const py = 1 + rand() * (size - 3);
+          const w = 1 + Math.floor(rand() * 3);
+          const h = 1 + Math.floor(rand() * 3);
+          patternCtx.fillStyle = rgbToCss(shiftRgb(baseRgb, -0.2 + rand() * 0.3), 0.36);
+          patternCtx.fillRect(Math.floor(px), Math.floor(py), w, h);
+        }
+      }
+
+      function getFallbackBlockTexture(def, id, tileSize) {
+        const size = Math.max(8, Math.floor(Number(tileSize) || TILE || 32));
+        const material = resolveFallbackBlockMaterial(def, id);
+        const baseHex = getFallbackMaterialBaseColor(material);
+        const baseRgb = colorToRgb(def && def.color, baseHex);
+        const key = String(id || 0) + "|" + size + "|" + material + "|" + baseRgb.r + "," + baseRgb.g + "," + baseRgb.b;
+        if (fallbackBlockTextureCache.has(key)) {
+          return fallbackBlockTextureCache.get(key);
+        }
+        if (!(typeof document !== "undefined" && document && typeof document.createElement === "function")) {
+          return null;
+        }
+        const texture = document.createElement("canvas");
+        texture.width = size;
+        texture.height = size;
+        const textureCtx = texture.getContext("2d");
+        if (!textureCtx) return null;
+        textureCtx.imageSmoothingEnabled = false;
+        const topRgb = shiftRgb(baseRgb, 0.16);
+        const bottomRgb = shiftRgb(baseRgb, -0.21);
+        const grad = textureCtx.createLinearGradient(0, 0, size, size);
+        grad.addColorStop(0, rgbToCss(topRgb));
+        grad.addColorStop(1, rgbToCss(bottomRgb));
+        textureCtx.fillStyle = grad;
+        textureCtx.fillRect(0, 0, size, size);
+        drawMaterialPattern(textureCtx, material, baseRgb, size, key);
+        textureCtx.fillStyle = "rgba(245, 253, 255, 0.08)";
+        textureCtx.fillRect(1, 1, size - 2, Math.max(2, Math.floor(size * 0.18)));
+        textureCtx.fillStyle = "rgba(6, 12, 24, 0.18)";
+        textureCtx.fillRect(0, size - Math.max(2, Math.floor(size * 0.16)), size, Math.max(2, Math.floor(size * 0.16)));
+        textureCtx.strokeStyle = rgbToCss(shiftRgb(baseRgb, -0.5), 0.75);
+        textureCtx.lineWidth = 1;
+        textureCtx.strokeRect(0.5, 0.5, size - 1, size - 1);
+        textureCtx.strokeStyle = rgbToCss(shiftRgb(baseRgb, 0.18), 0.22);
+        textureCtx.strokeRect(1.5, 1.5, size - 3, size - 3);
+        fallbackBlockTextureCache.set(key, texture);
+        return texture;
+      }
+
+      function drawFallbackBlockTile(def, id, x, y, tx, ty) {
+        const texture = getFallbackBlockTexture(def, id, TILE);
+        if (texture) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(texture, x, y, TILE, TILE);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = (def && def.color) ? def.color : "#7b8ea8";
+          ctx.fillRect(x, y, TILE, TILE);
+        }
+        if (def && def.liquid) {
+          const wave = Math.sin((performance.now() * 0.01) + tx * 0.7 + ty * 0.4) * 1.6;
+          ctx.fillStyle = "rgba(210, 245, 255, 0.28)";
+          ctx.fillRect(x + 1, y + 3 + wave, TILE - 2, 4);
+          ctx.fillStyle = "rgba(18, 84, 170, 0.2)";
+          ctx.fillRect(x, y + TILE - 4, TILE, 4);
+        }
+      }
+
+      function drawFallbackBlockInWorld(def, id, x, y) {
+        const size = TILE * 0.65;
+        const offset = (TILE - size) / 2;
+        const texture = getFallbackBlockTexture(def, id, TILE);
+        if (texture) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(texture, x + offset, y + offset, size, size);
+          ctx.strokeStyle = "rgba(255,255,255,0.22)";
+          ctx.strokeRect(x + offset + 0.5, y + offset + 0.5, size - 1, size - 1);
+          ctx.restore();
+          return;
+        }
+        ctx.save();
+        ctx.fillStyle = def && def.color ? def.color : "#8b9cb4";
+        ctx.fillRect(x + offset, y + offset, size, size);
+        ctx.strokeStyle = "rgba(255,255,255,0.22)";
+        ctx.strokeRect(x + offset + 0.5, y + offset + 0.5, size - 1, size - 1);
+        ctx.restore();
       }
 
       function drawWorld() {
@@ -354,20 +669,7 @@ function drawBackground() {
               continue;
             }
 
-            ctx.fillStyle = def.color;
-            ctx.fillRect(x, y, TILE, TILE);
-            if (def.liquid) {
-              const wave = Math.sin((performance.now() * 0.01) + tx * 0.7 + ty * 0.4) * 1.6;
-              ctx.fillStyle = "rgba(210, 245, 255, 0.3)";
-              ctx.fillRect(x + 1, y + 3 + wave, TILE - 2, 4);
-              ctx.fillStyle = "rgba(18, 84, 170, 0.2)";
-              ctx.fillRect(x, y + TILE - 4, TILE, 4);
-            } else {
-              ctx.fillStyle = "rgba(255,255,255,0.08)";
-              ctx.fillRect(x + 2, y + 2, TILE - 4, 6);
-              ctx.fillStyle = "rgba(0,0,0,0.14)";
-              ctx.fillRect(x, y + TILE - 5, TILE, 5);
-            }
+            drawFallbackBlockTile(def, id, x, y, tx, ty);
             //drawBlockDamageOverlay(tx, ty, id, x, y);
           }
         }
@@ -414,12 +716,7 @@ function drawBackground() {
             if (def && drawBlockImageInWorld(def, x, y)) {
               // draw count badge
             } else {
-              ctx.save();
-              ctx.fillStyle = def && def.color ? def.color : "#a0a0a0";
-              const size = TILE * 0.65;
-              const offset = (TILE - size) / 2;
-              ctx.fillRect(x + offset, y + offset, size, size);
-              ctx.restore();
+              drawFallbackBlockInWorld(def, drop.blockId, x, y);
             }
           } else {
             let drawn = false;

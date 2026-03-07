@@ -1415,8 +1415,10 @@
           if (!cfg || !cfg.file) return;
           try {
             const template = new Audio(SFX_BASE_PATH + cfg.file);
+            template.autoplay = false;
             template.preload = "auto";
             // Keep preload completely silent.
+            template.defaultMuted = true;
             template.muted = true;
             template.volume = 0;
             template.addEventListener("error", () => {
