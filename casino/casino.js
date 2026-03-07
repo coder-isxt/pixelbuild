@@ -22,6 +22,7 @@ window.GTModules = window.GTModules || {};
   };
   const PLINKO_ROWS = 12;
   const PLINKO_MULTIPLIERS = [16, 9, 4, 2, 1.4, 1.1, 0.7, 1.1, 1.4, 2, 4, 9, 16];
+  const ADMIN_BALANCE_ROLES = new Set(["admin", "manager", "owner"]);
 
   const authModule = (window.GTModules && window.GTModules.auth) || {};
   const dbModule = (window.GTModules && window.GTModules.db) || {};
@@ -80,6 +81,11 @@ window.GTModules = window.GTModules || {};
     bjDoubleBtn: document.getElementById("bjDoubleBtn"),
     bjSplitBtn: document.getElementById("bjSplitBtn"),
     bjDealBtn: document.getElementById("bjDealBtn"),
+    adminBalancePanel: document.getElementById("adminBalancePanel"),
+    adminBalanceTarget: document.getElementById("adminBalanceTarget"),
+    adminBalanceAmount: document.getElementById("adminBalanceAmount"),
+    adminBalanceApplyBtn: document.getElementById("adminBalanceApplyBtn"),
+    adminBalanceStatus: document.getElementById("adminBalanceStatus"),
     gameStatus: document.getElementById("gameStatus"),
     boardTitle: document.getElementById("boardTitle"),
     board: document.getElementById("board"),
@@ -151,6 +157,131 @@ window.GTModules = window.GTModules || {};
 
   function formatLocks(value) {
     return toCount(value).toLocaleString("en-US") + " WL";
+  }
+
+  function formatLockBreakdown(value) {
+    let remaining = toCount(value);
+    const parts = [];
+    for (let i = 0; i < state.lockRows.length; i++) {
+      const row = state.lockRows[i];
+      const count = Math.floor(remaining / row.value);
+      if (count > 0) {
+        parts.push(count.toLocaleString("en-US") + " " + row.short);
+        remaining -= count * row.value;
+      }
+    }
+    if (!parts.length) return "0 WL";
+    return parts.join(" ");
+  }
+
+  function wait(ms) {
+    const delay = Math.max(0, Math.floor(Number(ms) || 0));
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, delay);
+    });
+  }
+
+  function plinkoPegPosition(row, col) {
+    const safeRow = Math.max(0, Math.min(PLINKO_ROWS - 1, Math.floor(Number(row) || 0)));
+    const safeCol = Math.max(0, Math.min(safeRow, Math.floor(Number(col) || 0)));
+    const spanUnits = safeCol - (safeRow / 2);
+    const maxSpan = PLINKO_ROWS / 2;
+    const x = 50 + ((spanUnits / maxSpan) * 42);
+    const y = 10 + ((safeRow / Math.max(1, PLINKO_ROWS - 1)) * 64);
+    return { x, y };
+  }
+
+  function plinkoBinPosition(binIndex) {
+    const safeBin = Math.max(0, Math.min(PLINKO_ROWS, Math.floor(Number(binIndex) || 0)));
+    const maxSpan = PLINKO_ROWS / 2;
+    const spanUnits = safeBin - maxSpan;
+    const x = 50 + ((spanUnits / maxSpan) * 42);
+    return { x, y: 90 };
+  }
+
+  function plinkoStartPosition() {
+    return { x: 50, y: 4 };
+  }
+
+  function paintPlinkoFrame() {
+    if (!(els.board instanceof HTMLElement)) return;
+    const root = els.board.querySelector(".plinko-shell");
+    if (!(root instanceof HTMLElement)) return;
+
+    const liveLine = els.board.querySelector("[data-plinko-live]");
+    const ball = root.querySelector(".plinko-ball");
+    const pegNodes = root.querySelectorAll("[data-plinko-peg]");
+    const binNodes = root.querySelectorAll("[data-plinko-bin]");
+
+    const live = state.plinko && state.plinko.liveDrop ? state.plinko.liveDrop : null;
+    const last = state.plinko && state.plinko.lastDrop ? state.plinko.lastDrop : null;
+    const source = live || last;
+    const path = source && Array.isArray(source.pathCols) ? source.pathCols : [];
+
+    let revealRowMax = -1;
+    let currentRow = -1;
+    if (live) {
+      currentRow = Math.floor(Number(live.currentRow) || -1);
+      if (currentRow >= PLINKO_ROWS) revealRowMax = PLINKO_ROWS - 1;
+      else revealRowMax = Math.max(-1, currentRow);
+    } else if (last) {
+      revealRowMax = PLINKO_ROWS - 1;
+    }
+
+    for (let i = 0; i < pegNodes.length; i++) {
+      const peg = pegNodes[i];
+      const row = Math.max(0, Math.floor(Number(peg.getAttribute("data-row")) || 0));
+      const col = Math.max(0, Math.floor(Number(peg.getAttribute("data-col")) || 0));
+      const onPath = row < path.length && path[row] === col;
+      const isTrail = onPath && row <= revealRowMax;
+      const isCurrent = Boolean(live) && onPath && row === currentRow && currentRow < PLINKO_ROWS;
+      peg.classList.toggle("trail", isTrail);
+      peg.classList.toggle("current", isCurrent);
+    }
+
+    let winIndex = -1;
+    if (live && currentRow >= PLINKO_ROWS) {
+      winIndex = Math.max(0, Math.min(PLINKO_ROWS, Math.floor(Number(live.currentCol) || 0)));
+    } else if (!live && last) {
+      winIndex = Math.max(0, Math.min(PLINKO_ROWS, Math.floor(Number(last.binIndex) || 0)));
+    }
+    for (let i = 0; i < binNodes.length; i++) {
+      const bin = binNodes[i];
+      const idx = Math.max(0, Math.floor(Number(bin.getAttribute("data-plinko-bin")) || 0));
+      bin.classList.toggle("win", idx === winIndex);
+    }
+
+    if (ball instanceof HTMLElement) {
+      let pos = plinkoStartPosition();
+      let visible = false;
+      if (live) {
+        visible = true;
+        if (currentRow >= PLINKO_ROWS) pos = plinkoBinPosition(live.currentCol);
+        else if (currentRow >= 0 && currentRow < PLINKO_ROWS) pos = plinkoPegPosition(currentRow, path[currentRow]);
+      } else if (last) {
+        visible = true;
+        pos = plinkoBinPosition(last.binIndex);
+      }
+      ball.classList.toggle("hidden-ball", !visible);
+      ball.style.left = pos.x.toFixed(3) + "%";
+      ball.style.top = pos.y.toFixed(3) + "%";
+    }
+
+    if (liveLine instanceof HTMLElement) {
+      if (live) {
+        if (currentRow < 0) {
+          liveLine.textContent = "Ball drop started...";
+        } else if (currentRow < PLINKO_ROWS) {
+          liveLine.textContent = "Ball row " + (currentRow + 1) + " / " + PLINKO_ROWS + " | target x" + Number(live.multiplier || 1).toFixed(2);
+        } else {
+          liveLine.textContent = "Ball landed on x" + Number(live.multiplier || 1).toFixed(2) + ".";
+        }
+      } else if (last) {
+        liveLine.textContent = "Last drop paid " + formatLocks(last.payout) + " at x" + Number(last.multiplier || 0).toFixed(2) + ".";
+      } else {
+        liveLine.textContent = "Drop a ball to start Plinko.";
+      }
+    }
   }
 
   function shuffle(list) {
@@ -238,8 +369,40 @@ window.GTModules = window.GTModules || {};
       else els.sessionChip.textContent = "Session: @" + state.user.username + " (" + state.user.role + ")";
     }
     if (els.walletChip instanceof HTMLElement) {
-      els.walletChip.textContent = "Wallet: " + formatLocks(state.walletLocks);
+      els.walletChip.textContent = "Wallet: " + formatLockBreakdown(state.walletLocks);
+      els.walletChip.title = "Total: " + formatLocks(state.walletLocks);
     }
+    refreshAdminBalancePanel();
+  }
+
+  function canUseAdminBalancePower() {
+    if (!state.user) return false;
+    const role = String(state.user.role || "").trim().toLowerCase();
+    return ADMIN_BALANCE_ROLES.has(role);
+  }
+
+  function setAdminBalanceStatus(message, mode) {
+    if (!(els.adminBalanceStatus instanceof HTMLElement)) return;
+    els.adminBalanceStatus.className = "status";
+    if (mode === "ok") els.adminBalanceStatus.classList.add("ok");
+    if (mode === "error") els.adminBalanceStatus.classList.add("error");
+    els.adminBalanceStatus.textContent = String(message || "");
+  }
+
+  function refreshAdminBalancePanel() {
+    if (!(els.adminBalancePanel instanceof HTMLElement)) return;
+    const allowed = canUseAdminBalancePower();
+    els.adminBalancePanel.classList.toggle("hidden", !allowed);
+    if (!(els.adminBalanceApplyBtn instanceof HTMLButtonElement)) return;
+    els.adminBalanceApplyBtn.disabled = !allowed;
+    if (!allowed) {
+      setAdminBalanceStatus("Admin permission required.", "error");
+      return;
+    }
+    if (els.adminBalanceTarget instanceof HTMLInputElement && !els.adminBalanceTarget.value) {
+      els.adminBalanceTarget.value = String(state.user && state.user.username || "");
+    }
+    setAdminBalanceStatus("Ready. Leave target blank to credit yourself.");
   }
 
   function renderHistory() {
@@ -470,6 +633,93 @@ window.GTModules = window.GTModules || {};
     return { ok: true, amount: delta };
   }
 
+  async function runAdminBalanceCredit() {
+    if (!(els.adminBalanceAmount instanceof HTMLInputElement)) return;
+    if (!state.user) {
+      setAdminBalanceStatus("Login first.", "error");
+      return;
+    }
+    if (!canUseAdminBalancePower()) {
+      setAdminBalanceStatus("Admin permission required.", "error");
+      return;
+    }
+
+    const amount = Math.max(0, Math.floor(Number(els.adminBalanceAmount.value)));
+    if (!amount) {
+      setAdminBalanceStatus("Enter a valid amount in WL.", "error");
+      return;
+    }
+
+    const selfName = normalizeUsername(state.user.username);
+    const targetInput = els.adminBalanceTarget instanceof HTMLInputElement
+      ? normalizeUsername(els.adminBalanceTarget.value)
+      : "";
+    const targetName = targetInput || selfName;
+    let targetAccountId = "";
+
+    if (!targetName || targetName === selfName) {
+      targetAccountId = String(state.user.accountId || "").trim();
+    } else {
+      const db = await connectDb();
+      const userSnap = await db.ref(BASE_PATH + "/usernames/" + targetName).once("value");
+      targetAccountId = String(userSnap && userSnap.val ? (userSnap.val() || "") : "").trim();
+    }
+
+    if (!targetAccountId) {
+      setAdminBalanceStatus("Target user not found.", "error");
+      return;
+    }
+
+    if (els.adminBalanceApplyBtn instanceof HTMLButtonElement) els.adminBalanceApplyBtn.disabled = true;
+    setAdminBalanceStatus("Applying balance credit...");
+    try {
+      const db = await connectDb();
+      const invRef = db.ref(BASE_PATH + "/player-inventories/" + targetAccountId);
+      const tx = await invRef.transaction((currentRaw) => {
+        const currentObj = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+        const wallet = walletFromInventory(currentObj);
+        const nextById = decomposeLocks(wallet.total + amount);
+        for (let i = 0; i < state.lockRows.length; i++) {
+          const row = state.lockRows[i];
+          currentObj[row.id] = toCount(nextById[row.id]);
+        }
+        return currentObj;
+      });
+      if (!tx || !tx.committed) {
+        setAdminBalanceStatus("Credit rejected by database.", "error");
+        return;
+      }
+
+      db.ref(BASE_PATH + "/admin-audit").push({
+        action: "casino_balance_credit",
+        actorAccountId: String(state.user.accountId || "").trim(),
+        actorUsername: String(state.user.username || "admin").slice(0, 20),
+        targetAccountId: String(targetAccountId || "").trim(),
+        targetUsername: String(targetName || "").slice(0, 20),
+        amount: amount,
+        level: "warn",
+        createdAt: Date.now()
+      }).catch(() => {});
+
+      if (targetAccountId === String(state.user.accountId || "").trim()) {
+        const nextWallet = walletFromInventory(tx.snapshot && typeof tx.snapshot.val === "function" ? tx.snapshot.val() : {});
+        state.walletLocks = nextWallet.total;
+        state.walletById = nextWallet.byId;
+        refreshSessionChips();
+      }
+
+      const msg = "Added " + formatLocks(amount) + " to @" + targetName + ".";
+      setAdminBalanceStatus(msg, "ok");
+      setStatus(msg, "ok");
+      pushHistory("Admin credit +" + formatLocks(amount) + " -> @" + targetName);
+      els.adminBalanceAmount.value = "";
+    } catch (error) {
+      setAdminBalanceStatus("Credit failed: " + ((error && error.message) || "unknown error"), "error");
+    } finally {
+      if (els.adminBalanceApplyBtn instanceof HTMLButtonElement) els.adminBalanceApplyBtn.disabled = false;
+    }
+  }
+
   function isBlackjackNatural(cards) {
     return Array.isArray(cards) && cards.length === 2 && handValue(cards) === 21;
   }
@@ -679,69 +929,107 @@ window.GTModules = window.GTModules || {};
     const last = state.plinko && state.plinko.lastDrop ? state.plinko.lastDrop : null;
     const rows = PLINKO_ROWS;
     const bins = rows + 1;
-    const path = last && Array.isArray(last.pathCols) ? last.pathCols : [];
-    const winIndex = last ? Math.max(0, Math.min(bins - 1, Math.floor(Number(last.binIndex) || 0))) : -1;
 
     let html = "";
     html += "<div class=\"meta-line\"><strong>Rows:</strong> " + rows + " | <strong>Slots:</strong> " + bins + "</div>";
-    if (last) {
-      html += "<div class=\"meta-line\"><strong>Last Drop:</strong> Bet " + escapeHtml(formatLocks(last.bet)) +
-        " | x" + Number(last.multiplier || 0).toFixed(2) +
-        " | Payout " + escapeHtml(formatLocks(last.payout)) + "</div>";
-    } else {
-      html += "<div class=\"meta-line\">Drop a ball to start Plinko.</div>";
-    }
+    html += "<div class=\"meta-line\" data-plinko-live>" +
+      (last
+        ? ("Last drop paid " + escapeHtml(formatLocks(last.payout)) + " at x" + Number(last.multiplier || 0).toFixed(2) + ".")
+        : "Drop a ball to start Plinko.")
+      + "</div>";
 
     html += "<div class=\"plinko-shell\">";
-    for (let r = 0; r < rows; r++) {
-      html += "<div class=\"plinko-row\" style=\"--pegs:" + (r + 1) + "\">";
+    html += "<div class=\"plinko-grid\">";
+    for (let r = 0; r < PLINKO_ROWS; r++) {
       for (let c = 0; c <= r; c++) {
-        const isPath = path.length && path[r] === c;
-        html += "<span class=\"plinko-peg" + (isPath ? " path" : "") + "\"></span>";
+        const pegPos = plinkoPegPosition(r, c);
+        html += "<span class=\"plinko-peg\" data-plinko-peg data-row=\"" + r + "\" data-col=\"" + c + "\" style=\"left:" + pegPos.x.toFixed(3) + "%;top:" + pegPos.y.toFixed(3) + "%\"></span>";
       }
-      html += "</div>";
     }
+    html += "<span class=\"plinko-ball hidden-ball\" aria-hidden=\"true\"></span>";
+    html += "</div>";
+
     html += "<div class=\"plinko-bins\">";
     for (let i = 0; i < bins; i++) {
       const mult = Number(PLINKO_MULTIPLIERS[i] || 1);
-      const cls = i === winIndex ? "plinko-bin win" : "plinko-bin";
-      html += "<div class=\"" + cls + "\"><span>x" + mult.toFixed(1).replace(".0", "") + "</span></div>";
+      html += "<div class=\"plinko-bin\" data-plinko-bin=\"" + i + "\"><span>x" + mult.toFixed(1).replace(".0", "") + "</span></div>";
     }
     html += "</div>";
     html += "</div>";
     els.board.innerHTML = html;
+    paintPlinkoFrame();
   }
 
   async function startPlinko() {
+    if (state.busy) return;
     const bet = clampBetByGame(state.bet);
-    const spend = await applyWalletDelta(-bet);
-    if (!spend.ok) {
-      setStatus("Not enough locks for plinko bet.", "error");
-      return;
-    }
+    setBusy(true);
+    try {
+      const spend = await applyWalletDelta(-bet);
+      if (!spend.ok) {
+        setStatus("Not enough locks for plinko bet.", "error");
+        return;
+      }
 
-    let rights = 0;
-    const pathCols = [];
-    for (let r = 0; r < PLINKO_ROWS; r++) {
-      if (Math.random() >= 0.5) rights += 1;
-      pathCols.push(rights);
-    }
-    const binIndex = Math.max(0, Math.min(PLINKO_ROWS, rights));
-    const multiplier = Number(PLINKO_MULTIPLIERS[binIndex] || 1);
-    const payout = Math.max(0, Math.floor(bet * multiplier));
-    const credit = await applyWalletDelta(payout);
-    if (!credit.ok) {
-      setStatus("Plinko payout failed to credit.", "error");
-      return;
-    }
+      let col = 0;
+      const pathCols = [];
+      for (let r = 0; r < PLINKO_ROWS; r++) {
+        pathCols.push(col);
+        if (Math.random() >= 0.5) col += 1;
+      }
 
-    state.plinko = {
-      lastDrop: { bet, payout, multiplier, binIndex, pathCols }
-    };
-    const msg = "Plinko hit x" + multiplier.toFixed(2) + " -> +" + formatLocks(payout);
-    setStatus(msg, payout > 0 ? "ok" : "error");
-    pushHistory(msg);
-    renderBoard();
+      const binIndex = Math.max(0, Math.min(PLINKO_ROWS, col));
+      const multiplier = Number(PLINKO_MULTIPLIERS[binIndex] || 1);
+      const payout = Math.max(0, Math.floor(bet * multiplier));
+
+      if (!state.plinko || typeof state.plinko !== "object") state.plinko = {};
+      state.plinko.liveDrop = {
+        bet,
+        pathCols,
+        binIndex,
+        multiplier,
+        currentRow: -1,
+        currentCol: 0
+      };
+
+      setStatus("Plinko ball dropping...", "ok");
+      renderBoard();
+      await wait(110);
+
+      for (let r = 0; r < PLINKO_ROWS; r++) {
+        if (!state.plinko || !state.plinko.liveDrop) break;
+        state.plinko.liveDrop.currentRow = r;
+        state.plinko.liveDrop.currentCol = pathCols[r];
+        paintPlinkoFrame();
+        await wait(125);
+      }
+
+      if (state.plinko && state.plinko.liveDrop) {
+        state.plinko.liveDrop.currentRow = PLINKO_ROWS;
+        state.plinko.liveDrop.currentCol = binIndex;
+        paintPlinkoFrame();
+      }
+      await wait(160);
+
+      const credit = await applyWalletDelta(payout);
+      if (!credit.ok) {
+        setStatus("Plinko payout failed to credit.", "error");
+        if (state.plinko && state.plinko.liveDrop) state.plinko.liveDrop = null;
+        renderBoard();
+        return;
+      }
+
+      if (!state.plinko || typeof state.plinko !== "object") state.plinko = {};
+      state.plinko.lastDrop = { bet, payout, multiplier, binIndex, pathCols };
+      state.plinko.liveDrop = null;
+
+      const msg = "Plinko hit x" + multiplier.toFixed(2) + " -> +" + formatLocks(payout);
+      setStatus(msg, payout > 0 ? "ok" : "error");
+      pushHistory(msg);
+      renderBoard();
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function startTower() {
@@ -1299,6 +1587,17 @@ window.GTModules = window.GTModules || {};
       els.betMaxBtn.addEventListener("click", () => {
         const game = GAMES[state.activeGame] || GAMES.blackjack;
         setBet(Math.min(game.maxBet, state.walletLocks));
+      });
+    }
+
+    if (els.adminBalanceApplyBtn instanceof HTMLButtonElement) {
+      els.adminBalanceApplyBtn.addEventListener("click", () => {
+        runAdminBalanceCredit();
+      });
+    }
+    if (els.adminBalanceAmount instanceof HTMLInputElement) {
+      els.adminBalanceAmount.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") runAdminBalanceCredit();
       });
     }
 

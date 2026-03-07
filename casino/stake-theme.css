@@ -358,6 +358,28 @@ body {
   min-width: 130px;
 }
 
+.admin-balance-panel {
+  margin-top: 2px;
+  border: 1px solid rgba(135, 162, 204, 0.3);
+  border-radius: 12px;
+  background: rgba(11, 18, 30, 0.75);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-balance-row {
+  grid-template-columns: 1.4fr 1fr auto;
+  align-items: stretch;
+}
+
+.admin-balance-panel .status {
+  margin-top: 0;
+  min-height: 42px;
+  font-size: 13px;
+  padding: 10px 11px;
+}
+
 .board {
   min-height: clamp(420px, 52vh, 620px);
   border: 1px solid var(--border);
@@ -440,55 +462,86 @@ body {
 }
 
 .plinko-shell {
-  width: min(100%, 860px);
+  width: min(100%, 980px);
   margin-top: 8px;
-  border: 1px solid rgba(135, 162, 204, 0.28);
-  border-radius: 12px;
+  border: 1px solid rgba(135, 162, 204, 0.3);
+  border-radius: 14px;
   padding: 12px;
-  background: rgba(9, 16, 28, 0.6);
+  background: linear-gradient(180deg, rgba(11, 19, 33, 0.85), rgba(9, 16, 28, 0.92));
+  display: grid;
+  gap: 10px;
 }
 
-.plinko-row {
-  --pegs: 1;
-  display: grid;
-  grid-template-columns: repeat(var(--pegs), minmax(0, 1fr));
-  gap: 10px;
-  width: min(100%, 620px);
-  margin: 0 auto 8px;
+.plinko-grid {
+  position: relative;
+  width: 100%;
+  height: clamp(320px, 46vh, 500px);
+  border: 1px solid rgba(135, 162, 204, 0.24);
+  border-radius: 12px;
+  background:
+    radial-gradient(70% 42% at 50% 4%, rgba(95, 210, 255, 0.08), transparent 70%),
+    linear-gradient(180deg, rgba(13, 22, 36, 0.72), rgba(8, 14, 24, 0.88));
+  overflow: hidden;
 }
 
 .plinko-peg {
-  width: 14px;
-  height: 14px;
+  position: absolute;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  margin: 0 auto;
-  background: #31435d;
-  border: 1px solid rgba(111, 226, 255, 0.28);
+  transform: translate(-50%, -50%);
+  background: #2c3f5b;
+  border: 1px solid rgba(151, 175, 215, 0.34);
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.plinko-peg.path {
-  background: #5fd2ff;
-  border-color: rgba(111, 226, 255, 0.8);
-  box-shadow: 0 0 0 3px rgba(111, 226, 255, 0.18);
+.plinko-peg.trail {
+  background: #4ea7cf;
+  border-color: rgba(138, 228, 255, 0.82);
+  box-shadow: 0 0 0 2px rgba(95, 210, 255, 0.2);
+}
+
+.plinko-peg.current {
+  background: #7ce2ff;
+  border-color: rgba(170, 242, 255, 0.95);
+  box-shadow: 0 0 0 4px rgba(95, 210, 255, 0.22);
+}
+
+.plinko-ball {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 35% 30%, #fff8d9 0%, #f8df8c 38%, #b28a2b 100%);
+  border: 1px solid rgba(255, 232, 168, 0.9);
+  box-shadow: 0 0 18px rgba(255, 224, 131, 0.38);
+  transition: left 0.13s cubic-bezier(0.18, 0.82, 0.26, 1), top 0.13s cubic-bezier(0.18, 0.82, 0.26, 1), opacity 0.12s ease;
+  z-index: 3;
+}
+
+.plinko-ball.hidden-ball {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .plinko-bins {
   display: grid;
   grid-template-columns: repeat(13, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 12px;
+  gap: 8px;
 }
 
 .plinko-bin {
-  border-radius: 8px;
-  border: 1px solid rgba(135, 162, 204, 0.28);
-  background: rgba(28, 40, 58, 0.8);
-  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(135, 162, 204, 0.32);
+  background: rgba(28, 40, 58, 0.9);
+  min-height: 40px;
   display: grid;
   place-items: center;
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 13px;
+  color: #d4e5ff;
   font-weight: 700;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .plinko-bin.win {
@@ -627,6 +680,10 @@ body {
     grid-template-columns: 1fr 1fr;
   }
 
+  .admin-balance-row {
+    grid-template-columns: 1fr;
+  }
+
   .page {
     width: 100vw;
     margin: 0;
@@ -658,7 +715,13 @@ body {
   }
 
   .plinko-bins {
-    grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+    grid-template-columns: repeat(13, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .plinko-bin {
+    min-height: 34px;
+    font-size: 11px;
   }
 
   .game-head {

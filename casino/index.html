@@ -118,6 +118,15 @@
               <button id="bjSplitBtn" class="btn" type="button" style="display:none;">Split</button>
               <button id="bjDealBtn" class="btn" type="button" style="display:none;">Deal</button>
             </div>
+            <div id="adminBalancePanel" class="admin-balance-panel hidden">
+              <div class="meta-line"><strong>Admin Power:</strong> Add balance (WL) to yourself or another user.</div>
+              <div class="control-row admin-balance-row">
+                <input id="adminBalanceTarget" class="input" type="text" maxlength="20" placeholder="Target username (blank = yourself)">
+                <input id="adminBalanceAmount" class="input" type="number" min="1" step="1" placeholder="Amount in WL">
+                <button id="adminBalanceApplyBtn" class="btn good" type="button">Add Balance</button>
+              </div>
+              <div id="adminBalanceStatus" class="status">Admin permission required.</div>
+            </div>
           </div>
 
           <div id="gameStatus" class="status" style="margin-top:12px;">Choose a game and press Start.</div>
