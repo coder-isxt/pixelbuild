@@ -73,6 +73,8 @@ window.GTModules = window.GTModules || {};
     spinBtn: document.getElementById("spinBtn"),
     bjHitBtn: document.getElementById("bjHitBtn"),
     bjStandBtn: document.getElementById("bjStandBtn"),
+    bjDoubleBtn: document.getElementById("bjDoubleBtn"),
+    bjSplitBtn: document.getElementById("bjSplitBtn"),
     bjDealBtn: document.getElementById("bjDealBtn"),
     gameStatus: document.getElementById("gameStatus"),
     boardTitle: document.getElementById("boardTitle"),
@@ -279,12 +281,14 @@ window.GTModules = window.GTModules || {};
     if (els.bjDealBtn instanceof HTMLElement) els.bjDealBtn.style.display = isBj ? "" : "none";
     if (els.bjHitBtn instanceof HTMLElement) els.bjHitBtn.style.display = isBj ? "" : "none";
     if (els.bjStandBtn instanceof HTMLElement) els.bjStandBtn.style.display = isBj ? "" : "none";
+    if (els.bjDoubleBtn instanceof HTMLElement) els.bjDoubleBtn.style.display = isBj ? "" : "none";
+    if (els.bjSplitBtn instanceof HTMLElement) els.bjSplitBtn.style.display = isBj ? "" : "none";
+    if (els.spinBtn instanceof HTMLElement) els.spinBtn.style.display = isBj ? "none" : "";
 
     const label = GAMES[state.activeGame] ? GAMES[state.activeGame].label : "Game";
     if (els.boardTitle instanceof HTMLElement) els.boardTitle.textContent = label;
     if (els.spinBtn instanceof HTMLButtonElement) {
-      if (state.activeGame === "blackjack") els.spinBtn.textContent = "Quick Deal";
-      else if (state.activeGame === "tower") els.spinBtn.textContent = state.tower && state.tower.active ? "Run Active" : "Start Tower";
+      if (state.activeGame === "tower") els.spinBtn.textContent = state.tower && state.tower.active ? "Run Active" : "Start Tower";
       else els.spinBtn.textContent = state.mines && state.mines.active ? "Run Active" : "Start Mines";
     }
 
@@ -461,45 +465,79 @@ window.GTModules = window.GTModules || {};
     return { ok: true, amount: delta };
   }
 
-  async function settleBlackjack() {
-    const round = state.bj;
-    if (!round || !round.active) return;
+  function isBlackjackNatural(cards) {
+    return Array.isArray(cards) && cards.length === 2 && handValue(cards) === 21;
+  }
 
-    const player = handValue(round.player);
-    while (handValue(round.dealer) < 17) {
-      round.dealer.push(round.deck.pop());
+  function canSplitHand(hand) {
+    if (!hand || !Array.isArray(hand.cards) || hand.cards.length !== 2) return false;
+    return cardPoints(hand.cards[0]) === cardPoints(hand.cards[1]);
+  }
+
+  async function settleBlackjackRound() {
+    const round = state.bj;
+    if (!round) return;
+
+    const hasLiveHand = round.hands.some((h) => handValue(h.cards) <= 21);
+    if (hasLiveHand) {
+      while (handValue(round.dealerHand) < 17) {
+        round.dealerHand.push(round.deck.pop());
+      }
     }
-    const dealer = handValue(round.dealer);
+
+    const dealerScore = handValue(round.dealerHand);
+    let totalPayout = 0;
+    let winHands = 0;
+    let pushHands = 0;
+
+    for (let i = 0; i < round.hands.length; i++) {
+      const hand = round.hands[i];
+      const score = handValue(hand.cards);
+      if (score > 21) continue;
+      if (dealerScore > 21 || score > dealerScore) {
+        totalPayout += hand.bet * 2;
+        winHands += 1;
+      } else if (score === dealerScore) {
+        totalPayout += hand.bet;
+        pushHands += 1;
+      }
+    }
 
     round.active = false;
-    let payout = 0;
-    let msg = "";
-
-    if (player > 21) {
-      msg = "Blackjack bust. Lost " + formatLocks(round.bet);
-    } else if (dealer > 21 || player > dealer) {
-      payout = Math.floor(round.bet * (round.natural ? 2.5 : 2));
-      msg = "Blackjack win +" + formatLocks(payout);
-    } else if (player === dealer) {
-      payout = round.bet;
-      msg = "Blackjack push. Returned " + formatLocks(round.bet);
-    } else {
-      msg = "Dealer wins. Lost " + formatLocks(round.bet);
-    }
-
-    if (payout > 0) {
-      const res = await applyWalletDelta(payout);
-      if (!res.ok) {
+    let msg = "Dealer wins all hands.";
+    let mode = "error";
+    if (totalPayout > 0) {
+      const credit = await applyWalletDelta(totalPayout);
+      if (!credit.ok) {
         setStatus("Failed to credit blackjack payout.", "error");
         pushHistory("Blackjack payout credit failed");
-      } else {
-        setStatus(msg, "ok");
-        pushHistory(msg);
+        renderBoard();
+        return;
       }
-    } else {
-      setStatus(msg, "error");
-      pushHistory(msg);
+      mode = "ok";
+      if (winHands > 0 && pushHands > 0) msg = "Blackjack mixed result +" + formatLocks(totalPayout);
+      else if (winHands > 0) msg = "Blackjack won +" + formatLocks(totalPayout);
+      else msg = "Blackjack push returned " + formatLocks(totalPayout);
     }
+
+    round.message = msg;
+    setStatus(msg, mode);
+    pushHistory(msg);
+    renderBoard();
+  }
+
+  async function moveToNextBlackjackHandOrSettle() {
+    const round = state.bj;
+    if (!round || !round.active) return;
+    while (round.activeHandIndex < round.hands.length && round.hands[round.activeHandIndex].done) {
+      round.activeHandIndex += 1;
+    }
+    if (round.activeHandIndex >= round.hands.length) {
+      await settleBlackjackRound();
+      return;
+    }
+    round.message = "Playing hand " + (round.activeHandIndex + 1) + " / " + round.hands.length;
+    setStatus(round.message, "ok");
     renderBoard();
   }
 
@@ -517,24 +555,45 @@ window.GTModules = window.GTModules || {};
 
     const deck = createDeck();
     const player = [deck.pop(), deck.pop()];
-    const dealer = [deck.pop(), deck.pop()];
-    const natural = handValue(player) === 21 && player.length === 2;
+    const dealerHand = [deck.pop(), deck.pop()];
+    const natural = isBlackjackNatural(player);
+    const dealerNatural = isBlackjackNatural(dealerHand);
 
     state.bj = {
       active: true,
       bet,
       deck,
-      player,
-      dealer,
-      natural
+      dealerHand,
+      hands: [{ cards: player, bet, done: false }],
+      activeHandIndex: 0,
+      message: "Hit, stand, double, or split."
     };
 
     if (natural) {
-      await settleBlackjack();
+      state.bj.active = false;
+      let payout = 0;
+      let msg = "";
+      if (dealerNatural) {
+        payout = bet;
+        msg = "Blackjack push. Returned " + formatLocks(bet);
+      } else {
+        payout = Math.floor(bet * 2.5);
+        msg = "Blackjack natural +" + formatLocks(payout);
+      }
+      const credit = await applyWalletDelta(payout);
+      if (!credit.ok) {
+        setStatus("Failed to credit blackjack payout.", "error");
+        pushHistory("Blackjack payout credit failed");
+      } else {
+        setStatus(msg, "ok");
+        pushHistory(msg);
+      }
+      state.bj.message = msg;
+      renderBoard();
       return;
     }
 
-    setStatus("Blackjack started. Hit or stand.", "ok");
+    setStatus("Blackjack started. Hit, stand, double, or split.", "ok");
     pushHistory("Blackjack started with " + formatLocks(bet) + " bet");
     renderBoard();
   }
@@ -542,18 +601,72 @@ window.GTModules = window.GTModules || {};
   async function blackjackHit() {
     const round = state.bj;
     if (!round || !round.active) return;
-    round.player.push(round.deck.pop());
-    renderBoard();
-    if (handValue(round.player) > 21) {
-      await settleBlackjack();
-    } else {
-      setStatus("Blackjack: choose hit or stand.", "ok");
+    const hand = round.hands[round.activeHandIndex];
+    if (!hand || hand.done) return;
+    hand.cards.push(round.deck.pop());
+    if (handValue(hand.cards) > 21) {
+      hand.done = true;
+      round.message = "Hand " + (round.activeHandIndex + 1) + " busted.";
+      setStatus(round.message, "error");
     }
+    renderBoard();
+    await moveToNextBlackjackHandOrSettle();
   }
 
   async function blackjackStand() {
-    if (!state.bj || !state.bj.active) return;
-    await settleBlackjack();
+    const round = state.bj;
+    if (!round || !round.active) return;
+    const hand = round.hands[round.activeHandIndex];
+    if (!hand || hand.done) return;
+    hand.done = true;
+    round.message = "Stood on hand " + (round.activeHandIndex + 1) + ".";
+    setStatus(round.message, "ok");
+    renderBoard();
+    await moveToNextBlackjackHandOrSettle();
+  }
+
+  async function blackjackDouble() {
+    const round = state.bj;
+    if (!round || !round.active) return;
+    const hand = round.hands[round.activeHandIndex];
+    if (!hand || hand.done || hand.cards.length !== 2) return;
+
+    const spend = await applyWalletDelta(-hand.bet);
+    if (!spend.ok) {
+      setStatus("Not enough locks to double.", "error");
+      return;
+    }
+    hand.bet *= 2;
+    hand.cards.push(round.deck.pop());
+    hand.done = true;
+    round.message = "Doubled hand " + (round.activeHandIndex + 1) + ".";
+    setStatus(round.message, "ok");
+    renderBoard();
+    await moveToNextBlackjackHandOrSettle();
+  }
+
+  async function blackjackSplit() {
+    const round = state.bj;
+    if (!round || !round.active) return;
+    const hand = round.hands[round.activeHandIndex];
+    if (!canSplitHand(hand)) return;
+
+    const spend = await applyWalletDelta(-hand.bet);
+    if (!spend.ok) {
+      setStatus("Not enough locks to split.", "error");
+      return;
+    }
+
+    const first = hand.cards[0];
+    const second = hand.cards[1];
+    const baseBet = hand.bet;
+    const handA = { cards: [first, round.deck.pop()], bet: baseBet, done: false };
+    const handB = { cards: [second, round.deck.pop()], bet: baseBet, done: false };
+
+    round.hands.splice(round.activeHandIndex, 1, handA, handB);
+    round.message = "Split activated. Playing hand " + (round.activeHandIndex + 1) + ".";
+    setStatus(round.message, "ok");
+    renderBoard();
   }
 
   async function startTower() {
@@ -688,30 +801,50 @@ window.GTModules = window.GTModules || {};
     const round = state.bj;
     if (!round) {
       els.board.innerHTML = "<div class=\"meta-line\">Press <strong>Deal</strong> to start a round.</div>";
+      if (els.bjHitBtn instanceof HTMLButtonElement) els.bjHitBtn.disabled = true;
+      if (els.bjStandBtn instanceof HTMLButtonElement) els.bjStandBtn.disabled = true;
+      if (els.bjDoubleBtn instanceof HTMLButtonElement) els.bjDoubleBtn.disabled = true;
+      if (els.bjSplitBtn instanceof HTMLButtonElement) els.bjSplitBtn.disabled = true;
+      if (els.bjDealBtn instanceof HTMLButtonElement) els.bjDealBtn.disabled = !state.user;
       return;
     }
-    const playerValue = handValue(round.player);
-    const dealerValueText = round.active ? "?" : String(handValue(round.dealer));
 
-    const playerCards = round.player.map((c) => buildCardHtml(c, false)).join("");
-    const dealerCards = round.dealer.map((c, i) => buildCardHtml(c, round.active && i === 1)).join("");
+    const dealerValueText = round.active ? "?" : String(handValue(round.dealerHand));
+    const dealerCards = round.dealerHand.map((c, i) => buildCardHtml(c, round.active && i === 1)).join("");
+
+    let handsHtml = "";
+    for (let i = 0; i < round.hands.length; i++) {
+      const hand = round.hands[i];
+      const score = handValue(hand.cards);
+      const activeClass = (round.active && i === round.activeHandIndex) ? " active-hand" : "";
+      const cardsHtml = hand.cards.map((c) => buildCardHtml(c, false)).join("");
+      handsHtml += "<div class=\"bj-hand" + activeClass + "\">" +
+        "<div class=\"meta-line\"><strong>Hand " + (i + 1) + ":</strong> " + score + " | Bet " + escapeHtml(formatLocks(hand.bet)) + "</div>" +
+        "<div class=\"cards playing-cards\">" + cardsHtml + "</div>" +
+        "</div>";
+    }
 
     els.board.innerHTML = "" +
-      "<div class=\"meta-line\"><strong>Bet:</strong> " + escapeHtml(formatLocks(round.bet)) + "</div>" +
+      "<div class=\"meta-line\"><strong>Base Bet:</strong> " + escapeHtml(formatLocks(round.bet)) + "</div>" +
+      "<div class=\"meta-line\"><strong>Status:</strong> " + escapeHtml(round.message || "") + "</div>" +
       "<div class=\"bj-layout\">" +
-      "  <div class=\"bj-hand\">" +
+      "  <div class=\"bj-hand dealer-hand\">" +
       "    <div class=\"meta-line\"><strong>Dealer:</strong> " + escapeHtml(dealerValueText) + "</div>" +
       "    <div class=\"cards playing-cards\">" + dealerCards + "</div>" +
       "  </div>" +
-      "  <div class=\"bj-hand\">" +
-      "    <div class=\"meta-line\"><strong>Player:</strong> " + escapeHtml(String(playerValue)) + "</div>" +
-      "    <div class=\"cards playing-cards\">" + playerCards + "</div>" +
-      "  </div>" +
+      handsHtml +
       "</div>";
 
-    if (els.bjHitBtn instanceof HTMLButtonElement) els.bjHitBtn.disabled = !round.active;
-    if (els.bjStandBtn instanceof HTMLButtonElement) els.bjStandBtn.disabled = !round.active;
-    if (els.bjDealBtn instanceof HTMLButtonElement) els.bjDealBtn.disabled = round.active || !state.user;
+    const active = Boolean(round.active);
+    const hand = active ? round.hands[round.activeHandIndex] : null;
+    const canDouble = Boolean(active && hand && hand.cards.length === 2);
+    const canSplit = Boolean(active && hand && canSplitHand(hand));
+
+    if (els.bjHitBtn instanceof HTMLButtonElement) els.bjHitBtn.disabled = !active;
+    if (els.bjStandBtn instanceof HTMLButtonElement) els.bjStandBtn.disabled = !active;
+    if (els.bjDoubleBtn instanceof HTMLButtonElement) els.bjDoubleBtn.disabled = !canDouble;
+    if (els.bjSplitBtn instanceof HTMLButtonElement) els.bjSplitBtn.disabled = !canSplit;
+    if (els.bjDealBtn instanceof HTMLButtonElement) els.bjDealBtn.disabled = active || !state.user;
   }
 
   function renderTowerBoard() {
@@ -813,8 +946,7 @@ window.GTModules = window.GTModules || {};
     else renderBlackjackBoard();
 
     if (els.spinBtn instanceof HTMLButtonElement) {
-      if (state.activeGame === "blackjack") els.spinBtn.textContent = "Quick Deal";
-      else if (state.activeGame === "tower") els.spinBtn.textContent = state.tower && state.tower.active ? "Run Active" : "Start Tower";
+      if (state.activeGame === "tower") els.spinBtn.textContent = state.tower && state.tower.active ? "Run Active" : "Start Tower";
       else els.spinBtn.textContent = state.mines && state.mines.active ? "Run Active" : "Start Mines";
     }
   }
@@ -1112,6 +1244,8 @@ window.GTModules = window.GTModules || {};
     if (els.bjDealBtn instanceof HTMLButtonElement) els.bjDealBtn.addEventListener("click", () => startBlackjack());
     if (els.bjHitBtn instanceof HTMLButtonElement) els.bjHitBtn.addEventListener("click", () => blackjackHit());
     if (els.bjStandBtn instanceof HTMLButtonElement) els.bjStandBtn.addEventListener("click", () => blackjackStand());
+    if (els.bjDoubleBtn instanceof HTMLButtonElement) els.bjDoubleBtn.addEventListener("click", () => blackjackDouble());
+    if (els.bjSplitBtn instanceof HTMLButtonElement) els.bjSplitBtn.addEventListener("click", () => blackjackSplit());
 
     if (els.towerCashoutBtn instanceof HTMLButtonElement) els.towerCashoutBtn.addEventListener("click", () => towerCashout());
     if (els.minesCashoutBtn instanceof HTMLButtonElement) els.minesCashoutBtn.addEventListener("click", () => minesCashout());

@@ -453,6 +453,15 @@ body {
 .bj-hand {
   display: grid;
   gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(135, 162, 204, 0.2);
+  background: rgba(15, 24, 38, 0.45);
+}
+
+.bj-hand.active-hand {
+  border-color: rgba(111, 226, 255, 0.6);
+  box-shadow: 0 0 0 1px rgba(111, 226, 255, 0.32) inset;
 }
 
 .playing-cards {
