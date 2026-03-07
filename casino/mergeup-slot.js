@@ -35,13 +35,13 @@
     buyBonusCostMultiplier: 80,
     maxCascadesPerSpin: 80,
     freeSpinsTrigger: { 4: 15, 5: 18, 6: 20 },
-    freeSpinsRetrigger: { 4: 5, 5: 8, 6: 10 },
+    freeSpinsRetrigger: { 3: 5, 4: 8, 5: 10 },
     markerStartMultiplier: 2,
     maxCellMultiplier: 32,
-    clusterMultiplierCombine: "product",
+    clusterMultiplierCombine: "sum",
     maxClusterMultiplierApplied: 96,
     basePayoutScale: 0.72,
-    maxWinMultiplier: 5000000,
+    maxWinMultiplier: 50000,
     highBetPayoutBoostTiers: [
       { minBet: 100, multiplier: 1.01 },
       { minBet: 250, multiplier: 1.03 },
@@ -519,13 +519,22 @@
     combineClusterMultiplier(activeCellMultipliers) {
       const vals = Array.isArray(activeCellMultipliers) ? activeCellMultipliers : [];
       if (!vals.length) return 1;
-      const mode = String(this.config.clusterMultiplierCombine || "product").trim().toLowerCase();
+      const mode = String(this.config.clusterMultiplierCombine || "sum").trim().toLowerCase();
       const cap = Math.max(1, toInt(this.config.maxClusterMultiplierApplied, 4096));
 
       if (mode === "max") {
         let max = 1;
         for (let i = 0; i < vals.length; i++) max = Math.max(max, Math.max(1, toInt(vals[i], 1)));
         return Math.min(cap, max);
+      }
+
+      if (mode === "sum" || mode === "add" || mode === "stack") {
+        let sum = 0;
+        for (let i = 0; i < vals.length; i++) {
+          sum += Math.max(1, toInt(vals[i], 1));
+          if (sum >= cap) return cap;
+        }
+        return Math.min(cap, Math.max(1, sum));
       }
 
       let out = 1;
@@ -2262,7 +2271,7 @@
     let html = "";
     html += "<section><strong>Game Type:</strong> 6x6 cluster pays, orthogonal adjacency, minimum cluster size 5.</section>";
     html += "<section><strong>MergeUP Rule:</strong> only clusters of 5+ matching ducks win. Merge count scales by size: 5->1 upgrade, 6->2, 7->3, 8->4, etc. Targets are chosen deterministically from lowest row, then left-most.</section>";
-    html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award 15/18/20 free spins. In free spins, marked cells gain multipliers up to x" + gameConfig.maxCellMultiplier + ", cluster multipliers stack across marked cascade cells, and 4/5/6+ scatters retrigger for +5/+8/+10.</section>";
+    html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award 15/18/20 free spins. In free spins, marked cells gain multipliers up to x" + gameConfig.maxCellMultiplier + ", cluster multipliers stack into one additive multiplier across marked cascade cells, and 4/5/6+ scatters retrigger for +5/+8/+10.</section>";
     const boostRows = Array.isArray(gameConfig.highBetPayoutBoostTiers) ? gameConfig.highBetPayoutBoostTiers : [];
     let boostText = "none";
     if (boostRows.length) {
