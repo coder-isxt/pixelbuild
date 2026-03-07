@@ -1564,6 +1564,10 @@ window.GTModules = window.GTModules || {};
         const card = target.closest("[data-game-card]");
         if (!(card instanceof HTMLElement)) return;
         const gameId = String(card.getAttribute("data-game-card") || "").trim().toLowerCase();
+        if (gameId === "mergeup-slot") {
+          window.location.href = "./mergeup-slot.html";
+          return;
+        }
         setGame(gameId);
         setView("game");
       });

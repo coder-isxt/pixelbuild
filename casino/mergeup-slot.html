@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>PIXELBUILD MergeUp Slot</title>
+  <link rel="icon" href="../assets/logo.ico" type="image/x-icon">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap">
+  <link rel="stylesheet" href="./mergeup-slot.css">
+</head>
+<body>
+  <div class="slot-app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>MERGEUP TUMBLE</h1>
+        <p>6x6 cluster slot demo with pre-resolved cascades</p>
+      </div>
+      <div class="top-actions">
+        <div class="chip">State: <strong id="phaseValue">IDLE</strong></div>
+        <div class="chip">FS Left: <strong id="fsValue">0</strong></div>
+        <button id="soundBtn" class="btn ghost" type="button">Sound: On</button>
+        <button id="turboBtn" class="btn ghost" type="button">Turbo: Off</button>
+        <button id="autoplayBtn" class="btn ghost" type="button">Autoplay: Off</button>
+        <button id="infoBtn" class="btn ghost" type="button">Info</button>
+        <button id="backBtn" class="btn" type="button">Back To Casino</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="machine">
+        <div class="machine-hud">
+          <div class="stat">
+            <span>Balance</span>
+            <strong id="balanceValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Bet</span>
+            <strong id="betValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Spin Win</span>
+            <strong id="spinWinValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Tumble Win</span>
+            <strong id="tumbleWinValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Bonus Win</span>
+            <strong id="bonusWinValue">0</strong>
+          </div>
+        </div>
+
+        <div id="spinArea" class="spin-area" title="Click during win/count animation to fast-forward">
+          <div id="grid" class="slot-grid" aria-label="slot grid"></div>
+          <div id="banner" class="banner hidden"></div>
+          <div id="message" class="message">Ready to spin.</div>
+          <div id="floatingLayer" class="floating-layer" aria-hidden="true"></div>
+        </div>
+
+        <div class="controls">
+          <div class="bet-controls">
+            <button id="betDownBtn" class="btn" type="button">- Bet</button>
+            <input id="betInput" class="field" type="number" min="1" step="1" value="20">
+            <button id="betUpBtn" class="btn" type="button">+ Bet</button>
+            <button id="betMaxBtn" class="btn" type="button">Max Bet</button>
+          </div>
+          <div class="spin-controls">
+            <button id="spinBtn" class="btn spin" type="button">Spin</button>
+            <button id="buyBonusBtn" class="btn" type="button">Buy Bonus (120x)</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="right-rail">
+        <section class="panel">
+          <h2>Recent Wins</h2>
+          <div id="historyList" class="history-list"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Debug Tools</h2>
+          <label class="check"><input id="dbgForceScatter" type="checkbox"> Force 4+ scatters on next paid spin</label>
+          <label class="check"><input id="dbgForceBigWin" type="checkbox"> Force big cluster on next paid spin</label>
+          <label class="check"><input id="dbgLogClusters" type="checkbox" checked> Log clusters and totals</label>
+          <label class="check"><input id="dbgUseCustomGrid" type="checkbox"> Use custom grid JSON (next paid spin)</label>
+          <textarea id="dbgCustomGrid" class="field textarea" rows="8" spellcheck="false" placeholder='[["lv1","lv1","lv1","lv1","lv2","scatter"], ... 6 rows]'></textarea>
+          <button id="dbgLogResultBtn" class="btn ghost" type="button">Log Last Resolved Result</button>
+          <pre id="debugOutput" class="debug-output"></pre>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="infoModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="infoTitle">Paytable & Rules</h3>
+        <button id="closeInfoBtn" class="btn ghost" type="button">Close</button>
+      </div>
+      <div id="infoContent" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="./mergeup-slot.js"></script>
+</body>
+</html>
