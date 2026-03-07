@@ -253,8 +253,58 @@ body {
   gap: 14px;
 }
 
+.dashboard-categories {
+  display: grid;
+  gap: 14px;
+}
+
+.game-category {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(18, 28, 43, 0.86), rgba(14, 22, 34, 0.9));
+}
+
+.game-category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.game-category-head h3 {
+  margin: 0;
+  color: #e8f1ff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-category-count {
+  min-width: 38px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: rgba(10, 16, 27, 0.86);
+  color: #dce8ff;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-grid-category {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
 .slot-card-mount {
-  display: contents;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
 }
 
 .game-card {

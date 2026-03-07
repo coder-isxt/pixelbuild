@@ -63,6 +63,7 @@ window.GTModules = window.GTModules || {};
     dashboardView: document.getElementById("dashboardView"),
     dashboardCards: document.getElementById("dashboardCards"),
     slotCardsMount: document.getElementById("slotCardsMount"),
+    slotCategoryCount: document.getElementById("slotCategoryCount"),
     gameView: document.getElementById("gameView"),
     backToDashboardBtn: document.getElementById("backToDashboardBtn"),
     tabBlackjack: document.getElementById("tabBlackjack"),
@@ -472,6 +473,7 @@ window.GTModules = window.GTModules || {};
         "<strong>MergeUp Tumble</strong>" +
         "<small>6x6 cluster slot with cascades and free spins</small>" +
         "</button>";
+      if (els.slotCategoryCount instanceof HTMLElement) els.slotCategoryCount.textContent = "1";
       return;
     }
     let html = "";
@@ -484,6 +486,7 @@ window.GTModules = window.GTModules || {};
         "</button>";
     }
     els.slotCardsMount.innerHTML = html;
+    if (els.slotCategoryCount instanceof HTMLElement) els.slotCategoryCount.textContent = String(slots.length);
   }
 
   function storeSlotSessionTransfer() {

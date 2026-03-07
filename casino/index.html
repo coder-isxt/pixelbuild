@@ -42,28 +42,52 @@
             <h2>Casino Lobby</h2>
             <p>Select a game and launch its table.</p>
           </div>
-          <div id="dashboardCards" class="dashboard-grid">
-            <button type="button" class="game-card active" data-game-card="blackjack">
-              <span class="game-card-tag">Table</span>
-              <strong>Blackjack</strong>
-              <small>Classic 21 table play</small>
-            </button>
-            <button type="button" class="game-card" data-game-card="plinko">
-              <span class="game-card-tag">Risk</span>
-              <strong>Plinko</strong>
-              <small>Drop a ball through pegs for multiplier wins</small>
-            </button>
-            <button type="button" class="game-card" data-game-card="tower">
-              <span class="game-card-tag">Risk</span>
-              <strong>Tower</strong>
-              <small>Climb floors, cash out anytime</small>
-            </button>
-            <button type="button" class="game-card" data-game-card="mines">
-              <span class="game-card-tag">Risk</span>
-              <strong>Mines</strong>
-              <small>Pick safe tiles, avoid bombs</small>
-            </button>
-            <div id="slotCardsMount" class="slot-card-mount"></div>
+          <div id="dashboardCards" class="dashboard-categories">
+            <section class="game-category">
+              <div class="game-category-head">
+                <h3>Table Games</h3>
+                <span class="game-category-count">1</span>
+              </div>
+              <div class="dashboard-grid dashboard-grid-category">
+                <button type="button" class="game-card active" data-game-card="blackjack">
+                  <span class="game-card-tag">Table</span>
+                  <strong>Blackjack</strong>
+                  <small>Classic 21 table play</small>
+                </button>
+              </div>
+            </section>
+
+            <section class="game-category">
+              <div class="game-category-head">
+                <h3>Risk Games</h3>
+                <span class="game-category-count">3</span>
+              </div>
+              <div class="dashboard-grid dashboard-grid-category">
+                <button type="button" class="game-card" data-game-card="plinko">
+                  <span class="game-card-tag">Risk</span>
+                  <strong>Plinko</strong>
+                  <small>Drop a ball through pegs for multiplier wins</small>
+                </button>
+                <button type="button" class="game-card" data-game-card="tower">
+                  <span class="game-card-tag">Risk</span>
+                  <strong>Tower</strong>
+                  <small>Climb floors, cash out anytime</small>
+                </button>
+                <button type="button" class="game-card" data-game-card="mines">
+                  <span class="game-card-tag">Risk</span>
+                  <strong>Mines</strong>
+                  <small>Pick safe tiles, avoid bombs</small>
+                </button>
+              </div>
+            </section>
+
+            <section class="game-category">
+              <div class="game-category-head">
+                <h3>Slots</h3>
+                <span id="slotCategoryCount" class="game-category-count">0</span>
+              </div>
+              <div id="slotCardsMount" class="dashboard-grid dashboard-grid-category slot-card-mount"></div>
+            </section>
           </div>
         </section>
 
