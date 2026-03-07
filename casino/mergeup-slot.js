@@ -1559,10 +1559,46 @@
     return "WIN";
   }
 
+  function getFinalWinCounterLabel(totalWin, bet, options) {
+    const opts = options || {};
+    if (opts.maxWin) return "MAX WIN";
+    const ratio = bet > 0 ? (totalWin / bet) : 0;
+    if (ratio >= 40) return "MASSIVE WIN";
+    if (ratio >= 20) return "BIG WIN";
+    if (ratio >= 8) return "NICE WIN";
+    if (opts.bonusTriggered) return "BONUS WIN";
+    return "WIN";
+  }
+
+  async function presentFinalWinCounter(totalWin, bet, label) {
+    const finalTotal = Math.max(0, toInt(totalWin, 0));
+    if (!finalTotal) {
+      hideWinCounterNow();
+      return;
+    }
+    hideWinCounterNow();
+    showWinCounter(label || "WIN");
+    setWinCounterValue(0);
+
+    const ratio = bet > 0 ? (finalTotal / bet) : 0;
+    if (ratio >= 40) audio.play("big_win");
+    else if (ratio >= 20) audio.play("cluster_big");
+    else if (ratio >= 8) audio.play("cluster_mid");
+    else audio.play("cluster_small");
+
+    const duration = countDurationByWin(finalTotal, bet) + (state.turbo ? 170 : 360);
+    await counter.animate(0, finalTotal, duration, (value) => {
+      setWinCounterValue(toInt(Math.round(value), 0));
+    });
+    setWinCounterValue(finalTotal);
+    queueHideWinCounter(state.turbo ? 170 : 320);
+    await waitForWinCounterDismiss();
+  }
+
   async function animateSpinWinTo(targetValue, duration, options) {
     const opts = options || {};
     const start = state.spinWin;
-    if (targetValue > start) {
+    if (opts.showOverlay !== false && targetValue > start) {
       showWinCounter(opts.label || "WIN");
       setWinCounterValue(start);
     }
@@ -1570,11 +1606,11 @@
       state.spinWin = toInt(Math.round(value), start);
       if (state.spinWin > targetValue) state.spinWin = targetValue;
       updateHUD();
-      setWinCounterValue(state.spinWin);
+      if (opts.showOverlay !== false) setWinCounterValue(state.spinWin);
     });
     state.spinWin = targetValue;
     updateHUD();
-    setWinCounterValue(state.spinWin);
+    if (opts.showOverlay !== false) setWinCounterValue(state.spinWin);
   }
 
   async function animateBalanceTo(targetValue, duration) {
@@ -1642,12 +1678,12 @@
         else if (baseRatio >= 3) audio.play("cluster_mid");
         else audio.play("cluster_small");
 
-        await animateSpinWinTo(baseTarget, countDurationByWin(baseWin, bet), { label: "WIN" });
+        await animateSpinWinTo(baseTarget, countDurationByWin(baseWin, bet), { label: "WIN", showOverlay: false });
         await pause(120);
 
         showFloatingText(cluster.anchor[0], cluster.anchor[1], "x" + cluster.multiplierApplied + " (" + markedCount + " cells)", true);
         audio.play("multiplier");
-        await animateSpinWinTo(targetTotal, countDurationByWin(boostedWin, bet) + 100, { label: "WIN" });
+        await animateSpinWinTo(targetTotal, countDurationByWin(boostedWin, bet) + 100, { label: "WIN", showOverlay: false });
       } else {
         if (cluster.multiplierApplied > 1) {
           const markedCount = Math.max(1, toInt(cluster.activeMarkedCells, 1));
@@ -1660,7 +1696,7 @@
         else if (ratio >= 3) audio.play("cluster_mid");
         else audio.play("cluster_small");
 
-        await animateSpinWinTo(targetTotal, duration, { label: "WIN" });
+        await animateSpinWinTo(targetTotal, duration, { label: "WIN", showOverlay: false });
       }
       await pause(260);
       clearHighlights();
@@ -1791,16 +1827,14 @@
 
     setPhase(SLOT_STATE.CREDIT);
     const totalWin = toInt(resolved.totalWin, 0);
-    const tier = getWinTierLabel(totalWin, resolved.bet);
-    const isBig = tier === "BIG WIN" || tier === "MEGA WIN" || tier === "EPIC WIN";
+    const finalWinLabel = getFinalWinCounterLabel(totalWin, resolved.bet, {
+      maxWin: Boolean(resolved.maxWinCapped),
+      bonusTriggered: Boolean(resolved.base && resolved.base.triggeredBonus) || resolved.kind === "buy_bonus"
+    });
 
     if (totalWin > 0) {
-      if (isBig) {
-        setBanner(tier + "\n" + formatWL(totalWin), true);
-        audio.play("big_win");
-        await pause(1200);
-        setBanner("");
-      }
+      setMessage(finalWinLabel + " " + formatWL(totalWin));
+      await presentFinalWinCounter(totalWin, resolved.bet, finalWinLabel);
 
       setMessage("Crediting " + formatWL(totalWin) + " to balance...");
       let creditResult = null;
@@ -1831,28 +1865,18 @@
         appendDebug("credit-check | displayed=" + displayed + " | credited=" + credited + " | raw=" + resolved.totalWinRaw + " | capped=" + resolved.maxWinCapped);
         if (displayed !== credited) appendDebug("ERROR: displayed and credited mismatch.");
 
-        setMessage(tier + " " + formatWL(totalWin) + (resolved.maxWinCapped ? " (MAX WIN CAP)" : ""));
-        pushHistory(tier + " +" + formatWL(totalWin) + (roundCost > 0 ? (" after " + formatWL(roundCost) + " cost") : ""), true);
+        setMessage(finalWinLabel + " " + formatWL(totalWin) + (resolved.maxWinCapped ? " (MAX WIN CAP)" : ""));
+        pushHistory(finalWinLabel + " +" + formatWL(totalWin) + (roundCost > 0 ? (" after " + formatWL(roundCost) + " cost") : ""), true);
       }
     } else {
       setMessage("No win this round.");
       pushHistory("No win (cost " + formatWL(roundCost) + ")", false);
     }
 
-    if (resolved.maxWinCapped) {
-      setBanner("MAX WIN CAP REACHED\n" + formatWL(resolved.totalWin), true);
-      await pause(1000);
-      setBanner("");
-    }
-
     state.fsLeft = 0;
     state.tumbleWin = 0;
     updateHUD();
-    if (totalWin > 0) {
-      queueHideWinCounter(state.turbo ? 260 : 460);
-      await waitForWinCounterDismiss();
-    }
-    else hideWinCounterNow();
+    hideWinCounterNow();
   }
 
   async function runSpin(kind) {
