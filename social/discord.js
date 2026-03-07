@@ -101,6 +101,9 @@ window.GTModules.discord = (function createDiscordModule() {
     if (payload && typeof payload === "object" && typeof payload.content === "string") {
       return payload.content;
     }
+    if (payload && typeof payload === "object") {
+      return "";
+    }
     return String(payload || "").trim();
   }
 

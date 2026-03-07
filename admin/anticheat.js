@@ -140,12 +140,36 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
 
     function buildRawDataShort(details) {
       if (!details || typeof details !== "object") return "";
+      const valueToShortText = (value) => {
+        if (value === null || value === undefined) return "";
+        if (typeof value === "number") {
+          return formatNum(value, Math.abs(value) < 10 ? 2 : 0);
+        }
+        if (typeof value === "string") {
+          return value.slice(0, 64);
+        }
+        if (typeof value === "boolean") {
+          return value ? "true" : "false";
+        }
+        if (Array.isArray(value)) {
+          const sample = value.slice(0, 4).map((item) => valueToShortText(item));
+          return "[" + sample.join(", ") + (value.length > 4 ? ", ..." : "") + "]";
+        }
+        if (typeof value === "object") {
+          try {
+            return JSON.stringify(value).slice(0, 90);
+          } catch (error) {
+            return "[data]";
+          }
+        }
+        return String(value).slice(0, 64);
+      };
       const parts = [];
       const keys = Object.keys(details).filter((k) => k !== "summary" && k !== "metrics").slice(0, 8);
       for (let i = 0; i < keys.length; i++) {
         const k = keys[i];
-        let v = details[k];
-        if (typeof v === "number") v = formatNum(v, Math.abs(v) < 10 ? 2 : 0);
+        const v = valueToShortText(details[k]);
+        if (!v) continue;
         parts.push(k + "=" + String(v));
       }
       return parts.join(" | ").slice(0, 260);
@@ -313,7 +337,7 @@ window.GTModules.anticheat = (function createAntiCheatModule() {
         embed.fields.push({ name: "Account", value: "`" + accountId + "`", inline: false });
       }
       if (rawData) {
-        embed.fields.push({ name: "Raw Data", value: rawData.slice(0, 1024), inline: false });
+        embed.fields.push({ name: "Metrics", value: rawData.slice(0, 1024), inline: false });
       }
       if (embed.fields.length > 25) {
         embed.fields.length = 25;
