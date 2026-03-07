@@ -39,6 +39,13 @@
     markerStartMultiplier: 2,
     maxCellMultiplier: 128,
     maxWinMultiplier: 5000000,
+    highBetPayoutBoostTiers: [
+      { minBet: 100, multiplier: 1.03 },
+      { minBet: 250, multiplier: 1.06 },
+      { minBet: 500, multiplier: 1.1 },
+      { minBet: 1000, multiplier: 1.14 },
+      { minBet: 2500, multiplier: 1.18 }
+    ],
     rtp: "96.00%",
     volatility: "High",
     autoplayOptions: [0, 10, 25, 50, 100],
@@ -445,6 +452,19 @@
       return Number(sym.payoutBySize[picked] || 0);
     }
 
+    getHighBetPayoutMultiplier(bet) {
+      const betValue = Math.max(0, toInt(bet, 0));
+      const rows = Array.isArray(this.config.highBetPayoutBoostTiers) ? this.config.highBetPayoutBoostTiers : [];
+      let out = 1;
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i] || {};
+        const minBet = Math.max(0, toInt(row.minBet, 0));
+        const multiplier = Math.max(1, Number(row.multiplier) || 1);
+        if (betValue >= minBet) out = multiplier;
+      }
+      return out;
+    }
+
     // Cluster detection uses flood fill with orthogonal neighbors only.
     findClusters(grid) {
       const rows = this.config.rows;
@@ -577,7 +597,8 @@
         const upgradedCount = Math.max(1, cluster.size - (this.config.minCluster - 1));
         const mergeAnchors = this.chooseMergeAnchors(cluster.cells, upgradedCount);
         const anchor = mergeAnchors[0];
-        const basePayout = Math.floor(bet * this.getPayoutMultiplier(cluster.symbolId, cluster.size));
+        const highBetBoost = this.getHighBetPayoutMultiplier(bet);
+        const basePayout = Math.floor(bet * this.getPayoutMultiplier(cluster.symbolId, cluster.size) * highBetBoost);
 
         let multiplierApplied = 1;
         const activeCellMultipliers = [];
@@ -604,6 +625,7 @@
           mergeAnchors: mergeAnchors.map((cell) => [cell[0], cell[1]]),
           mergedCount: mergeAnchors.length,
           basePayout,
+          highBetBoost,
           multiplierApplied,
           payoutAfterMultiplier: payout,
           activeCellMultipliers
@@ -1824,7 +1846,19 @@
     html += "<section><strong>Game Type:</strong> 6x6 cluster pays, orthogonal adjacency, minimum cluster size 5.</section>";
     html += "<section><strong>MergeUP Rule:</strong> only clusters of 5+ matching ducks win. Merge count scales by size: 5->1 upgrade, 6->2, 7->3, 8->4, etc. Targets are chosen deterministically from lowest row, then left-most.</section>";
     html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award 15/18/20 free spins. In free spins, marked cells gain multipliers up to x128 and retrigger with 4/5/6+ scatters for +5/+8/+10.</section>";
-    html += "<section><strong>Math:</strong> RTP " + gameConfig.rtp + " (config placeholder), volatility " + gameConfig.volatility + ", max win cap " + gameConfig.maxWinMultiplier + "x bet.</section>";
+    const boostRows = Array.isArray(gameConfig.highBetPayoutBoostTiers) ? gameConfig.highBetPayoutBoostTiers : [];
+    let boostText = "none";
+    if (boostRows.length) {
+      const parts = [];
+      for (let i = 0; i < boostRows.length; i++) {
+        const row = boostRows[i] || {};
+        const minBet = Math.max(0, toInt(row.minBet, 0));
+        const mul = Math.max(1, Number(row.multiplier) || 1);
+        parts.push(minBet + "+ -> x" + mul.toFixed(2));
+      }
+      boostText = parts.join(", ");
+    }
+    html += "<section><strong>Math:</strong> RTP " + gameConfig.rtp + " (config placeholder), volatility " + gameConfig.volatility + ", max win cap " + gameConfig.maxWinMultiplier + "x bet, high-bet payout boost tiers: " + boostText + ".</section>";
 
     html += "<section><table><thead><tr><th>Symbol</th><th>Cluster 5</th><th>6</th><th>7</th><th>8</th><th>10+</th></tr></thead><tbody>";
     for (let i = 0; i < symbolConfig.length; i++) {
