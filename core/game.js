@@ -7387,9 +7387,10 @@
           handle = document.createElement("div");
           handle.id = "inventoryPanelHandle";
           handle.className = "inventory-panel-handle";
-          handle.textContent = "INVENTORY";
+          handle.textContent = "DRAG";
           toolbarEl.insertBefore(handle, toolbarEl.firstChild || null);
         }
+        handle.textContent = "DRAG";
         if (String(handle.dataset.dragBound || "") !== "1") {
           eventsModule.on(handle, "pointerdown", (event) => {
             if (!inWorld || !toolbarEl || toolbarEl.classList.contains("hidden")) return;

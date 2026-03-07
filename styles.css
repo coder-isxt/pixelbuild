@@ -5632,30 +5632,91 @@ body.admin-dashboard-open .admin-inventory-modal {
   z-index: 57 !important;
   overflow-y: auto !important;
   overflow-x: clip !important;
-  padding-top: 36px !important;
+  padding-top: 30px !important;
   transform: translateY(0);
   transition: transform 0.08s ease-out, box-shadow 0.16s ease;
 }
 
+#canvasWrap #toolbar .inventory-section {
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+#canvasWrap #toolbar .inventory-section-head {
+  padding: 0 2px;
+}
+
+#canvasWrap #toolbar .inventory-section-head strong {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+#canvasWrap #toolbar .inventory-section-head span {
+  font-size: 9px;
+  color: rgba(223, 238, 255, 0.76);
+}
+
+#canvasWrap #toolbar .inventory-grid {
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 7px;
+}
+
+#canvasWrap #toolbar .inventory-slot {
+  border: 1px solid rgba(111, 147, 190, 0.34);
+  background: linear-gradient(180deg, rgba(8, 15, 26, 0.96), rgba(6, 12, 21, 0.96));
+  border-radius: 10px;
+  padding: 2px;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+#canvasWrap #toolbar .inventory-slot:hover {
+  transform: translateY(-1px);
+  border-color: rgba(120, 198, 255, 0.66);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.26);
+}
+
+#canvasWrap #toolbar .inventory-slot.selected {
+  border-color: rgba(45, 212, 191, 0.86);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.32), 0 8px 16px rgba(0, 0, 0, 0.28);
+}
+
+#canvasWrap #toolbar .item-icon {
+  border-radius: 8px;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+#canvasWrap #toolbar .slot-count {
+  right: 4px;
+  bottom: 3px;
+  min-width: 22px;
+  height: 14px;
+  font-size: 8px;
+  line-height: 13px;
+  padding: 0 4px;
+}
+
 #inventoryPanelHandle {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  top: 6px;
-  height: 24px;
-  border-radius: 8px;
+  left: 50%;
+  right: auto;
+  top: 5px;
+  width: min(150px, calc(100% - 26px));
+  height: 18px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  letter-spacing: 0.05em;
+  font-size: 8px;
+  letter-spacing: 0.04em;
   cursor: ns-resize;
   user-select: none;
   touch-action: none;
-  border: 1px solid rgba(255, 209, 102, 0.42);
-  color: var(--gt-cream);
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
-  background: linear-gradient(180deg, rgba(20, 12, 6, 0.86), rgba(39, 24, 12, 0.74));
+  border: 1px solid rgba(143, 188, 234, 0.56);
+  color: #d8ecff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+  background: linear-gradient(180deg, rgba(14, 26, 44, 0.94), rgba(10, 18, 32, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 4px 10px rgba(0, 0, 0, 0.26);
+  transform: translateX(-50%);
   z-index: 3;
 }
 
@@ -5732,14 +5793,17 @@ body.admin-dashboard-open .admin-inventory-modal {
     bottom: 6px !important;
     height: min(58%, 390px) !important;
     min-height: 170px !important;
-    padding-top: 32px !important;
+    padding-top: 26px !important;
   }
 
   #inventoryPanelHandle {
-    left: 6px;
-    right: 6px;
+    left: 50%;
+    right: auto;
     top: 4px;
-    height: 22px;
+    width: min(132px, calc(100% - 20px));
+    height: 16px;
+    font-size: 7px;
+    transform: translateX(-50%);
   }
 
   #canvasWrap #chatPanel {
