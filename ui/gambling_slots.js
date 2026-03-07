@@ -244,6 +244,10 @@ window.GTModules = window.GTModules || {};
   };
 
   const els = {
+    pageRoot: document.querySelector(".page"),
+    pageHeader: document.querySelector(".head"),
+    casinoAmbientFx: document.getElementById("casinoAmbientFx"),
+    headerPlayerInfo: document.getElementById("headerPlayerInfo"),
     openVaultBtn: document.getElementById("openVaultBtn"),
     vaultModal: document.getElementById("vaultModal"),
     vaultAmount: document.getElementById("vaultAmount"),
@@ -596,6 +600,205 @@ window.GTModules = window.GTModules || {};
     document.head.appendChild(style);
   }
 
+  function createUIManager() {
+    let idleRaf = 0;
+    let idleMode = false;
+    let lastActivityAt = Date.now();
+    const IDLE_AFTER_MS = 11500;
+
+    function ensureAmbientOrbs() {
+      if (!(els.casinoAmbientFx instanceof HTMLElement)) return;
+      if (els.casinoAmbientFx.childElementCount > 0) return;
+      for (let i = 0; i < 18; i++) {
+        const orb = document.createElement("span");
+        orb.className = "orb";
+        const left = Math.random() * 100;
+        const delay = -(Math.random() * 7.5);
+        const duration = 7 + (Math.random() * 6);
+        const drift = -16 + (Math.random() * 32);
+        const size = 6 + Math.round(Math.random() * 12);
+        orb.style.left = left.toFixed(2) + "%";
+        orb.style.bottom = (-12 - Math.random() * 32).toFixed(2) + "px";
+        orb.style.width = size + "px";
+        orb.style.height = size + "px";
+        orb.style.animationDelay = delay.toFixed(2) + "s";
+        orb.style.animationDuration = duration.toFixed(2) + "s";
+        orb.style.transform = "translateX(" + drift.toFixed(1) + "px)";
+        els.casinoAmbientFx.appendChild(orb);
+      }
+    }
+
+    function setIdle(next) {
+      const idle = Boolean(next);
+      if (idle === idleMode) return;
+      idleMode = idle;
+      if (document.body instanceof HTMLElement) {
+        document.body.classList.toggle("casino-idle", idle);
+      }
+    }
+
+    function touchActivity() {
+      lastActivityAt = Date.now();
+      if (idleMode) setIdle(false);
+    }
+
+    function updateHeader() {
+      if (!(els.headerPlayerInfo instanceof HTMLElement)) return;
+      const username = state.user && state.user.username ? ("@" + String(state.user.username).slice(0, 20)) : "Guest";
+      const wallet = formatLocksByDisplayUnit(Math.max(0, Math.floor(Number(state.webVaultLocks) || 0)));
+      const mode = state.autoplay.active ? ("Auto " + state.autoplay.left + "/" + state.autoplay.total) : "Manual";
+      els.headerPlayerInfo.textContent = "Player: " + username + " | Wallet: " + wallet + " | " + mode;
+    }
+
+    function startIdleLoop() {
+      if (idleRaf) return;
+      const tick = () => {
+        const gameVisible = els.viewGame instanceof HTMLElement && !els.viewGame.classList.contains("hidden");
+        const shouldIdle = gameVisible && !state.spinBusy && (Date.now() - lastActivityAt) >= IDLE_AFTER_MS;
+        setIdle(shouldIdle);
+        idleRaf = window.requestAnimationFrame(tick);
+      };
+      idleRaf = window.requestAnimationFrame(tick);
+    }
+
+    function setSpinActive(active) {
+      if (els.stage instanceof HTMLElement) {
+        els.stage.classList.toggle("casino-spin-active", Boolean(active));
+      }
+      if (active) touchActivity();
+    }
+
+    return {
+      init() {
+        ensureAmbientOrbs();
+        touchActivity();
+        startIdleLoop();
+        updateHeader();
+      },
+      touchActivity,
+      updateHeader,
+      setSpinActive,
+      setIdle
+    };
+  }
+
+  function createSymbolAnimator() {
+    let settleTimer = 0;
+
+    function getCells() {
+      if (!(els.boardWrap instanceof HTMLElement)) return [];
+      return Array.from(els.boardWrap.querySelectorAll(".cell"));
+    }
+
+    function clearFlags() {
+      if (!(els.boardWrap instanceof HTMLElement)) return;
+      const cells = getCells();
+      for (let i = 0; i < cells.length; i++) {
+        cells[i].classList.remove("symbol-dim", "symbol-win", "anticipation-reel");
+      }
+    }
+
+    function onSpinStart() {
+      if (!(els.boardWrap instanceof HTMLElement)) return;
+      if (settleTimer) {
+        window.clearTimeout(settleTimer);
+        settleTimer = 0;
+      }
+      clearFlags();
+      els.boardWrap.classList.remove("symbols-settle");
+      els.boardWrap.classList.add("symbols-blur");
+    }
+
+    function onSpinStop() {
+      if (!(els.boardWrap instanceof HTMLElement)) return;
+      els.boardWrap.classList.remove("symbols-blur");
+      els.boardWrap.classList.add("symbols-settle");
+      if (settleTimer) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        if (els.boardWrap instanceof HTMLElement) {
+          els.boardWrap.classList.remove("symbols-settle");
+        }
+      }, 190);
+    }
+
+    function applyWinState() {
+      if (!(els.boardWrap instanceof HTMLElement)) return;
+      if (els.boardWrap.classList.contains("spinning")) return;
+      const cells = getCells();
+      let hits = 0;
+      for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        const isHit = cell.classList.contains("hit");
+        cell.classList.toggle("symbol-win", isHit);
+        if (isHit) hits += 1;
+      }
+      for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        cell.classList.toggle("symbol-dim", hits > 0 && !cell.classList.contains("hit"));
+      }
+    }
+
+    function markAnticipationColumn(colIndex) {
+      if (!(els.boardWrap instanceof HTMLElement)) return;
+      const targetCol = Math.max(0, Math.floor(Number(colIndex) || 0));
+      const cells = getCells();
+      for (let i = 0; i < cells.length; i++) {
+        const col = Math.floor(Number(cells[i].getAttribute("data-col")) || -1);
+        cells[i].classList.toggle("anticipation-reel", col === targetCol);
+      }
+    }
+
+    function clearAnticipation() {
+      if (!(els.boardWrap instanceof HTMLElement)) return;
+      const cells = getCells();
+      for (let i = 0; i < cells.length; i++) {
+        cells[i].classList.remove("anticipation-reel");
+      }
+    }
+
+    return {
+      clearFlags,
+      onSpinStart,
+      onSpinStop,
+      applyWinState,
+      markAnticipationColumn,
+      clearAnticipation
+    };
+  }
+
+  function createParticleSystem() {
+    let clearTimer = 0;
+
+    function spawnBurst(tone) {
+      if (!(els.particles instanceof HTMLElement)) return;
+      if (clearTimer) {
+        window.clearTimeout(clearTimer);
+        clearTimer = 0;
+      }
+      const kind = String(tone || "win").trim().toLowerCase();
+      const symbols = kind === "jackpot"
+        ? ["\u2728", "\u{1F48E}", "\u{1FA99}", "\u{1F31F}", "\u{1F389}", "\u{1F4B8}"]
+        : ["\u2728", "\u{1F4AB}", "\u{1FA99}", "\u2726", "\u{1F31F}"];
+      const count = kind === "jackpot" ? 26 : 14;
+      let html = "";
+      for (let i = 0; i < count; i++) {
+        const left = Math.floor(Math.random() * 96);
+        const delay = Math.floor(Math.random() * 200);
+        const size = 12 + Math.floor(Math.random() * (kind === "jackpot" ? 20 : 14));
+        const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+        html += "<span class=\"particle\" style=\"left:" + left + "%;animation-delay:" + delay + "ms;font-size:" + size + "px;\">" + symbol + "</span>";
+      }
+      els.particles.innerHTML = html;
+      clearTimer = window.setTimeout(() => {
+        if (els.particles instanceof HTMLElement) els.particles.innerHTML = "";
+      }, kind === "jackpot" ? 1600 : 1180);
+    }
+
+    return {
+      spawnBurst
+    };
+  }
+
   function buildMachineDefinitions() {
     const slotsDefs = typeof slotsModule.getDefinitions === "function" ? slotsModule.getDefinitions() : {};
     const fallback = {
@@ -946,6 +1149,10 @@ window.GTModules = window.GTModules || {};
     };
   }
 
+  function createSoundManager() {
+    return createAudioManager();
+  }
+
   function createReelAnimator() {
     let activeRun = null;
 
@@ -986,6 +1193,8 @@ window.GTModules = window.GTModules || {};
       state.ephemeral.lineIds = [];
       state.ephemeral.lineWins = ["Spinning..."];
       renderBoard();
+      SymbolAnimator.clearAnticipation();
+      if (anticipation) SymbolAnimator.markAnticipationColumn(Math.max(0, cols - 1));
 
       if (els.boardWrap instanceof HTMLElement) {
         els.boardWrap.classList.add("reel-accelerate");
@@ -1031,6 +1240,9 @@ window.GTModules = window.GTModules || {};
             const anticipationLift = anticipation && c === cols - 1 && reelProgress > 0.84 ? 2.2 : 0;
             const symbolsPerSecond = Math.max(2, (baseSymbolsPerSecond * speedFactor) + anticipationLift);
             reelPhase[c] += (symbolsPerSecond * dt) / 1000;
+            if (anticipation && c === (cols - 1) && reelProgress > 0.82 && !stopped[c]) {
+              SymbolAnimator.markAnticipationColumn(c);
+            }
             for (let r = 0; r < rows; r++) {
               const idx = (Math.floor(reelPhase[c] + (r * 1.91) + (c * 0.73)) % safePoolLen + safePoolLen) % safePoolLen;
               state.ephemeral.rows[r][c] = pool[idx] || "?";
@@ -1061,6 +1273,7 @@ window.GTModules = window.GTModules || {};
         els.boardWrap.classList.remove("reel-accelerate");
         els.boardWrap.classList.add("reel-decel");
       }
+      SymbolAnimator.clearAnticipation();
       await sleep(turbo ? 70 : 130);
       if (els.boardWrap instanceof HTMLElement) {
         els.boardWrap.classList.remove("reel-decel");
@@ -1276,8 +1489,11 @@ window.GTModules = window.GTModules || {};
     };
   }
 
-  const AudioManager = createAudioManager();
-  const audioManager = AudioManager;
+  const UIManager = createUIManager();
+  const SymbolAnimator = createSymbolAnimator();
+  const ParticleSystem = createParticleSystem();
+  const SoundManager = createSoundManager();
+  const audioManager = SoundManager;
   winCounter = typeof winCounterModule.createWinCounter === "function"
     ? winCounterModule.createWinCounter({
       onUpdate: (value) => {
@@ -1305,6 +1521,15 @@ window.GTModules = window.GTModules || {};
     getBet(machine) { return clampBetToMachine(machine || getSelectedMachine(), state.currentBetValue); },
     setBet(next) { state.currentBetValue = Math.max(1, Math.floor(Number(next) || 1)); },
     get settings() { return state.uiSettings; }
+  };
+  window.GTModules.casinoRuntime = {
+    UIManager,
+    ReelAnimator,
+    SymbolAnimator,
+    WinCounter: winCounter,
+    SoundManager,
+    ParticleSystem,
+    GameState
   };
 
   function setBonusPhase(phase) {
@@ -1512,6 +1737,9 @@ window.GTModules = window.GTModules || {};
     showBonusBanner("");
     winPresenter.hideBanner();
     winPresenter.clearWinTier();
+    SymbolAnimator.clearFlags();
+    SymbolAnimator.clearAnticipation();
+    UIManager.setSpinActive(false);
     setBoardDimmed(false);
     hideBonusOverlay();
   }
@@ -1526,6 +1754,8 @@ window.GTModules = window.GTModules || {};
     state.ephemeral.upgradeFlashes = {};
     winPresenter.hideBanner();
     winPresenter.clearWinTier();
+    SymbolAnimator.clearFlags();
+    SymbolAnimator.clearAnticipation();
   }
 
   function normalizeTowerDifficultyId(value) {
@@ -3165,9 +3395,11 @@ window.GTModules = window.GTModules || {};
     if (!(els.premiumAutoplayStatus instanceof HTMLElement)) return;
     if (!state.autoplay.active) {
       els.premiumAutoplayStatus.textContent = "Autoplay: Off";
+      UIManager.updateHeader();
       return;
     }
     els.premiumAutoplayStatus.textContent = "Autoplay: " + state.autoplay.left + "/" + state.autoplay.total;
+    UIManager.updateHeader();
   }
 
   function syncTopPanelButtons() {
@@ -3245,6 +3477,7 @@ window.GTModules = window.GTModules || {};
       state.autoplay.total = 0;
       updateAutoplayStatusText();
       renderPremiumHud();
+      UIManager.updateHeader();
       return;
     }
     const n = Math.max(0, Math.floor(Number(count) || Number(state.uiSettings.autoplayCount) || 0));
@@ -3254,6 +3487,7 @@ window.GTModules = window.GTModules || {};
       state.autoplay.total = 0;
       updateAutoplayStatusText();
       renderPremiumHud();
+      UIManager.updateHeader();
       return;
     }
     state.autoplay.active = true;
@@ -3261,6 +3495,7 @@ window.GTModules = window.GTModules || {};
     state.autoplay.total = n;
     updateAutoplayStatusText();
     renderPremiumHud();
+    UIManager.updateHeader();
   }
 
   // UI helper: format bank value for display in lists when banks are considered infinite
@@ -3627,6 +3862,7 @@ window.GTModules = window.GTModules || {};
     if (els.openVaultBtn instanceof HTMLButtonElement) els.openVaultBtn.classList.toggle("hidden", !state.user);
     renderVaultPanel();
     renderPremiumHud();
+    UIManager.updateHeader();
   }
 
   function buildRowsForRender(machine) {
@@ -3923,16 +4159,22 @@ window.GTModules = window.GTModules || {};
       els.slotBoard.classList.remove("mines-board");
       renderBlackjackBoard(machine, animCtx);
       els.lineList.innerHTML = ""; // No paylines for BJ
+      SymbolAnimator.clearFlags();
+      SymbolAnimator.clearAnticipation();
       return;
     } else if (machine.type === "tower") {
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
       els.slotBoard.classList.remove("mines-board");
       renderTowerBoard(machine);
+      SymbolAnimator.clearFlags();
+      SymbolAnimator.clearAnticipation();
       return;
     } else if (machine.type === "mines") {
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
       els.slotBoard.classList.remove("tower-board");
       renderMinesBoard(machine);
+      SymbolAnimator.clearFlags();
+      SymbolAnimator.clearAnticipation();
       return;
     } else {
       if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove('blackjack-mode');
@@ -4030,6 +4272,7 @@ window.GTModules = window.GTModules || {};
     } else {
       els.lineList.innerHTML = "<span class=\"line-badge muted\">No winning lines in the latest spin.</span>";
     }
+    SymbolAnimator.applyWinState();
   }
 
   function randomRowsForMachine(machine, tick) {
@@ -4051,6 +4294,10 @@ window.GTModules = window.GTModules || {};
   function startSpinFx(machine, isBonus, betForDisplay) {
     if (els.lastWinLabel) els.lastWinLabel.classList.add("hidden");
     stopSpinFx();
+    UIManager.touchActivity();
+    UIManager.setSpinActive(true);
+    SymbolAnimator.clearAnticipation();
+    SymbolAnimator.onSpinStart();
     state.spinBusy = true;
     state.quickStopRequested = false;
     winPresenter.clearWinTier();
@@ -4099,6 +4346,11 @@ window.GTModules = window.GTModules || {};
   }
 
   function stopSpinFx() {
+    const wasSpinning = Boolean(
+      state.spinBusy ||
+      state.spinTimer ||
+      (els.boardWrap instanceof HTMLElement && els.boardWrap.classList.contains("spinning"))
+    );
     if (state.spinTimer) {
       window.clearInterval(state.spinTimer);
       state.spinTimer = 0;
@@ -4106,8 +4358,11 @@ window.GTModules = window.GTModules || {};
     state.spinBusy = false;
     state.ephemeral.stoppedCols = null;
     reelAnimator.stop();
-    audioManager.play("spin_end");
+    if (wasSpinning) audioManager.play("spin_end");
     if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
+    if (wasSpinning) SymbolAnimator.onSpinStop();
+    SymbolAnimator.clearAnticipation();
+    if (wasSpinning) UIManager.setSpinActive(false);
     if (els.spinBtn instanceof HTMLButtonElement) {
       els.spinBtn.textContent = "Spin";
       els.spinBtn.classList.remove("spinning");
@@ -4681,6 +4936,10 @@ window.GTModules = window.GTModules || {};
   }
 
   function spawnParticles(tone) {
+    if (ParticleSystem && typeof ParticleSystem.spawnBurst === "function") {
+      ParticleSystem.spawnBurst(tone);
+      return;
+    }
     if (!(els.particles instanceof HTMLElement)) return;
     const symbols = tone === "jackpot"
       ? ["\u2728", "\u{1F48E}", "\u{1FA99}", "\u{1F31F}", "\u{1F389}"]
@@ -5008,6 +5267,7 @@ window.GTModules = window.GTModules || {};
 
     renderBetChipLabels();
     renderPremiumHud();
+    UIManager.updateHeader();
   }
 
   function renderAll(animCtx) {
@@ -5016,6 +5276,7 @@ window.GTModules = window.GTModules || {};
     renderMachineStats();
     renderBoard(animCtx);
     renderPremiumHud();
+    UIManager.updateHeader();
   }
 
   function switchView(viewName) {
@@ -5026,6 +5287,8 @@ window.GTModules = window.GTModules || {};
     if (viewName === "login" && els.viewLogin) els.viewLogin.classList.remove("hidden");
     if (viewName === "lobby" && els.viewLobby) els.viewLobby.classList.remove("hidden");
     if (viewName === "game" && els.viewGame) els.viewGame.classList.remove("hidden");
+    UIManager.setIdle(false);
+    UIManager.updateHeader();
     if (viewName !== "game") {
       clearBonusUiState();
       setAutoplayActive(false);
@@ -5034,6 +5297,9 @@ window.GTModules = window.GTModules || {};
       if (els.premiumSettingsPanel instanceof HTMLElement) els.premiumSettingsPanel.classList.add("hidden");
       if (els.premiumHistoryPanel instanceof HTMLElement) els.premiumHistoryPanel.classList.add("hidden");
       if (els.fairnessModal instanceof HTMLElement) els.fairnessModal.classList.add("hidden");
+      SymbolAnimator.clearFlags();
+      SymbolAnimator.clearAnticipation();
+      UIManager.setSpinActive(false);
     }
     syncTopPanelButtons();
   }
@@ -5539,7 +5805,60 @@ window.GTModules = window.GTModules || {};
     await runSpin(state.autoplay.mode || "spin");
   }
 
+  function reelHasAnyToken(rows, reelIndex, tokenSet) {
+    const rws = Array.isArray(rows) ? rows : [];
+    const idx = Math.max(0, Math.floor(Number(reelIndex) || 0));
+    for (let r = 0; r < rws.length; r++) {
+      const row = Array.isArray(rws[r]) ? rws[r] : [];
+      const tok = normalizeToken(row[idx]);
+      if (tokenSet.has(tok)) return true;
+    }
+    return false;
+  }
+
+  function shouldUseReelAnticipation(machine, resolved, payout, bet) {
+    const safePayout = Math.max(0, Math.floor(Number(payout) || 0));
+    const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
+    if (safePayout >= (safeBet * BIG_WIN_MULTIPLIER)) return true;
+    const outcome = String(resolved && resolved.outcome || "").trim().toLowerCase();
+    if (outcome === "jackpot" || outcome === "big_win" || outcome === "bigwin") return true;
+
+    const rows = Array.isArray(resolved && resolved.spinStartRows) && resolved.spinStartRows.length
+      ? resolved.spinStartRows
+      : (Array.isArray(resolved && resolved.rows) ? resolved.rows : []);
+    if (!rows.length) return false;
+
+    const type = String(machine && machine.type || "").trim().toLowerCase();
+    if (type === "slots_v2") {
+      const sixTokens = new Set(["BLU_6", "RED_6", "6"]);
+      let sixOnWheels = 0;
+      const wheelCols = [0, 2, 4];
+      for (let i = 0; i < wheelCols.length; i++) {
+        if (reelHasAnyToken(rows, wheelCols[i], sixTokens)) sixOnWheels += 1;
+      }
+      return sixOnWheels >= 2;
+    }
+    if (type === "snoop_dogg_dollars") {
+      const scatters = new Set(["SCAT"]);
+      let scatterCols = 0;
+      for (let c = 0; c < 4; c++) {
+        if (reelHasAnyToken(rows, c, scatters)) scatterCols += 1;
+      }
+      return scatterCols >= 2;
+    }
+    if (type === "le_bandit") {
+      const bonusish = new Set(["RAIN", "CLOVR", "POT"]);
+      let marked = 0;
+      for (let c = 0; c < 4; c++) {
+        if (reelHasAnyToken(rows, c, bonusish)) marked += 1;
+      }
+      return marked >= 2;
+    }
+    return false;
+  }
+
   async function runSpin(mode) {
+    UIManager.touchActivity();
     const nowMs = Date.now();
     if (nowMs < Math.max(0, Math.floor(Number(state.winCounterSkipUntil) || 0))) return;
     if (winCounter && typeof winCounter.isRunning === "function" && winCounter.isRunning()) {
@@ -5679,8 +5998,9 @@ window.GTModules = window.GTModules || {};
         state.spinTimer = 0;
       }
       state.ephemeral.stoppedCols = 0;
+      const useAnticipation = shouldUseReelAnticipation(machine, resolved, payout, bet);
       await reelAnimator.animate(machine, resolved.spinStartRows, {
-        anticipation: resolved.outcome === "jackpot" || payout >= (bet * BIG_WIN_MULTIPLIER)
+        anticipation: useAnticipation
       });
       state.ephemeral.stoppedCols = Math.max(1, Math.floor(Number(machine.reels) || 1));
 
@@ -5893,8 +6213,9 @@ window.GTModules = window.GTModules || {};
           state.spinTimer = 0;
         }
         state.ephemeral.stoppedCols = 0;
+        const useAnticipation = shouldUseReelAnticipation(machine, resolved, payout, bet);
         await reelAnimator.animate(machine, resolved.spinStartRows, {
-          anticipation: resolved.outcome === "jackpot" || payout >= (bet * BIG_WIN_MULTIPLIER)
+          anticipation: useAnticipation
         });
         state.ephemeral.stoppedCols = Math.max(1, Math.floor(Number(machine.reels) || 1));
 
@@ -6013,6 +6334,12 @@ window.GTModules = window.GTModules || {};
   function bindEvents() {
     if (els.openGameBtn instanceof HTMLButtonElement) els.openGameBtn.addEventListener("click", () => { window.location.href = "index.html"; });
     if (els.logoutBtn instanceof HTMLButtonElement) els.logoutBtn.addEventListener("click", logout);
+    document.addEventListener("pointerdown", () => {
+      UIManager.touchActivity();
+    }, true);
+    window.addEventListener("keydown", () => {
+      UIManager.touchActivity();
+    }, true);
     document.addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -6548,6 +6875,7 @@ window.GTModules = window.GTModules || {};
     populateMinesCountSelect();
     applyUiSettings(loadUiSettings());
     bindEvents();
+    UIManager.init();
 
     if (els.premiumSeedLabel instanceof HTMLElement) {
       const seed = "seed-" + Math.random().toString(36).slice(2, 12);
