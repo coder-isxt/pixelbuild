@@ -336,10 +336,11 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -56%);
-  z-index: 5;
+  z-index: 7;
   min-width: min(540px, 84%);
   text-align: center;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   padding: 14px 18px;
   border-radius: 14px;
   border: 1px solid rgba(126, 212, 255, 0.42);

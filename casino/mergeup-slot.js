@@ -37,16 +37,17 @@
     freeSpinsTrigger: { 4: 15, 5: 18, 6: 20 },
     freeSpinsRetrigger: { 4: 5, 5: 8, 6: 10 },
     markerStartMultiplier: 2,
-    maxCellMultiplier: 128,
+    maxCellMultiplier: 32,
     clusterMultiplierCombine: "product",
-    maxClusterMultiplierApplied: 4096,
+    maxClusterMultiplierApplied: 96,
+    basePayoutScale: 0.72,
     maxWinMultiplier: 5000000,
     highBetPayoutBoostTiers: [
-      { minBet: 100, multiplier: 1.03 },
-      { minBet: 250, multiplier: 1.06 },
-      { minBet: 500, multiplier: 1.1 },
-      { minBet: 1000, multiplier: 1.14 },
-      { minBet: 2500, multiplier: 1.18 }
+      { minBet: 100, multiplier: 1.01 },
+      { minBet: 250, multiplier: 1.03 },
+      { minBet: 500, multiplier: 1.05 },
+      { minBet: 1000, multiplier: 1.07 },
+      { minBet: 2500, multiplier: 1.1 }
     ],
     rtp: "96.00%",
     volatility: "High",
@@ -624,7 +625,8 @@
         const mergeAnchors = this.chooseMergeAnchors(cluster.cells, upgradedCount);
         const anchor = mergeAnchors[0];
         const highBetBoost = this.getHighBetPayoutMultiplier(bet);
-        const basePayout = Math.floor(bet * this.getPayoutMultiplier(cluster.symbolId, cluster.size) * highBetBoost);
+        const payoutScale = Math.max(0.1, Number(this.config.basePayoutScale) || 1);
+        const basePayout = Math.floor(bet * this.getPayoutMultiplier(cluster.symbolId, cluster.size) * highBetBoost * payoutScale);
 
         const activeCellMultipliers = [];
         if (isBonus && markers) {
@@ -890,6 +892,7 @@
   };
 
   let winCounterHideTimer = 0;
+  let winCounterDismissResolve = null;
 
   audio.setEnabled(!state.muted);
 
@@ -1110,9 +1113,18 @@
     winCounterHideTimer = 0;
   }
 
+  function isWinCounterVisible() {
+    return (el.winCounterOverlay instanceof HTMLElement) && !el.winCounterOverlay.classList.contains("hidden");
+  }
+
   function hideWinCounterNow() {
     clearWinCounterTimer();
     if (el.winCounterOverlay instanceof HTMLElement) el.winCounterOverlay.classList.add("hidden");
+    if (typeof winCounterDismissResolve === "function") {
+      const resolve = winCounterDismissResolve;
+      winCounterDismissResolve = null;
+      resolve();
+    }
   }
 
   function showWinCounter(label) {
@@ -1125,11 +1137,19 @@
 
   function queueHideWinCounter(ms) {
     clearWinCounterTimer();
-    const delay = Math.max(0, toInt(ms, 800));
+    const delay = Math.max(0, toInt(ms, state.turbo ? 280 : 520));
     winCounterHideTimer = window.setTimeout(() => {
       winCounterHideTimer = 0;
-      if (el.winCounterOverlay instanceof HTMLElement) el.winCounterOverlay.classList.add("hidden");
+      hideWinCounterNow();
     }, delay);
+  }
+
+  function waitForWinCounterDismiss() {
+    if (!isWinCounterVisible()) return Promise.resolve();
+    if (typeof winCounterDismissResolve === "function") return Promise.resolve();
+    return new Promise((resolve) => {
+      winCounterDismissResolve = resolve;
+    });
   }
 
   function setWinCounterValue(value) {
@@ -1617,7 +1637,6 @@
         const boostedWin = Math.max(0, clusterWin - baseWin);
         const markedCount = Math.max(1, toInt(cluster.activeMarkedCells, 1));
 
-        showFloatingText(cluster.anchor[0], cluster.anchor[1], "+" + formatWL(baseWin), false);
         const baseRatio = bet > 0 ? (baseWin / bet) : 0;
         if (baseRatio >= 10) audio.play("cluster_big");
         else if (baseRatio >= 3) audio.play("cluster_mid");
@@ -1627,7 +1646,6 @@
         await pause(120);
 
         showFloatingText(cluster.anchor[0], cluster.anchor[1], "x" + cluster.multiplierApplied + " (" + markedCount + " cells)", true);
-        if (boostedWin > 0) showFloatingText(cluster.anchor[0], cluster.anchor[1], "+" + formatWL(boostedWin), true);
         audio.play("multiplier");
         await animateSpinWinTo(targetTotal, countDurationByWin(boostedWin, bet) + 100, { label: "WIN" });
       } else {
@@ -1636,7 +1654,6 @@
           showFloatingText(cluster.anchor[0], cluster.anchor[1], "x" + cluster.multiplierApplied + " (" + markedCount + " cells)", true);
           audio.play("multiplier");
         }
-        showFloatingText(cluster.anchor[0], cluster.anchor[1], "+" + formatWL(clusterWin), false);
 
         const ratio = bet > 0 ? (clusterWin / bet) : 0;
         if (ratio >= 10) audio.play("cluster_big");
@@ -1831,12 +1848,19 @@
     state.fsLeft = 0;
     state.tumbleWin = 0;
     updateHUD();
-    if (totalWin > 0) queueHideWinCounter(950);
+    if (totalWin > 0) {
+      queueHideWinCounter(state.turbo ? 260 : 460);
+      await waitForWinCounterDismiss();
+    }
     else hideWinCounterNow();
   }
 
   async function runSpin(kind) {
     if (state.busy) return;
+    if (isWinCounterVisible()) {
+      setMessage("Tap WIN counter to continue.");
+      return;
+    }
     if (!state.walletLinked) {
       setMessage("Wallet not linked. Open this slot from Casino dashboard after login.");
       return;
@@ -1942,7 +1966,7 @@
     let html = "";
     html += "<section><strong>Game Type:</strong> 6x6 cluster pays, orthogonal adjacency, minimum cluster size 5.</section>";
     html += "<section><strong>MergeUP Rule:</strong> only clusters of 5+ matching ducks win. Merge count scales by size: 5->1 upgrade, 6->2, 7->3, 8->4, etc. Targets are chosen deterministically from lowest row, then left-most.</section>";
-    html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award 15/18/20 free spins. In free spins, marked cells gain multipliers up to x128, cluster multipliers combine across marked cells, and 4/5/6+ scatters retrigger for +5/+8/+10.</section>";
+    html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award 15/18/20 free spins. In free spins, marked cells gain multipliers up to x" + gameConfig.maxCellMultiplier + ", cluster multipliers stack across marked cascade cells, and 4/5/6+ scatters retrigger for +5/+8/+10.</section>";
     const boostRows = Array.isArray(gameConfig.highBetPayoutBoostTiers) ? gameConfig.highBetPayoutBoostTiers : [];
     let boostText = "none";
     if (boostRows.length) {
@@ -1955,7 +1979,7 @@
       }
       boostText = parts.join(", ");
     }
-    html += "<section><strong>Math:</strong> RTP " + gameConfig.rtp + " (config placeholder), volatility " + gameConfig.volatility + ", max win cap " + gameConfig.maxWinMultiplier + "x bet, high-bet payout boost tiers: " + boostText + ".</section>";
+    html += "<section><strong>Math:</strong> RTP " + gameConfig.rtp + " (config placeholder), volatility " + gameConfig.volatility + ", max win cap " + gameConfig.maxWinMultiplier + "x bet, stacked cluster multiplier cap x" + gameConfig.maxClusterMultiplierApplied + ", base payout scale x" + Number(gameConfig.basePayoutScale || 1).toFixed(2) + ", high-bet payout boost tiers: " + boostText + ".</section>";
 
     html += "<section><table><thead><tr><th>Symbol</th><th>Cluster 5</th><th>6</th><th>7</th><th>8</th><th>10+</th></tr></thead><tbody>";
     for (let i = 0; i < symbolConfig.length; i++) {
@@ -2056,7 +2080,17 @@
       el.spinArea.addEventListener("pointerdown", () => {
         audio.unlock();
         if (!state.busy) return;
+        if (isWinCounterVisible()) hideWinCounterNow();
         requestFastForward();
+      });
+    }
+
+    if (el.winCounterOverlay instanceof HTMLElement) {
+      el.winCounterOverlay.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        audio.unlock();
+        if (state.busy) requestFastForward();
+        hideWinCounterNow();
       });
     }
 
@@ -2075,6 +2109,7 @@
       if (event.key === " ") {
         event.preventDefault();
         if (state.busy) {
+          if (isWinCounterVisible()) hideWinCounterNow();
           requestFastForward();
         } else {
           runSpin("paid");
