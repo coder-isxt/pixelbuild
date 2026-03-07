@@ -58,7 +58,7 @@
   };
   const SNOOP_UI = {
     hypeCostX: 20,
-    buyCostByScatter: { 3: 80, 4: 140, 5: 220, 6: 320 }
+    buyCostByWildGuarantee: { 0: 90, 1: 150, 2: 220, all: 320 }
   };
   const BONUS_PHASES = {
     BASE_IDLE: "BASE_IDLE",
@@ -425,6 +425,7 @@
 
       body.casino-premium {
         color: var(--stake-text);
+        font-size: 15px;
         background:
           radial-gradient(circle at top left, rgba(255, 99, 184, 0.16), transparent 30%),
           radial-gradient(circle at top right, rgba(103, 210, 255, 0.16), transparent 28%),
@@ -510,6 +511,15 @@
       body.casino-premium .stake-shell {
         grid-template-columns: 290px minmax(0, 1fr);
         gap: 16px;
+      }
+
+      /* In-game play should stay focused on the machine (hide left rail). */
+      body.casino-premium #viewGame .stake-sidebar {
+        display: none !important;
+      }
+
+      body.casino-premium #viewGame .stake-shell {
+        grid-template-columns: minmax(0, 1fr) !important;
       }
 
       body.casino-premium .stake-sidebar {
@@ -635,7 +645,7 @@
 
       body.casino-premium #viewGame .premium-controls-row[data-row-title]::before {
         color: #c9d2ef;
-        font-size: 10px;
+        font-size: 12px;
       }
 
       body.casino-premium #viewGame #spinBtn {
@@ -715,22 +725,37 @@
       body.casino-premium #viewGame .chip,
       body.casino-premium #viewGame select,
       body.casino-premium #viewGame input {
-        font-size: 12px;
+        font-size: 15px;
       }
 
       body.casino-premium #viewGame .tag {
-        font-size: 12px;
+        font-size: 14px;
         padding: 6px 10px;
       }
 
       body.casino-premium #viewGame .line-badge {
-        font-size: 12px;
+        font-size: 14px;
       }
 
       body.casino-premium #viewGame .premium-bet-readout,
       body.casino-premium .stake-empty,
       body.casino-premium .stake-recent-row {
-        font-size: 12px;
+        font-size: 15px;
+      }
+
+      body.casino-premium #viewGame .premium-controls-row[data-row-title]::before {
+        font-size: 13px;
+      }
+
+      body.casino-premium #viewGame .premium-history-head,
+      body.casino-premium #viewGame .bonus-hud .tag,
+      body.casino-premium #viewGame .bonus-overlay p,
+      body.casino-premium #viewGame .bonus-overlay .mini {
+        font-size: 15px;
+      }
+
+      body.casino-premium #viewGame .premium-inline-wrap > span {
+        font-size: 13px !important;
       }
 
       body.casino-premium .casino-ambient .orb {
@@ -1157,13 +1182,13 @@
     nextOptions.devForce = force;
     if (force === "force_bonus") {
       if (safeMachine.type === "slots_v2" || safeMachine.type === "le_bandit") mode = "buybonus";
-      else if (safeMachine.type === "snoop_dogg_dollars") mode = "snoop_buy_6";
+      else if (safeMachine.type === "snoop_dogg_dollars") mode = "snoop_buy_wall";
       else if (safeMachine.type === "slots_v7") nextOptions.forceBonus = true;
     } else if (force === "six_tier_c" && safeMachine.type === "slots_v2") {
       nextOptions.forceTier = "C";
       mode = "buybonus";
     } else if (force === "snoop_bonus" && safeMachine.type === "snoop_dogg_dollars") {
-      mode = "snoop_buy_6";
+      mode = "snoop_buy_wall";
       nextOptions.forceBonus = true;
     } else if (force === "tome_bonus" && safeMachine.type === "slots_v7") {
       nextOptions.forceBonus = true;
@@ -1706,18 +1731,26 @@
       const start = Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
       const stake = Math.max(1, Math.floor(Number(betValue) || 1));
       const opts = options && typeof options === "object" ? options : {};
+      const onProgressValue = typeof opts.onProgressValue === "function" ? opts.onProgressValue : null;
       if (target <= start) {
         setCurrentWinValue(target, stake);
+        if (onProgressValue) {
+          try { onProgressValue(target); } catch (_error) { /* no-op */ }
+        }
         return { skipped: false, finalValue: target };
       }
       if (!winCounter || typeof winCounter.startCountUp !== "function") {
         setCurrentWinValue(target, stake);
+        if (onProgressValue) {
+          try { onProgressValue(target); } catch (_error) { /* no-op */ }
+        }
         return { skipped: false, finalValue: target };
       }
       return await winCounter.startCountUp(start, target, {
         bet: stake,
         turbo: Boolean(state.uiSettings.turbo),
-        durationScale: Number.isFinite(Number(opts.durationScale)) ? Number(opts.durationScale) : 1
+        durationScale: Number.isFinite(Number(opts.durationScale)) ? Number(opts.durationScale) : 1,
+        onUpdate: onProgressValue
       });
     }
 
@@ -1759,7 +1792,13 @@
           }, 520);
         }
       }
-      showBanner(tier.label || "WIN", tier.id, { center: false });
+      const tierPrefix = tier.id === "big" || tier.id === "mega" || tier.id === "epic" || tier.id === "max"
+        ? (tier.label + " ")
+        : "WIN ";
+      const initialCounterValue = replayFromZero
+        ? 0
+        : Math.max(0, Math.floor(Number(state.currentWinValue) || 0));
+      showBanner(tierPrefix + formatLocksByDisplayUnit(initialCounterValue), tier.id, { center: true });
       if (tier.sound) audioManager.play(tier.sound);
       if (tier.id === "max") {
         safeVibrate(26);
@@ -1779,12 +1818,18 @@
       }
 
       if (!opts.alreadyCounted || replayFromZero) {
-        await countTo(pay, stake, { durationScale: tier.durationScale });
+        await countTo(pay, stake, {
+          durationScale: tier.durationScale,
+          onProgressValue: (nextValue) => {
+            const safe = Math.max(0, Math.floor(Number(nextValue) || 0));
+            showBanner(tierPrefix + formatLocksByDisplayUnit(safe), tier.id, { center: true });
+          }
+        });
       } else {
         setCurrentWinValue(pay, stake);
       }
       showBanner(
-        "WIN " + formatLocksByDisplayUnit(pay),
+        tierPrefix + formatLocksByDisplayUnit(pay),
         tier.id,
         {
           center: true,
@@ -2717,7 +2762,7 @@
     layout: { cols: 5, rows: 4, wheelReels: [0, 2, 4] },
     paylines: SIX_PAYLINES,
     maxRoundWinMultiplier: 10000,
-    maxSpinWinMultiplier: 500,
+    maxSpinWinMultiplier: 320,
     defaultBonusSpins: 10,
     animation: { turboScale: 0.62 },
     symbols: [
@@ -2729,8 +2774,8 @@
       { id: "WILD", weight: 1, pays: { 3: 1.8, 4: 5.5, 5: 18 } }
     ],
     base: {
-      wheelChance: { blue: 0.02, red: 0 },
-      sixChance: { blue: 0.1, red: 0 },
+      wheelChance: { blue: 0.008, red: 0 },
+      sixChance: { blue: 0.045, red: 0 },
       allowBlue: true,
       allowRed: false,
       blueSixEnabled: true,
@@ -2742,8 +2787,8 @@
         title: "DESCENT SPINS",
         subtitle: "Tier A",
         spins: 10,
-        wheelChance: { blue: 0.08, red: 0.05 },
-        sixChance: { blue: 0, red: 0.18 },
+        wheelChance: { blue: 0.024, red: 0.016 },
+        sixChance: { blue: 0, red: 0.08 },
         allowBlue: true,
         allowRed: true,
         blueSixEnabled: false,
@@ -2754,8 +2799,8 @@
         title: "CHAOS SPINS",
         subtitle: "Tier B",
         spins: 10,
-        wheelChance: { blue: 0, red: 0.12 },
-        sixChance: { blue: 0, red: 0.24 },
+        wheelChance: { blue: 0, red: 0.048 },
+        sixChance: { blue: 0, red: 0.11 },
         allowBlue: false,
         allowRed: true,
         blueSixEnabled: false,
@@ -2766,8 +2811,8 @@
         title: "ABYSS SPINS",
         subtitle: "Tier C",
         spins: 10,
-        wheelChance: { blue: 0, red: 0.16 },
-        sixChance: { blue: 0, red: 0.3 },
+        wheelChance: { blue: 0, red: 0.075 },
+        sixChance: { blue: 0, red: 0.16 },
         allowBlue: false,
         allowRed: true,
         blueSixEnabled: false,
@@ -2776,7 +2821,7 @@
     },
     bonusBuy: {
       enabled: true,
-      costMultiplier: 60,
+      costMultiplier: 90,
       tiers: [
         { id: "A", weight: 72 },
         { id: "B", weight: 28 }
@@ -2803,24 +2848,24 @@
     },
     wheelOutcomes: {
       blue: [
-        { type: "none", value: 0, label: "MISS", weight: 58 },
-        { type: "instant", value: 1, label: "+1x", weight: 18 },
-        { type: "instant", value: 2, label: "+2x", weight: 8 },
-        { type: "instant", value: 3, label: "+3x", weight: 2 },
-        { type: "add", value: 1, label: "ADD +1x", weight: 10 },
-        { type: "mul", value: 2, label: "MULTI x2", weight: 3 },
-        { type: "spins", value: 2, label: "+2 SPINS", weight: 1 }
+        { type: "none", value: 0, label: "MISS", weight: 81 },
+        { type: "instant", value: 1, label: "+1x", weight: 8.5 },
+        { type: "instant", value: 2, label: "+2x", weight: 1.5 },
+        { type: "instant", value: 3, label: "+3x", weight: 0.4 },
+        { type: "add", value: 1, label: "ADD +1x", weight: 6.1 },
+        { type: "mul", value: 2, label: "MULTI x2", weight: 1.2 },
+        { type: "spins", value: 1, label: "+1 SPIN", weight: 1.3 }
       ],
       red: [
-        { type: "none", value: 0, label: "MISS", weight: 44 },
-        { type: "instant", value: 2, label: "+2x", weight: 20 },
-        { type: "instant", value: 4, label: "+4x", weight: 12 },
-        { type: "instant", value: 6, label: "+6x", weight: 6 },
-        { type: "instant", value: 10, label: "+10x", weight: 1 },
-        { type: "add", value: 2, label: "ADD +2x", weight: 8 },
-        { type: "add", value: 3, label: "ADD +3x", weight: 3 },
-        { type: "mul", value: 2, label: "MULTI x2", weight: 4 },
-        { type: "spins", value: 3, label: "+3 SPINS", weight: 2 }
+        { type: "none", value: 0, label: "MISS", weight: 70 },
+        { type: "instant", value: 2, label: "+2x", weight: 12 },
+        { type: "instant", value: 4, label: "+4x", weight: 6 },
+        { type: "instant", value: 6, label: "+6x", weight: 1.3 },
+        { type: "instant", value: 10, label: "+10x", weight: 0.15 },
+        { type: "add", value: 2, label: "ADD +2x", weight: 6.5 },
+        { type: "add", value: 3, label: "ADD +3x", weight: 1.4 },
+        { type: "mul", value: 2, label: "MULTI x2", weight: 1.5 },
+        { type: "spins", value: 2, label: "+2 SPINS", weight: 1.15 }
       ]
     }
   };
@@ -3115,7 +3160,7 @@
     const board = sixGenerateSpinGrid(ruleSet);
     const wheel = sixResolveWheels(board.wheels, baseBet);
     const pay = sixEvaluatePaylines(board.grid, baseBet, wheel.spinMultiplier);
-    const rawSpinPay = Math.max(0, wheel.instantWin + pay.total);
+    const rawSpinPay = Math.max(0, (wheel.instantWin + pay.total) * 0.4);
     const spinPay = Math.max(0, Math.floor(rawSpinPay));
     const lineText = "FS " + spinIndex + " | Wheels " + board.wheels.length
       + " | Multi x" + sixFormatMultiplier(wheel.spinMultiplier)
@@ -3289,8 +3334,8 @@
     HAT: { 5: 1.2, 6: 2.2, 7: 3.5, 8: 6.0, 9: 9.0, 10: 16, 12: 28, 15: 55 },
     WINT: { 5: 2.5, 6: 4.5, 7: 7.5, 8: 13, 9: 20, 10: 38, 12: 65, 15: 140 }
   };
-  const LE_BANDIT_BASE_PAY_SCALE = 0.68;
-  const LE_BANDIT_BONUS_PAY_SCALE = 0.62;
+  const LE_BANDIT_BASE_PAY_SCALE = 0.38;
+  const LE_BANDIT_BONUS_PAY_SCALE = 0.24;
 
   function simulateLeBandit(machine, bet, buyBonus, options) {
     const safeBet = Math.max(1, Math.floor(Number(bet) || 1));
@@ -3600,12 +3645,16 @@
     const basePayout = Math.max(0, Math.floor(Number(baseRun.spinPay) || 0));
     const baseReels = toReels(baseGrid);
     const baseRainbows = countRainbows(baseGrid);
-    const triggerBonus = forceBonus || buyMode || baseRainbows >= 3 || goldenSquares.size >= 7;
+    const naturalTrigger = (
+      (baseRainbows >= 6 && Math.random() < 0.24)
+      || (baseRainbows >= 5 && goldenSquares.size >= 12 && Math.random() < 0.16)
+    );
+    const triggerBonus = forceBonus || buyMode || naturalTrigger;
 
     const bonusFrames = [];
     let bonusPay = 0;
     if (triggerBonus) {
-      let freeSpins = buyMode ? 10 : 8;
+      let freeSpins = buyMode ? 7 : 5;
       lines.push("BONUS TRIGGERED | " + freeSpins + " FREE SPINS");
       bonusFrames.push({
         frameType: "bonus_intro",
@@ -3623,9 +3672,9 @@
       while (freeSpins > 0 && bonusFrames.length < 96) {
         freeSpins -= 1;
         spinIndex += 1;
-        const fsGrid = buildGrid(0.09);
+        const fsGrid = buildGrid(0.045);
         const fsRun = runCascadeSequence(fsGrid, goldenSquares, {
-          rainChance: 0.1,
+          rainChance: 0.045,
           payScale: LE_BANDIT_BONUS_PAY_SCALE
         });
         const spinPay = Math.max(0, Math.floor(Number(fsRun.spinPay) || 0));
@@ -5184,18 +5233,18 @@
         : 1;
       return {
         intro: Math.floor(760 * scale),
-        spin: Math.floor(380 * scale),
-        wheel: Math.floor(860 * scale),
+        spin: Math.floor(460 * scale),
+        wheel: Math.floor(760 * scale),
         reveal: Math.floor(420 * scale),
-        fillFx: Math.floor(420 * scale),
-        fillSettle: Math.floor(220 * scale),
-        between: Math.floor(260 * scale)
+        fillFx: Math.floor(320 * scale),
+        fillSettle: Math.floor(190 * scale),
+        between: Math.floor(220 * scale)
       };
     }
     if (type === "snoop_dogg_dollars") {
-      return { intro: 520, spin: 420, reveal: 700, fillFx: 420, fillSettle: 220, between: 300 };
+      return { intro: 520, spin: 480, reveal: 380, fillFx: 300, fillSettle: 180, between: 220 };
     }
-    return { intro: 1500, spin: 650, reveal: 1200, fillFx: 1000, fillSettle: 500, between: 600 };
+    return { intro: 700, spin: 440, reveal: 380, fillFx: 280, fillSettle: 170, between: 210 };
   }
 
   function countLockedFromCellMeta(metaMap) {
@@ -5251,7 +5300,7 @@
     await showBonusOverlay(
       "FREE SPINS",
       "You won " + awarded + " Free Spins",
-      "Trigger scatters are transforming into Sticky Wilds or x10 cells.",
+      "Trigger scatters are transforming for the bonus feature.",
       false
     );
     await sleep(420);
@@ -5509,7 +5558,7 @@
     showBonusSpinPanel(showHud);
     if (showHud) updateBonusSpinPanel({ title: "FREE SPINS", total: Math.max(1, totalSpinFrames), played: 0, totalWin: 0 });
     const firstType = String(frames[0] && frames[0].frameType || "").trim().toLowerCase();
-    await sleep(firstType === "bonus_intro" ? Math.min(180, bonusFx.intro) : bonusFx.intro);
+    await sleep(firstType === "bonus_intro" ? 0 : Math.max(120, Math.floor(Number(bonusFx.intro) || 420)));
     for (let i = 0; i < frames.length; i++) {
       const frame = frames[i] && typeof frames[i] === "object" ? frames[i] : {};
       const frameType = String(frame.frameType || "bonus_spin").trim().toLowerCase();
@@ -5544,8 +5593,6 @@
       setBonusPhase(BONUS_PHASES.BONUS_SPINNING);
       resolvedSpinCount += 1;
       state.bonusFlow.spinsPlayed = resolvedSpinCount;
-      state.ephemeral.stoppedCols = 0;
-      if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.add("spinning");
       if (!isSix) showBonusBanner("Spin " + resolvedSpinCount + " / " + Math.max(1, totalSpinFrames));
       if (showHud) {
         updateBonusSpinPanel({
@@ -5557,14 +5604,21 @@
       }
       pulseBonusFrameFx("glow");
       audioManager.play("bonus_tick");
-      renderBoard();
-      await sleep(bonusFx.spin);
-      if (els.boardWrap instanceof HTMLElement) els.boardWrap.classList.remove("spinning");
-      state.ephemeral.stoppedCols = machine.reels;
 
       const frameFinalRows = rowsFromResult(frame.reels, machine.type);
       const frameTumbleFrames = extractTumbleFrames(machine.type, { tumbleFrames: frame.tumbleFrames });
       const frameStartRows = resolveSpinStartRows(machine.type, frame, frameTumbleFrames, frameFinalRows);
+      const spinTargetRows = frameTumbleFrames.length ? frameStartRows : frameFinalRows;
+      state.ephemeral.stoppedCols = 0;
+      try {
+        await reelAnimator.animate(machine, spinTargetRows, {
+          anticipation: shouldUseReelAnticipation(machine, { spinStartRows: spinTargetRows, rows: frameFinalRows, outcome: frame.outcome || "" }, Math.max(0, Math.floor(Number(frame.spinPay) || 0)), safeBet)
+        });
+      } catch (_error) {
+        renderBoard();
+        await sleep(Math.max(120, Math.floor(Number(bonusFx.spin) || 280)));
+      }
+      state.ephemeral.stoppedCols = machine.reels;
       if (frameTumbleFrames.length) {
         state.ephemeral.rows = frameStartRows;
         state.ephemeral.lineIds = [];
@@ -5688,7 +5742,7 @@
 
       const banner = String(frame.banner || "").trim();
       if (banner) showBonusBanner(banner);
-      if (!banner && frame.lineText) showBonusBanner(String(frame.lineText).slice(0, 120));
+      if (!banner && frame.lineText && !isSnoop) showBonusBanner(String(frame.lineText).slice(0, 120));
       if (spinPay > 0) {
         const frameCountedByTumble = Math.max(0, Math.min(spinPay, tumbleCounted));
         const remaining = Math.max(0, spinPay - frameCountedByTumble);
@@ -6050,8 +6104,10 @@
       els.minesCashoutBtn.disabled = !canCashout;
     }
     if (isSnoop && els.snoopBuySelect instanceof HTMLSelectElement) {
-      const val = Math.max(3, Math.min(6, Math.floor(Number(els.snoopBuySelect.value) || 3)));
-      if (els.snoopBuySelect.value !== String(val)) els.snoopBuySelect.value = String(val);
+      const raw = String(els.snoopBuySelect.value || "0").trim().toLowerCase();
+      const allowed = { "0": true, "1": true, "2": true, "all": true };
+      const val = allowed[raw] ? raw : "0";
+      if (els.snoopBuySelect.value !== val) els.snoopBuySelect.value = val;
       els.snoopBuySelect.disabled = false;
     }
     if (isSnoop && els.snoopHypeBtn instanceof HTMLButtonElement) {
@@ -6060,10 +6116,14 @@
       els.snoopHypeBtn.disabled = !canBet || state.webVaultLocks < hypeCost;
     }
     if (isSnoop && els.snoopBuyBtn instanceof HTMLButtonElement && els.snoopBuySelect instanceof HTMLSelectElement) {
-      const scatters = Math.max(3, Math.min(6, Math.floor(Number(els.snoopBuySelect.value) || 3)));
-      const buyX = Math.max(1, Math.floor(Number(SNOOP_UI.buyCostByScatter[scatters]) || 1));
+      const buyMode = String(els.snoopBuySelect.value || "0").trim().toLowerCase();
+      const buyX = Math.max(1, Math.floor(Number(SNOOP_UI.buyCostByWildGuarantee[buyMode]) || 1));
       const buyCost = bet * buyX;
-      els.snoopBuyBtn.textContent = "Buy " + scatters + "SC " + formatLocksByDisplayUnit(buyCost);
+      let label = "0 Guaranteed Wild";
+      if (buyMode === "1") label = "1 Guaranteed Wild";
+      else if (buyMode === "2") label = "2 Guaranteed Wild";
+      else if (buyMode === "all") label = "All Scatter -> Wild";
+      els.snoopBuyBtn.textContent = "Buy " + label + " " + formatLocksByDisplayUnit(buyCost);
       els.snoopBuyBtn.disabled = !canBet || state.webVaultLocks < buyCost;
     }
 
@@ -6124,7 +6184,7 @@
       els.buyBonusBtn.classList.toggle("hidden", !buyEnabled);
       if (buyEnabled) {
         const costX = machine.type === "slots_v2"
-          ? Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 25))
+          ? Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 90))
           : 10;
         const cost = bet * costX;
         els.buyBonusBtn.textContent = "Buy Bonus " + formatLocksByDisplayUnit(cost);
@@ -6779,13 +6839,13 @@
     const debugForceMode = String(spinOptions.devForce || "none");
     if (modeText !== "spin" && state.autoplay.active) setAutoplayActive(false);
     const buyBonus = modeText === "buybonus" && (machine.type === "slots_v2" || machine.type === "le_bandit");
-    const snoopBuyMatch = machine.type === "snoop_dogg_dollars" ? /^snoop_buy_([3-6])$/.exec(modeText) : null;
+    const snoopBuyMatch = machine.type === "snoop_dogg_dollars" ? /^snoop_buy_w(0|1|2|all)$/.exec(modeText) : null;
     const isSnoopHype = machine.type === "snoop_dogg_dollars" && modeText === "hype";
     const isSnoopBuy = Boolean(snoopBuyMatch);
     let wagerX = 1;
     if (buyBonus) {
       if (machine.type === "slots_v2") {
-        wagerX = Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 25));
+        wagerX = Math.max(1, Math.floor(Number(SIX666_CONFIG.bonusBuy && SIX666_CONFIG.bonusBuy.costMultiplier) || 90));
       } else {
         wagerX = 10;
       }
@@ -6794,9 +6854,9 @@
       wagerX = Math.max(1, Math.floor(Number(SNOOP_UI.hypeCostX) || 20));
       spinOptions = { ...spinOptions, mode: "hype" };
     } else if (isSnoopBuy) {
-      const scatters = Math.max(3, Math.min(6, Math.floor(Number(snoopBuyMatch[1]) || 3)));
-      wagerX = Math.max(1, Math.floor(Number(SNOOP_UI.buyCostByScatter[scatters]) || 1));
-      spinOptions = { ...spinOptions, mode: "buybonus_" + scatters };
+      const wildMode = String(snoopBuyMatch[1] || "0").toLowerCase();
+      wagerX = Math.max(1, Math.floor(Number(SNOOP_UI.buyCostByWildGuarantee[wildMode]) || 1));
+      spinOptions = { ...spinOptions, mode: "buywild_" + wildMode };
     }
     const isPremiumSpin = buyBonus || isSnoopHype || isSnoopBuy;
     const showBonusSpinText = buyBonus || isSnoopBuy;
@@ -7596,10 +7656,11 @@
     if (els.snoopHypeBtn instanceof HTMLButtonElement) els.snoopHypeBtn.addEventListener("click", () => runSpin("hype"));
     if (els.snoopBuyBtn instanceof HTMLButtonElement) {
       els.snoopBuyBtn.addEventListener("click", () => {
-        const scatters = els.snoopBuySelect instanceof HTMLSelectElement
-          ? Math.max(3, Math.min(6, Math.floor(Number(els.snoopBuySelect.value) || 3)))
-          : 3;
-        runSpin("snoop_buy_" + scatters);
+        const raw = els.snoopBuySelect instanceof HTMLSelectElement
+          ? String(els.snoopBuySelect.value || "0").trim().toLowerCase()
+          : "0";
+        const mode = raw === "1" || raw === "2" || raw === "all" ? raw : "0";
+        runSpin("snoop_buy_w" + mode);
       });
     }
     if (els.towerDifficultySelect instanceof HTMLSelectElement) {

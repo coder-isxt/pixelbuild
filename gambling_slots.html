@@ -2687,6 +2687,14 @@
       margin-left: auto;
     }
 
+    .premium-inline-label {
+      font-size: 11px;
+      color: #d7e9ff;
+      letter-spacing: 0.01em;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
     #betChips {
       justify-content: flex-start;
       flex-wrap: nowrap;
@@ -3550,10 +3558,14 @@
 
     .stake-shell {
       display: grid;
-      grid-template-columns: 260px minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: 14px;
       align-items: stretch;
       min-height: 0;
+    }
+
+    #viewGame .stake-sidebar {
+      display: none !important;
     }
 
     .stake-sidebar {
@@ -4018,7 +4030,7 @@
 
             <div class="premium-controls-row premium-actions-row" data-row-title="Actions & Features">
               <span id="towerDifficultyWrap" class="hidden premium-inline-wrap">
-                <span style="font-size:8px; color:#cfe4ff;">Difficulty</span>
+                <span class="premium-inline-label">Difficulty</span>
                 <select id="towerDifficultySelect" style="min-width:128px; padding:8px 10px;">
                   <option value="easy">Easy</option>
                   <option value="normal" selected>Normal</option>
@@ -4028,7 +4040,7 @@
               </span>
 
               <span id="minesCountWrap" class="hidden premium-inline-wrap">
-                <span style="font-size:8px; color:#cfe4ff;">Mines</span>
+                <span class="premium-inline-label">Mines</span>
                 <select id="minesCountSelect" style="min-width:90px; padding:8px 10px;">
                   <option value="1">1</option>
                   <option value="3">3</option>
@@ -4043,12 +4055,12 @@
               </span>
 
               <span id="snoopBuyWrap" class="hidden premium-inline-wrap">
-                <span style="font-size:8px; color:#cfe4ff;">Buy FS</span>
+                <span class="premium-inline-label">Buy Wilds</span>
                 <select id="snoopBuySelect" style="min-width:120px; padding:8px 10px;">
-                  <option value="3">3 scatters</option>
-                  <option value="4">4 scatters</option>
-                  <option value="5">5 scatters</option>
-                  <option value="6">6 scatters</option>
+                  <option value="0">0 guaranteed wild</option>
+                  <option value="1">1 guaranteed wild</option>
+                  <option value="2">2 guaranteed wild</option>
+                  <option value="all">All scatters -> wild</option>
                 </select>
               </span>
 
@@ -4056,14 +4068,14 @@
               <button id="towerCashoutBtn" type="button" class="hidden">Cash Out</button>
               <button id="minesCashoutBtn" type="button" class="hidden">Cash Out</button>
               <button id="snoopHypeBtn" type="button" class="hidden">Hype Spin</button>
-              <button id="snoopBuyBtn" type="button" class="hidden">Buy Bonus</button>
+              <button id="snoopBuyBtn" type="button" class="hidden">Buy Wild Bonus</button>
               <button id="bjHitBtn" type="button" class="hidden">Hit</button>
               <button id="bjStandBtn" type="button" class="hidden">Stand</button>
               <button id="bjDoubleBtn" type="button" class="hidden">Double</button>
               <button id="bjSplitBtn" type="button" class="hidden">Split</button>
               <button id="buyBonusBtn" type="button" class="hidden">Bonus</button>
               <label class="premium-inline-wrap auto-wrap" for="premiumAutoplaySelect">
-                <span style="font-size:8px; color:#cfe4ff;">Autoplay</span>
+                <span class="premium-inline-label">Autoplay</span>
                 <select id="premiumAutoplaySelect">
                   <option value="0">Off</option>
                   <option value="10">10</option>
