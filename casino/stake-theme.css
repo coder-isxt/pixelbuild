@@ -272,9 +272,13 @@ body {
 
 .game-view {
   display: grid;
+  grid-template-columns: minmax(330px, 420px) 1fr;
+  align-items: start;
   align-content: start;
-  gap: 12px;
-  min-height: clamp(620px, 78vh, 980px);
+  gap: 12px 14px;
+  min-height: auto;
+  max-width: 1480px;
+  margin: 0 auto;
 }
 
 .game-head {
@@ -282,6 +286,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  grid-column: 1 / -1;
 }
 
 .game-head p {
@@ -314,6 +319,18 @@ body {
 .controls {
   display: grid;
   gap: 10px;
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.game-view > #gameStatus {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.game-view > h2 {
+  grid-column: 1;
+  grid-row: 4;
 }
 
 .control-row {
@@ -327,7 +344,7 @@ body {
 }
 
 .board {
-  min-height: clamp(520px, 62vh, 760px);
+  min-height: clamp(420px, 52vh, 620px);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px;
@@ -335,13 +352,17 @@ body {
   display: grid;
   align-content: start;
   gap: 8px;
+  grid-column: 2;
+  grid-row: 2 / span 3;
 }
 
 .history {
-  max-height: 300px;
+  max-height: 260px;
   overflow: auto;
   display: grid;
   gap: 8px;
+  grid-column: 1;
+  grid-row: 5;
 }
 
 .history-item {
@@ -402,6 +423,69 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.bj-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.bj-hand {
+  display: grid;
+  gap: 8px;
+}
+
+.playing-cards {
+  gap: 10px;
+}
+
+.playing-card {
+  width: 70px;
+  height: 100px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(180deg, #ffffff, #edf2ff);
+  color: #1d2633;
+  display: grid;
+  align-content: space-between;
+  padding: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+}
+
+.playing-card .pc-rank {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.playing-card .pc-suit {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  justify-self: end;
+}
+
+.playing-card.red {
+  color: #be2f43;
+}
+
+.playing-card.black {
+  color: #1f2636;
+}
+
+.playing-card.back {
+  background: linear-gradient(180deg, #315886, #203a5f);
+  border-color: rgba(111, 226, 255, 0.48);
+  color: #d9f3ff;
+  place-items: center;
+}
+
+.pc-back-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid rgba(217, 243, 255, 0.9);
+  box-shadow: 0 0 0 2px rgba(17, 28, 44, 0.45) inset;
 }
 
 .card-tile {
@@ -466,7 +550,15 @@ body {
   }
 
   .game-view {
-    min-height: 80vh;
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .controls,
+  .board,
+  .history {
+    grid-column: 1;
+    grid-row: auto;
   }
 
   .board {

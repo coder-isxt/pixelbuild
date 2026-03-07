@@ -311,6 +311,31 @@ window.GTModules = window.GTModules || {};
     return Math.max(0, Math.floor(Number(value) || 0));
   }
 
+  function parseCard(card) {
+    const raw = String(card || "").trim().toUpperCase();
+    const suitCode = raw.slice(-1);
+    const rank = raw.slice(0, -1) || raw;
+    const suitMap = {
+      S: { symbol: "♠", color: "black" },
+      H: { symbol: "♥", color: "red" },
+      D: { symbol: "♦", color: "red" },
+      C: { symbol: "♣", color: "black" }
+    };
+    const suit = suitMap[suitCode] || { symbol: "?", color: "black" };
+    return { rank, symbol: suit.symbol, color: suit.color };
+  }
+
+  function buildCardHtml(card, hidden) {
+    if (hidden) {
+      return "<span class=\"playing-card back\"><span class=\"pc-back-mark\"></span></span>";
+    }
+    const parsed = parseCard(card);
+    return "<span class=\"playing-card " + parsed.color + "\">" +
+      "<span class=\"pc-rank\">" + escapeHtml(parsed.rank) + "</span>" +
+      "<span class=\"pc-suit\">" + escapeHtml(parsed.symbol) + "</span>" +
+      "</span>";
+  }
+
   function handValue(hand) {
     const cards = Array.isArray(hand) ? hand : [];
     let total = 0;
@@ -666,20 +691,23 @@ window.GTModules = window.GTModules || {};
       return;
     }
     const playerValue = handValue(round.player);
-    const dealerValue = round.active ? handValue([round.dealer[0]]) : handValue(round.dealer);
+    const dealerValueText = round.active ? "?" : String(handValue(round.dealer));
 
-    const playerCards = round.player.map((c) => "<span class=\"card-tile\">" + escapeHtml(c) + "</span>").join("");
-    const dealerCards = round.dealer.map((c, i) => {
-      if (round.active && i === 1) return "<span class=\"card-tile\">?</span>";
-      return "<span class=\"card-tile\">" + escapeHtml(c) + "</span>";
-    }).join("");
+    const playerCards = round.player.map((c) => buildCardHtml(c, false)).join("");
+    const dealerCards = round.dealer.map((c, i) => buildCardHtml(c, round.active && i === 1)).join("");
 
     els.board.innerHTML = "" +
       "<div class=\"meta-line\"><strong>Bet:</strong> " + escapeHtml(formatLocks(round.bet)) + "</div>" +
-      "<div class=\"meta-line\"><strong>Dealer:</strong> " + escapeHtml(String(dealerValue)) + "</div>" +
-      "<div class=\"cards\">" + dealerCards + "</div>" +
-      "<div class=\"meta-line\"><strong>Player:</strong> " + escapeHtml(String(playerValue)) + "</div>" +
-      "<div class=\"cards\">" + playerCards + "</div>";
+      "<div class=\"bj-layout\">" +
+      "  <div class=\"bj-hand\">" +
+      "    <div class=\"meta-line\"><strong>Dealer:</strong> " + escapeHtml(dealerValueText) + "</div>" +
+      "    <div class=\"cards playing-cards\">" + dealerCards + "</div>" +
+      "  </div>" +
+      "  <div class=\"bj-hand\">" +
+      "    <div class=\"meta-line\"><strong>Player:</strong> " + escapeHtml(String(playerValue)) + "</div>" +
+      "    <div class=\"cards playing-cards\">" + playerCards + "</div>" +
+      "  </div>" +
+      "</div>";
 
     if (els.bjHitBtn instanceof HTMLButtonElement) els.bjHitBtn.disabled = !round.active;
     if (els.bjStandBtn instanceof HTMLButtonElement) els.bjStandBtn.disabled = !round.active;
