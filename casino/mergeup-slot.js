@@ -1,6 +1,15 @@
 (function initMergeUpSlot() {
   "use strict";
 
+  const SAVED_AUTH_KEY = "growtopia_saved_auth_v1";
+  const SLOT_TRANSFER_KEY = "gt_casino_slot_transfer_v1";
+  const BASE_PATH = String(window.GT_SETTINGS && window.GT_SETTINGS.BASE_PATH || "growtopia-test");
+
+  const dbModule = (window.GTModules && window.GTModules.db) || {};
+  const authModule = (window.GTModules && window.GTModules.auth) || {};
+  const authStorageModule = (window.GTModules && window.GTModules.authStorage) || {};
+  const catalogModule = (window.GTModules && window.GTModules.itemCatalog) || {};
+
   const SLOT_STATE = {
     IDLE: "IDLE",
     SPIN_START: "SPIN_START",
@@ -106,6 +115,62 @@
 
   function formatWL(value) {
     return toInt(value, 0).toLocaleString("en-US") + " WL";
+  }
+
+  function resolveLockCurrencies() {
+    const fallback = [
+      { id: 43, key: "ruby_lock", value: 1000000, short: "RL" },
+      { id: 42, key: "emerald_lock", value: 10000, short: "EL" },
+      { id: 24, key: "obsidian_lock", value: 100, short: "OL" },
+      { id: 9, key: "world_lock", value: 1, short: "WL" }
+    ];
+    if (typeof catalogModule.getBlocks !== "function") return fallback;
+    const rows = catalogModule.getBlocks();
+    if (!Array.isArray(rows)) return fallback;
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {};
+      if (!row.worldLock) continue;
+      const id = Math.floor(Number(row.id));
+      if (!Number.isInteger(id) || id <= 0) continue;
+      const value = Math.max(1, Math.floor(Number(row.lockValue) || 1));
+      const key = String(row.key || "").trim() || ("lock_" + id);
+      let short = "WL";
+      if (key === "ruby_lock") short = "RL";
+      else if (key === "emerald_lock") short = "EL";
+      else if (key === "obsidian_lock") short = "OL";
+      out.push({ id, key, value, short });
+    }
+    if (!out.length) return fallback;
+    out.sort((a, b) => (b.value - a.value) || (a.id - b.id));
+    return out;
+  }
+
+  function walletFromInventory(rawObj, lockRows) {
+    const input = rawObj && typeof rawObj === "object" ? rawObj : {};
+    const rows = Array.isArray(lockRows) ? lockRows : [];
+    const byId = {};
+    let total = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const count = Math.max(0, Math.floor(Number(input[row.id]) || 0));
+      byId[row.id] = count;
+      total += count * row.value;
+    }
+    return { total, byId };
+  }
+
+  function decomposeLocks(total, lockRows) {
+    const rows = Array.isArray(lockRows) ? lockRows : [];
+    let remaining = Math.max(0, Math.floor(Number(total) || 0));
+    const out = {};
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const count = Math.floor(remaining / row.value);
+      out[row.id] = Math.max(0, count);
+      remaining -= count * row.value;
+    }
+    return out;
   }
 
   function cloneGrid(grid) {
@@ -729,6 +794,15 @@
     phase: SLOT_STATE.IDLE,
     balance: clamp(toInt(saved.balance, gameConfig.initialBalance), 0, 999999999),
     bet: clamp(toInt(saved.bet, gameConfig.defaultBet), gameConfig.minBet, gameConfig.maxBet),
+    db: null,
+    user: null,
+    lockRows: resolveLockCurrencies(),
+    refs: { inventory: null },
+    handlers: { inventory: null },
+    walletById: {},
+    walletLinked: false,
+    balanceSyncPaused: false,
+    pendingWalletTotal: null,
     spinWin: 0,
     tumbleWin: 0,
     bonusWin: 0,
@@ -769,6 +843,166 @@
     } catch (_error) {
       // noop
     }
+  }
+
+  function normalizeUsername(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  async function connectDb() {
+    if (state.db) return state.db;
+    if (typeof dbModule.getOrInitAuthDb !== "function") throw new Error("DB module unavailable");
+    state.db = await dbModule.getOrInitAuthDb({
+      network: {},
+      firebaseRef: window.firebase,
+      firebaseConfig: window.FIREBASE_CONFIG,
+      getFirebaseApiKey: window.getFirebaseApiKey
+    });
+    return state.db;
+  }
+
+  async function readUserRole(accountId, usernameHint) {
+    const db = await connectDb();
+    try {
+      const roleSnap = await db.ref(BASE_PATH + "/admin-roles/" + accountId).once("value");
+      const val = roleSnap.val();
+      if (typeof val === "string") return val.trim().toLowerCase() || "none";
+      if (val && typeof val === "object" && typeof val.role === "string") return val.role.trim().toLowerCase() || "none";
+    } catch (_error) {
+      // fallback below
+    }
+    const username = normalizeUsername(usernameHint);
+    const byName = window.GT_SETTINGS && window.GT_SETTINGS.ADMIN_ROLE_BY_USERNAME;
+    if (username && byName && typeof byName === "object") {
+      const role = String(byName[username] || "").trim().toLowerCase();
+      if (role) return role;
+    }
+    return "none";
+  }
+
+  function clearInventoryWatch() {
+    if (state.refs.inventory && state.handlers.inventory) {
+      state.refs.inventory.off("value", state.handlers.inventory);
+    }
+    state.refs.inventory = null;
+    state.handlers.inventory = null;
+  }
+
+  async function bindInventoryWatch() {
+    clearInventoryWatch();
+    if (!state.user || !state.user.accountId) return false;
+    const db = await connectDb();
+    state.refs.inventory = db.ref(BASE_PATH + "/player-inventories/" + state.user.accountId);
+    state.handlers.inventory = (snap) => {
+      const value = snap && typeof snap.val === "function" ? (snap.val() || {}) : {};
+      const wallet = walletFromInventory(value, state.lockRows);
+      state.walletById = wallet.byId;
+      if (state.balanceSyncPaused) {
+        state.pendingWalletTotal = wallet.total;
+        return;
+      }
+      state.balance = wallet.total;
+      state.pendingWalletTotal = null;
+      state.walletLinked = true;
+      updateHUD();
+    };
+    state.refs.inventory.on("value", state.handlers.inventory);
+    const first = await state.refs.inventory.once("value");
+    state.handlers.inventory(first);
+    return true;
+  }
+
+  async function applyWalletDelta(deltaLocks) {
+    if (!state.walletLinked || !state.refs.inventory) return { ok: false, reason: "wallet-unavailable" };
+    const delta = Math.floor(Number(deltaLocks) || 0);
+    if (!delta) return { ok: true, amount: 0, previousTotal: state.balance, nextTotal: state.balance };
+
+    let failReason = "";
+    let previousTotal = 0;
+    let nextTotal = 0;
+
+    const tx = await state.refs.inventory.transaction((currentRaw) => {
+      const currentObj = currentRaw && typeof currentRaw === "object" ? { ...currentRaw } : {};
+      const wallet = walletFromInventory(currentObj, state.lockRows);
+      previousTotal = wallet.total;
+      nextTotal = wallet.total + delta;
+      if (nextTotal < 0) {
+        failReason = "not-enough-locks";
+        return;
+      }
+      const nextById = decomposeLocks(nextTotal, state.lockRows);
+      for (let i = 0; i < state.lockRows.length; i++) {
+        const row = state.lockRows[i];
+        currentObj[row.id] = Math.max(0, Math.floor(Number(nextById[row.id]) || 0));
+      }
+      return currentObj;
+    });
+
+    if (!tx || !tx.committed) return { ok: false, reason: failReason || "aborted" };
+    return { ok: true, amount: delta, previousTotal, nextTotal };
+  }
+
+  function consumeSlotTransfer() {
+    try {
+      const raw = sessionStorage.getItem(SLOT_TRANSFER_KEY);
+      if (!raw) return null;
+      sessionStorage.removeItem(SLOT_TRANSFER_KEY);
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      const issuedAt = Math.max(0, Math.floor(Number(parsed.issuedAt) || 0));
+      if (!issuedAt || Math.abs(Date.now() - issuedAt) > 120000) return null;
+      const accountId = String(parsed.accountId || "").trim();
+      const username = normalizeUsername(parsed.username || "");
+      const role = normalizeUsername(parsed.role || "none");
+      if (!accountId || !username) return null;
+      return { accountId, username, role };
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  async function trySavedAuthLogin() {
+    if (typeof authStorageModule.loadCredentials !== "function") return false;
+    const savedCreds = authStorageModule.loadCredentials(SAVED_AUTH_KEY) || {};
+    const username = normalizeUsername(savedCreds.username || "");
+    const password = String(savedCreds.password || "");
+    if (!username || !password) return false;
+    if (typeof authModule.sha256Hex !== "function") return false;
+
+    try {
+      const db = await connectDb();
+      const usernameSnap = await db.ref(BASE_PATH + "/usernames/" + username).once("value");
+      const accountId = String(usernameSnap.val() || "").trim();
+      if (!accountId) return false;
+      const accountSnap = await db.ref(BASE_PATH + "/accounts/" + accountId).once("value");
+      const account = accountSnap.val() || {};
+      const hash = await authModule.sha256Hex(password);
+      if (String(account.passwordHash || "") !== hash) return false;
+      const role = await readUserRole(accountId, username);
+      state.user = { accountId, username, role };
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  async function ensureWalletSession() {
+    const transfer = consumeSlotTransfer();
+    if (transfer) {
+      state.user = transfer;
+      const bound = await bindInventoryWatch();
+      if (bound) return true;
+    }
+    const logged = await trySavedAuthLogin();
+    if (!logged) return false;
+    return bindInventoryWatch();
+  }
+
+  function applyPendingWalletTotal() {
+    if (state.pendingWalletTotal == null) return;
+    state.balance = toInt(state.pendingWalletTotal, state.balance);
+    state.pendingWalletTotal = null;
+    updateHUD();
   }
 
   function setPhase(phase) {
@@ -985,16 +1219,17 @@
   }
 
   function pause(baseMs) {
-    const ms = state.skipRequested ? 16 : Math.max(0, Math.floor(baseMs * (state.turbo ? 0.45 : 1)));
+    const scale = state.skipRequested ? 0.07 : (state.turbo ? 0.62 : 1.35);
+    const ms = Math.max(0, Math.floor(baseMs * scale));
     return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   function countDurationByWin(win, bet) {
     const ratio = bet > 0 ? win / bet : 0;
-    if (ratio >= 20) return state.turbo ? 900 : 2100;
-    if (ratio >= 8) return state.turbo ? 600 : 1300;
-    if (ratio >= 3) return state.turbo ? 350 : 700;
-    return state.turbo ? 170 : 450;
+    if (ratio >= 20) return state.turbo ? 1200 : 2900;
+    if (ratio >= 8) return state.turbo ? 900 : 2100;
+    if (ratio >= 3) return state.turbo ? 620 : 1400;
+    return state.turbo ? 340 : 780;
   }
 
   function getWinTierLabel(totalWin, bet) {
@@ -1081,7 +1316,7 @@
       else audio.play("cluster_small");
 
       await animateSpinWinTo(targetTotal, duration);
-      await pause(180);
+      await pause(260);
       clearHighlights();
       renderGrid(step.gridBefore, isBonus ? step.markerBefore : null, {});
     }
@@ -1090,17 +1325,17 @@
     showMergeOps(step.mergeOps);
     setMessage("Merge Up: winning ducks combine into higher levels.");
     audio.play("merge");
-    await pause(240);
+    await pause(340);
 
     renderGrid(step.gridAfterMerge, isBonus ? step.markerAfter : null, {});
     showMergeOps(step.mergeOps);
-    await pause(220);
+    await pause(320);
 
     setPhase(SLOT_STATE.REFILL);
     renderGrid(step.gridAfterRefill, isBonus ? step.markerAfter : null, { dropIn: true });
     setMessage("TUMBLE " + step.index + " | Step win: " + formatWL(step.stepWin));
     audio.play("land");
-    await pause(280);
+    await pause(420);
   }
 
   async function presentSpinChain(chain, isBonus, bet, markerSnapshotBefore) {
@@ -1110,9 +1345,9 @@
     if (scatters >= 3) {
       setMessage("Scatter suspense: " + scatters + " visible.");
       audio.play("anticipation");
-      await pause(280);
+      await pause(460);
     } else {
-      await pause(180);
+      await pause(260);
     }
 
     if (!chain.steps.length) {
@@ -1128,7 +1363,7 @@
     setBanner("FREE SPINS\n" + spins + " AWARDED", true);
     setMessage("Bonus mode: marked cells can scale multipliers up to x128.");
     audio.play("bonus_intro");
-    await pause(1000);
+    await pause(1350);
     setBanner("");
   }
 
@@ -1136,7 +1371,7 @@
     setPhase(SLOT_STATE.BONUS_SUMMARY);
     setBanner("BONUS COMPLETE\n" + formatWL(bonusWin) + "\nTop cell x" + topMultiplier, true);
     setMessage("Free spins complete.");
-    await pause(1000);
+    await pause(1250);
     setBanner("");
   }
 
@@ -1171,7 +1406,7 @@
         if (spin.retriggerAward > 0) {
           setBanner("RETRIGGER +" + spin.retriggerAward, false);
           audio.play("bonus_intro");
-          await pause(520);
+          await pause(760);
           setBanner("");
         }
       }
@@ -1187,23 +1422,42 @@
       if (isBig) {
         setBanner(tier + "\n" + formatWL(totalWin), true);
         audio.play("big_win");
-        await pause(900);
+        await pause(1200);
         setBanner("");
       }
 
       setMessage("Crediting " + formatWL(totalWin) + " to balance...");
-      const startBalance = state.balance;
-      const targetBalance = state.balance + totalWin;
-      await animateBalanceTo(targetBalance, countDurationByWin(totalWin, resolved.bet) + 260);
-      audio.play("credit");
+      let creditResult = null;
+      if (state.walletLinked) {
+        state.balanceSyncPaused = true;
+        creditResult = await applyWalletDelta(totalWin);
+      }
 
-      const credited = targetBalance - startBalance;
-      const displayed = toInt(resolved.totalWin, 0);
-      appendDebug("credit-check | displayed=" + displayed + " | credited=" + credited + " | raw=" + resolved.totalWinRaw + " | capped=" + resolved.maxWinCapped);
-      if (displayed !== credited) appendDebug("ERROR: displayed and credited mismatch.");
+      if (state.walletLinked && (!creditResult || !creditResult.ok)) {
+        state.balanceSyncPaused = false;
+        applyPendingWalletTotal();
+        const reason = (creditResult && creditResult.reason) ? String(creditResult.reason) : "wallet-tx-failed";
+        appendDebug("credit-check | displayed=" + totalWin + " | credited=0 | raw=" + resolved.totalWinRaw + " | capped=" + resolved.maxWinCapped + " | reason=" + reason);
+        setMessage("Failed to credit wallet. Try again.");
+        pushHistory("Credit failed for " + formatWL(totalWin), false);
+      } else {
+        const startBalance = creditResult ? toInt(creditResult.previousTotal, state.balance) : state.balance;
+        const targetBalance = creditResult ? toInt(creditResult.nextTotal, startBalance + totalWin) : (state.balance + totalWin);
+        state.balance = startBalance;
+        updateHUD();
+        await animateBalanceTo(targetBalance, countDurationByWin(totalWin, resolved.bet) + 260);
+        state.balanceSyncPaused = false;
+        applyPendingWalletTotal();
+        audio.play("credit");
 
-      setMessage(tier + " " + formatWL(totalWin) + (resolved.maxWinCapped ? " (MAX WIN CAP)" : ""));
-      pushHistory(tier + " +" + formatWL(totalWin) + (roundCost > 0 ? (" after " + formatWL(roundCost) + " cost") : ""), true);
+        const credited = targetBalance - startBalance;
+        const displayed = toInt(resolved.totalWin, 0);
+        appendDebug("credit-check | displayed=" + displayed + " | credited=" + credited + " | raw=" + resolved.totalWinRaw + " | capped=" + resolved.maxWinCapped);
+        if (displayed !== credited) appendDebug("ERROR: displayed and credited mismatch.");
+
+        setMessage(tier + " " + formatWL(totalWin) + (resolved.maxWinCapped ? " (MAX WIN CAP)" : ""));
+        pushHistory(tier + " +" + formatWL(totalWin) + (roundCost > 0 ? (" after " + formatWL(roundCost) + " cost") : ""), true);
+      }
     } else {
       setMessage("No win this round.");
       pushHistory("No win (cost " + formatWL(roundCost) + ")", false);
@@ -1211,7 +1465,7 @@
 
     if (resolved.maxWinCapped) {
       setBanner("MAX WIN CAP REACHED\n" + formatWL(resolved.totalWin), true);
-      await pause(900);
+      await pause(1000);
       setBanner("");
     }
 
@@ -1222,6 +1476,10 @@
 
   async function runSpin(kind) {
     if (state.busy) return;
+    if (!state.walletLinked) {
+      setMessage("Wallet not linked. Open this slot from Casino dashboard after login.");
+      return;
+    }
     const mode = String(kind || "paid");
     const cost = mode === "buy_bonus" ? toInt(state.bet * gameConfig.buyBonusCostMultiplier, 0) : toInt(state.bet, 0);
     if (cost <= 0) {
@@ -1236,27 +1494,42 @@
       return;
     }
 
+    let debugInput = { forceScatterTrigger: false, forceBigWin: false, customGrid: null, logClusters: false };
+    try {
+      debugInput = collectDebugInput();
+    } catch (error) {
+      setMessage("Debug custom grid error: " + ((error && error.message) || "invalid input"));
+      return;
+    }
+
     setControlsBusy(true);
     setPhase(SLOT_STATE.SPIN_START);
     state.skipRequested = false;
     counter.skip();
     audio.play("spin_start");
 
-    state.balance -= cost;
+    state.balanceSyncPaused = true;
+    const debitResult = await applyWalletDelta(-cost);
+    state.balanceSyncPaused = false;
+    applyPendingWalletTotal();
+    if (!debitResult || !debitResult.ok) {
+      const reason = debitResult && debitResult.reason ? String(debitResult.reason) : "wallet-tx-failed";
+      if (reason === "not-enough-locks") setMessage("Not enough balance.");
+      else setMessage("Wallet debit failed. Try again.");
+      appendDebug("debit-check | cost=" + cost + " | reason=" + reason);
+      if (state.autoplayRemaining > 0) state.autoplayRemaining = 0;
+      setControlsBusy(false);
+      setPhase(SLOT_STATE.IDLE);
+      updateHUD();
+      saveSettings();
+      return;
+    }
+    state.balance = toInt(debitResult.nextTotal, Math.max(0, state.balance - cost));
     updateHUD();
+    appendDebug("debit-check | cost=" + cost + " | previous=" + debitResult.previousTotal + " | next=" + debitResult.nextTotal);
 
     const seed = Date.now() ^ Math.floor(Math.random() * 0x7fffffff);
     const rng = new RNG(seed);
-
-    let debugInput = { forceScatterTrigger: false, forceBigWin: false, customGrid: null, logClusters: false };
-    try {
-      debugInput = collectDebugInput();
-    } catch (error) {
-      setMessage("Debug custom grid error: " + ((error && error.message) || "invalid input"));
-      setControlsBusy(false);
-      setPhase(SLOT_STATE.IDLE);
-      return;
-    }
 
     let resolved;
     if (mode === "buy_bonus") {
@@ -1293,7 +1566,7 @@
       state.autoplayRemaining -= 1;
       updateHUD();
       saveSettings();
-      await pause(250);
+      await pause(340);
       if (state.autoplayRemaining > 0) {
         runSpin("paid");
         return;
@@ -1453,16 +1726,39 @@
     });
   }
 
-  function init() {
+  async function init() {
     buildGridDom();
     buildInfoContent();
     bindEvents();
     renderHistory();
     setPhase(SLOT_STATE.IDLE);
+    setControlsBusy(true);
     updateHUD();
-    setMessage("Spin to start. Engine resolves full result first, then animates.");
+    setMessage("Linking wallet session...");
     const warmGrid = engine.generateGrid(new RNG(Date.now()), {});
     renderGrid(warmGrid, null, {});
+
+    let linked = false;
+    try {
+      linked = await ensureWalletSession();
+    } catch (error) {
+      const reason = (error && error.message) ? error.message : "unknown";
+      appendDebug("wallet-link error | " + reason);
+      linked = false;
+    }
+
+    if (!linked) {
+      state.walletLinked = false;
+      setMessage("Wallet session missing. Open from Casino dashboard after login.");
+      appendDebug("wallet-link | unavailable");
+      return;
+    }
+
+    state.walletLinked = true;
+    state.bet = clamp(state.bet, gameConfig.minBet, gameConfig.maxBet);
+    updateHUD();
+    setControlsBusy(false);
+    setMessage("Wallet linked. Spin to start.");
   }
 
   init();

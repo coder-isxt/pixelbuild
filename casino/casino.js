@@ -1565,6 +1565,18 @@ window.GTModules = window.GTModules || {};
         if (!(card instanceof HTMLElement)) return;
         const gameId = String(card.getAttribute("data-game-card") || "").trim().toLowerCase();
         if (gameId === "mergeup-slot") {
+          try {
+            if (state.user && state.user.accountId) {
+              sessionStorage.setItem("gt_casino_slot_transfer_v1", JSON.stringify({
+                accountId: String(state.user.accountId || "").trim(),
+                username: String(state.user.username || "").trim().toLowerCase(),
+                role: String(state.user.role || "none").trim().toLowerCase(),
+                issuedAt: Date.now()
+              }));
+            }
+          } catch (_error) {
+            // ignore session transfer storage errors
+          }
           window.location.href = "./mergeup-slot.html";
           return;
         }
