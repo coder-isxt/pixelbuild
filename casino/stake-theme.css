@@ -272,7 +272,7 @@ body {
 
 .game-view {
   display: grid;
-  grid-template-columns: minmax(330px, 420px) 1fr;
+  grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
   align-items: start;
   align-content: start;
   gap: 12px 14px;
@@ -321,6 +321,7 @@ body {
   gap: 10px;
   grid-column: 1;
   grid-row: 2;
+  min-width: 0;
 }
 
 .game-view > #gameStatus {
@@ -337,6 +338,14 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  min-width: 0;
+}
+
+.control-row > .btn,
+.control-row > .input,
+.control-row > .select {
+  width: 100%;
+  min-width: 0;
 }
 
 .control-row.tight {
@@ -369,8 +378,12 @@ body {
 }
 
 .admin-balance-row {
-  grid-template-columns: 1.4fr 1fr auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: stretch;
+}
+
+.admin-balance-row > .btn {
+  min-width: 120px;
 }
 
 .admin-balance-panel .status {
@@ -391,6 +404,7 @@ body {
   gap: 8px;
   grid-column: 2;
   grid-row: 2;
+  min-width: 0;
 }
 
 .history {
