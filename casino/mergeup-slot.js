@@ -31,6 +31,7 @@
     cols: 6,
     minCluster: 5,
     maxMergeUpgradesPerCluster: 4,
+    winCounterHighlightMinRatio: 1.6,
     defaultBet: 20,
     minBet: 1,
     maxBet: 5000,
@@ -300,6 +301,7 @@
     cfg.cols = Math.max(3, toInt(cfg.cols, DEFAULT_GAME_CONFIG.cols));
     cfg.minCluster = Math.max(4, toInt(cfg.minCluster, DEFAULT_GAME_CONFIG.minCluster));
     cfg.maxMergeUpgradesPerCluster = Math.max(1, toInt(cfg.maxMergeUpgradesPerCluster, DEFAULT_GAME_CONFIG.maxMergeUpgradesPerCluster));
+    cfg.winCounterHighlightMinRatio = Math.max(0.1, Number(cfg.winCounterHighlightMinRatio) || DEFAULT_GAME_CONFIG.winCounterHighlightMinRatio);
     cfg.defaultBet = Math.max(1, toInt(cfg.defaultBet, DEFAULT_GAME_CONFIG.defaultBet));
     cfg.minBet = Math.max(1, toInt(cfg.minBet, DEFAULT_GAME_CONFIG.minBet));
     cfg.maxBet = Math.max(cfg.minBet, toInt(cfg.maxBet, DEFAULT_GAME_CONFIG.maxBet));
@@ -2058,6 +2060,29 @@
     return "WIN";
   }
 
+  function getMilestoneWinLabel(totalWin, bet) {
+    const win = Math.max(0, toInt(totalWin, 0));
+    const baseBet = Math.max(1, toInt(bet, 1));
+    const ratio = win / baseBet;
+    const minRatio = Math.max(0.1, Number(gameConfig.winCounterHighlightMinRatio) || 1.6);
+    if (ratio < minRatio) return "";
+    if (ratio >= 50) return "MAX WIN";
+    if (ratio >= 20) return "EPIC WIN";
+    if (ratio >= 8) return "MASSIVE WIN";
+    if (ratio >= 3) return "MEGA WIN";
+    return "BIG WIN";
+  }
+
+  async function presentMilestoneWinCounter(totalWin, bet, isBonus) {
+    const win = Math.max(0, toInt(totalWin, 0));
+    if (!win) return;
+    const tier = getMilestoneWinLabel(win, bet);
+    if (!tier) return;
+    const label = isBonus ? ("BONUS " + tier) : tier;
+    setMessage(label + " " + formatWL(win));
+    await presentFinalWinCounter(win, bet, label);
+  }
+
   async function presentFinalWinCounter(totalWin, bet, label) {
     const finalTotal = Math.max(0, toInt(totalWin, 0));
     if (!finalTotal) {
@@ -2393,7 +2418,10 @@
     state.fsLeft = 0;
     updateHUD();
 
-    if (resolved.kind === "paid") await presentSpinChain(resolved.base.chain, false, resolved.bet, null);
+    if (resolved.kind === "paid") {
+      await presentSpinChain(resolved.base.chain, false, resolved.bet, null);
+      await presentMilestoneWinCounter(resolved.base.chain.totalWin, resolved.bet, false);
+    }
 
     if (resolved.base.triggeredBonus || resolved.kind === "buy_bonus") {
       await presentBonusIntro(resolved.base.freeSpinsAward);
@@ -2407,6 +2435,7 @@
         updateHUD();
         setMessage("Free Spin " + spin.spinIndex + " | Remaining: " + state.fsLeft);
         await presentSpinChain(spin.chain, true, resolved.bet, spin.markerSnapshotBefore);
+        await presentMilestoneWinCounter(spin.chain.totalWin, resolved.bet, true);
 
         state.bonusWin += spin.chain.totalWin;
         updateHUD();
@@ -2600,6 +2629,7 @@
     html += "<section><strong>Game Type:</strong> " + gameConfig.rows + "x" + gameConfig.cols + " cluster pays, orthogonal adjacency, minimum cluster size " + gameConfig.minCluster + ".</section>";
     html += "<section><strong>MergeUP Rule:</strong> clusters of " + gameConfig.minCluster + "+ matching symbols win. Merge count scales by size: " + gameConfig.minCluster + "->1 upgrade, " + (gameConfig.minCluster + 1) + "->2, " + (gameConfig.minCluster + 2) + "->3, etc, capped at " + gameConfig.maxMergeUpgradesPerCluster + " upgraded icons per cluster. Targets are chosen deterministically from lowest row, then left-most.</section>";
     html += "<section><strong>Free Spins Trigger:</strong> 4/5/6+ scatters award " + trigger4 + "/" + trigger5 + "/" + trigger6 + " free spins. In free spins, marked cells gain multipliers up to x" + gameConfig.maxCellMultiplier + ", cluster multipliers stack into one additive multiplier across marked cascade cells, and 4/5/6+ scatters retrigger for +" + retrig4 + "/+" + retrig5 + "/+" + retrig6 + ".</section>";
+    html += "<section><strong>Milestone Counter:</strong> base/bonus spin wins at x" + Number(gameConfig.winCounterHighlightMinRatio || 1.6).toFixed(1) + "+ bet trigger center win counter with tier text (BIG/MEGA/MASSIVE/EPIC/MAX).</section>";
     const boostRows = Array.isArray(gameConfig.highBetPayoutBoostTiers) ? gameConfig.highBetPayoutBoostTiers : [];
     let boostText = "none";
     if (boostRows.length) {
