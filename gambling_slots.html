@@ -3740,15 +3740,15 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 10px;
+      font-size: 12px;
       color: #d6e5f7;
     }
 
     .dev-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 6px;
-      font-size: 9px;
+      font-size: 12px;
       color: #c8d9ef;
     }
 
@@ -3767,14 +3767,14 @@
       border: 1px solid rgba(114, 150, 189, 0.5);
       background: rgba(9, 14, 21, 0.95);
       color: #e3efff;
-      font-size: 9px;
+      font-size: 12px;
     }
 
     .dev-log {
       min-height: 44px;
       max-height: 140px;
       overflow: auto;
-      font-size: 9px;
+      font-size: 12px;
       color: #9eb6d4;
       border: 1px solid rgba(114, 150, 189, 0.35);
       border-radius: 8px;
@@ -4098,9 +4098,12 @@
             <div class="dev-grid">
               <div><strong>Bet:</strong> <span id="devBetValue">0</span></div>
               <div><strong>Raw Win:</strong> <span id="devRawWinValue">0</span></div>
+              <div><strong>Capped Win:</strong> <span id="devCappedWinValue">0</span></div>
+              <div><strong>Credited:</strong> <span id="devCreditedWinValue">0</span></div>
               <div><strong>Display Win:</strong> <span id="devDisplayWinValue">0</span></div>
               <div><strong>Bonus Total:</strong> <span id="devBonusWinValue">0</span></div>
               <div><strong>Tumbles:</strong> <span id="devTumbleCount">0</span></div>
+              <div><strong>Credit Delta:</strong> <span id="devBalanceDelta">0 (0 -> 0)</span></div>
               <div><strong>Cap:</strong> <span id="devCapStatus">none</span></div>
               <div><strong>Multiplier:</strong> <span id="devMultiplierInfo">x1</span></div>
               <div><strong>Queue:</strong> <span id="devFeatureQueue">-</span></div>

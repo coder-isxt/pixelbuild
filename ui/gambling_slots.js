@@ -109,7 +109,7 @@
     GEM: "Gem", PICK: "Pickaxe", MINER: "Miner", GOLD: "Gold", DYN: "Dynamite", WILD: "Wild", SCAT: "Scatter", BONUS: "Bonus",
     RUBY: "Ruby", EMER: "Emerald", CLUB: "Club", RING: "Ring", SKULL: "Skull", REAPR: "Reaper", BLOOD: "Blood",
     LEAF: "Leaf", STON: "Stone", MASK: "Mask", IDOL: "Idol", ORAC: "Oracle", FRGT: "Forgotten",
-    COIN: "Coin", ORE: "Ore", CART: "Cart", RELC: "Relic", "?": "Unknown",
+    COIN: "Coin", ORE: "Ore", CART: "Cart", RELC: "Relic", "?": "",
     BONE: "Bone", PENT: "Pentagram", BLU_WHEEL: "Blue Wheel", RED_WHEEL: "Red Wheel", BLU_6: "Blue 6", RED_6: "Red 6",
     TRAP: "Trap", CHEESE: "Cheese", BEER: "Beer", BAG: "Bag", HAT: "Hat", WINT: "Wanted", RAIN: "Rain",
     CLOVR: "Clover", POT: "Pot of Gold", LOCK: "Locked",
@@ -122,7 +122,7 @@
     GEM: "\u{1F48E}", PICK: "\u26CF", MINER: "\u{1F477}", GOLD: "\u{1FA99}", DYN: "\u{1F4A3}", WILD: "\u2728", SCAT: "\u{1F31F}", BONUS: "\u{1F381}",
     RUBY: "\u2666", EMER: "\u{1F49A}", CLUB: "\u2663", RING: "\u{1F48D}", SKULL: "\u2620", REAPR: "\u2623", BLOOD: "\u2697",
     LEAF: "\u{1F343}", STON: "\u{1FAA8}", MASK: "\u{1F3AD}", IDOL: "\u{1F5FF}", ORAC: "\u{1F52E}", FRGT: "\u{1F56F}",
-    COIN: "\u{1FA99}", ORE: "\u26D3", CART: "\u{1F6D2}", RELC: "\u{1F4FF}", "?": "\u2754",
+    COIN: "\u{1FA99}", ORE: "\u26D3", CART: "\u{1F6D2}", RELC: "\u{1F4FF}", "?": "\u2022",
     BONE: "\u2694", PENT: "\u26E7", BLU_WHEEL: "\u25C9", RED_WHEEL: "\u25C9", BLU_6: "6", RED_6: "6",
     TRAP: "\u{1F4A9}", CHEESE: "\u{1F9C0}", BEER: "\u{1F37A}", BAG: "\u{1F4B0}", HAT: "\u{1F3A9}", WINT: "\u{1F46E}", RAIN: "\u{1F308}",
     CLOVR: "\u2618", POT: "\u{1F4B0}", LOCK: "\u{1F512}",
@@ -222,11 +222,20 @@
     debug: {
       enabled: false,
       lastRawWin: 0,
+      lastCappedWin: 0,
+      lastCreditedWin: 0,
+      lastBaseStepWin: 0,
+      lastTumbleStepWin: 0,
+      lastBonusStepWin: 0,
+      lastBalanceBeforeCredit: 0,
+      lastBalanceAfterCredit: 0,
       lastCapStatus: "none",
       lastTumbleCount: 0,
       lastMultiplierText: "x1",
       lastFeatureQueue: "-",
+      lastWinBreakdown: "-",
       lastLog: "No events yet.",
+      spinAudit: [],
       forceMode: "none",
       seed: "",
       pendingOverride: null
@@ -377,8 +386,11 @@
     devStateText: document.getElementById("devStateText"),
     devBetValue: document.getElementById("devBetValue"),
     devRawWinValue: document.getElementById("devRawWinValue"),
+    devCappedWinValue: document.getElementById("devCappedWinValue"),
+    devCreditedWinValue: document.getElementById("devCreditedWinValue"),
     devDisplayWinValue: document.getElementById("devDisplayWinValue"),
     devBonusWinValue: document.getElementById("devBonusWinValue"),
+    devBalanceDelta: document.getElementById("devBalanceDelta"),
     devTumbleCount: document.getElementById("devTumbleCount"),
     devCapStatus: document.getElementById("devCapStatus"),
     devMultiplierInfo: document.getElementById("devMultiplierInfo"),
@@ -402,17 +414,17 @@
     style.id = "casinoVisualRefresh";
     style.textContent = `
       body.casino-premium {
-        --stake-bg-1: #0b0b14;
-        --stake-bg-2: #131325;
-        --stake-panel: rgba(20, 20, 34, 0.88);
-        --stake-panel-2: rgba(28, 28, 46, 0.95);
-        --stake-line: rgba(255, 255, 255, 0.1);
+        --stake-bg-1: #0f1117;
+        --stake-bg-2: #151a22;
+        --stake-panel: rgba(20, 24, 32, 0.94);
+        --stake-panel-2: rgba(24, 30, 40, 0.96);
+        --stake-line: rgba(165, 179, 198, 0.22);
         --stake-gold: #f6c453;
-        --stake-green: #5cff95;
-        --stake-pink: #ff63b8;
-        --stake-blue: #67d2ff;
-        --stake-text: #f5f7ff;
-        --stake-muted: #9ea5c1;
+        --stake-green: #49d48f;
+        --stake-pink: #ad8cff;
+        --stake-blue: #66b7ff;
+        --stake-text: #ecf2ff;
+        --stake-muted: #9aa8bf;
       }
 
       body.casino-premium,
@@ -426,10 +438,7 @@
       body.casino-premium {
         color: var(--stake-text);
         font-size: 15px;
-        background:
-          radial-gradient(circle at top left, rgba(255, 99, 184, 0.16), transparent 30%),
-          radial-gradient(circle at top right, rgba(103, 210, 255, 0.16), transparent 28%),
-          linear-gradient(180deg, var(--stake-bg-2), var(--stake-bg-1));
+        background: linear-gradient(180deg, var(--stake-bg-2), var(--stake-bg-1));
       }
 
       body.casino-premium .page {
@@ -442,13 +451,12 @@
         border: 1px solid var(--stake-line);
         border-radius: 18px;
         background: var(--stake-panel);
-        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
         backdrop-filter: blur(10px);
       }
 
       body.casino-premium .head {
-        background:
-          linear-gradient(180deg, rgba(26, 26, 42, 0.96), rgba(18, 18, 30, 0.96));
+        background: rgba(18, 24, 33, 0.96);
       }
 
       body.casino-premium .title {
@@ -459,7 +467,20 @@
 
       body.casino-premium .sub {
         color: var(--stake-muted);
-        font-size: 0.82rem;
+        font-size: 0.9rem;
+      }
+
+      body.casino-premium .pill {
+        font-size: 12px;
+      }
+
+      body.casino-premium .wallet-display .wallet-top,
+      body.casino-premium .wallet-display .wallet-entry .label {
+        font-size: 11px;
+      }
+
+      body.casino-premium .wallet-display .wallet-entry .value {
+        font-size: 14px;
       }
 
       body.casino-premium button,
@@ -501,11 +522,15 @@
 
       body.casino-premium .machine-item .name {
         color: #f9fbff;
+        font-size: 16px;
+        font-weight: 600;
       }
 
       body.casino-premium .machine-item .info,
       body.casino-premium .stake-empty {
         color: var(--stake-muted);
+        font-size: 13px;
+        line-height: 1.4;
       }
 
       body.casino-premium .stake-shell {
@@ -553,15 +578,13 @@
         border: 1px solid var(--stake-line);
         border-radius: 22px;
         padding: 12px;
-        background:
-          radial-gradient(circle at 50% -10%, rgba(103, 210, 255, 0.14), transparent 34%),
-          linear-gradient(180deg, rgba(18, 22, 37, 0.98), rgba(13, 17, 30, 0.98));
+        background: linear-gradient(180deg, rgba(17, 22, 31, 0.98), rgba(14, 18, 25, 0.98));
       }
 
       body.casino-premium #viewGame .premium-topbar {
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 14px;
-        background: linear-gradient(180deg, rgba(28, 31, 50, 0.95), rgba(20, 23, 38, 0.96));
+        background: rgba(24, 29, 39, 0.95);
       }
 
       body.casino-premium #viewGame .tag {
@@ -580,10 +603,8 @@
       body.casino-premium #viewGame .board-wrap {
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 18px;
-        background:
-          radial-gradient(circle at top, rgba(103, 210, 255, 0.1), transparent 36%),
-          linear-gradient(180deg, rgba(20, 22, 36, 0.96), rgba(13, 16, 27, 0.98));
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 12px 20px rgba(255, 255, 255, 0.02);
+        background: linear-gradient(180deg, rgba(21, 26, 35, 0.96), rgba(15, 20, 28, 0.98));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
       }
 
       body.casino-premium #viewGame .board {
@@ -593,30 +614,58 @@
       body.casino-premium #viewGame .reel {
         border: 1px solid rgba(255, 255, 255, 0.14);
         border-radius: 11px;
-        background: linear-gradient(180deg, rgba(35, 38, 58, 0.95), rgba(20, 24, 39, 0.98));
+        background: linear-gradient(180deg, rgba(31, 36, 48, 0.95), rgba(21, 26, 37, 0.98));
       }
 
       body.casino-premium #viewGame .cell {
         border: 1px solid rgba(255, 255, 255, 0.13);
         border-radius: 10px;
-        background: linear-gradient(180deg, rgba(57, 62, 92, 0.94), rgba(37, 43, 70, 0.98));
+        background: linear-gradient(180deg, rgba(60, 66, 89, 0.9), rgba(43, 50, 71, 0.96));
         transition: transform 180ms ease, opacity 160ms ease, box-shadow 180ms ease, filter 180ms ease;
       }
 
       body.casino-premium #viewGame .cell .icon {
         color: #f7f9ff;
-        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55), 0 0 10px rgba(103, 210, 255, 0.16);
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+      }
+
+      body.casino-premium #viewGame .cell .txt {
+        font-size: 11px;
+        line-height: 1.25;
+        color: #d7e2f5;
+      }
+
+      body.casino-premium #viewGame .cell-badge {
+        font-size: 10px;
+        padding: 2px 6px;
       }
 
       body.casino-premium #viewGame .cell.symbol-win,
       body.casino-premium #viewGame .cell.hit {
         transform: scale(1.03);
-        box-shadow: 0 0 0 2px rgba(246, 196, 83, 0.6), 0 0 24px rgba(246, 196, 83, 0.24);
+        box-shadow: 0 0 0 2px rgba(246, 196, 83, 0.7);
       }
 
       body.casino-premium #viewGame .cell.symbol-dim {
         opacity: 0.58;
         filter: saturate(0.85);
+      }
+
+      body.casino-premium #viewGame .cell.wild,
+      body.casino-premium #viewGame .cell.scatter,
+      body.casino-premium #viewGame .cell.bonus,
+      body.casino-premium #viewGame .cell.boosted {
+        box-shadow: none;
+      }
+
+      body.casino-premium #viewGame .stage.theme-slots_v2 .cell.sixblu,
+      body.casino-premium #viewGame .stage.theme-slots_v2 .cell.sixred {
+        box-shadow: inset 0 0 0 1px rgba(166, 201, 244, 0.24);
+      }
+
+      body.casino-premium #viewGame .stage.theme-slots_v2 .cell .icon {
+        filter: grayscale(0.95) contrast(1.08);
+        text-shadow: none;
       }
 
       body.casino-premium #viewGame .line-list {
@@ -654,22 +703,19 @@
         min-width: 96px !important;
         border-radius: 999px;
         border: 2px solid rgba(246, 196, 83, 0.9);
-        background:
-          radial-gradient(circle at 30% 24%, rgba(255, 239, 194, 0.5), rgba(246, 196, 83, 0.94) 45%, rgba(196, 140, 20, 0.96) 92%);
+        background: linear-gradient(180deg, rgba(246, 196, 83, 0.96), rgba(204, 144, 33, 0.96));
         color: #2a1d08;
         font-weight: 800;
         letter-spacing: 0.08em;
         box-shadow:
-          inset 0 0 0 2px rgba(255, 241, 205, 0.36),
-          0 10px 20px rgba(0, 0, 0, 0.34),
-          0 0 22px rgba(246, 196, 83, 0.34);
+          inset 0 0 0 1px rgba(255, 241, 205, 0.22),
+          0 8px 16px rgba(0, 0, 0, 0.3);
       }
 
       body.casino-premium #viewGame #spinBtn.spinning {
         box-shadow:
-          inset 0 0 0 2px rgba(255, 241, 205, 0.36),
-          0 12px 24px rgba(0, 0, 0, 0.36),
-          0 0 28px rgba(92, 255, 149, 0.38);
+          inset 0 0 0 1px rgba(255, 241, 205, 0.22),
+          0 10px 20px rgba(0, 0, 0, 0.34);
       }
 
       body.casino-premium #viewGame .win-meter {
@@ -720,6 +766,35 @@
         color: #dbe4ff;
       }
 
+      body.casino-premium #viewGame .bonus-overlay {
+        border: 1px solid rgba(166, 201, 244, 0.42);
+        background: linear-gradient(180deg, rgba(16, 25, 36, 0.96), rgba(12, 20, 30, 0.97));
+      }
+
+      body.casino-premium #viewGame .bonus-overlay h3 {
+        color: #f4fbff;
+        text-shadow: none;
+      }
+
+      body.casino-premium #viewGame .bonus-overlay p,
+      body.casino-premium #viewGame .bonus-overlay .mini {
+        color: #d4e1f5;
+      }
+
+      body.casino-premium #viewGame .bonus-banner {
+        border: 1px solid rgba(241, 188, 83, 0.66);
+        background: rgba(37, 32, 21, 0.92);
+        color: #ffe8b9;
+        text-shadow: none;
+      }
+
+      body.casino-premium #viewGame .premium-win-banner {
+        font-size: clamp(26px, 4.1vw, 46px);
+        letter-spacing: 0.02em;
+        color: #f7fbff;
+        text-shadow: none;
+      }
+
       body.casino-premium .head-actions button,
       body.casino-premium #viewGame .quick-btn,
       body.casino-premium #viewGame .chip,
@@ -759,7 +834,7 @@
       }
 
       body.casino-premium .casino-ambient .orb {
-        background: radial-gradient(circle, rgba(103, 210, 255, 0.75), rgba(255, 99, 184, 0.35));
+        background: radial-gradient(circle, rgba(108, 136, 170, 0.42), rgba(69, 84, 104, 0.1));
       }
 
       @media (max-width: 1200px) {
@@ -809,14 +884,14 @@
     function ensureAmbientOrbs() {
       if (!(els.casinoAmbientFx instanceof HTMLElement)) return;
       if (els.casinoAmbientFx.childElementCount > 0) return;
-      for (let i = 0; i < 18; i++) {
+      for (let i = 0; i < 10; i++) {
         const orb = document.createElement("span");
         orb.className = "orb";
         const left = Math.random() * 100;
         const delay = -(Math.random() * 7.5);
         const duration = 7 + (Math.random() * 6);
         const drift = -16 + (Math.random() * 32);
-        const size = 6 + Math.round(Math.random() * 12);
+        const size = 4 + Math.round(Math.random() * 7);
         orb.style.left = left.toFixed(2) + "%";
         orb.style.bottom = (-12 - Math.random() * 32).toFixed(2) + "px";
         orb.style.width = size + "px";
@@ -1254,6 +1329,145 @@
     if (state.debug.lastCapStatus === "clamped") {
       appendDevLog("Cap applied at " + formatDebugAmount(cap) + " (raw " + formatDebugAmount(rawPayout) + ")");
     }
+  }
+
+  function cloneWinFrames(frames, mode) {
+    const list = Array.isArray(frames) ? frames : [];
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      const row = list[i] && typeof list[i] === "object" ? { ...list[i] } : {};
+      if (mode === "tumble") {
+        row.payout = Math.max(0, Math.floor(Number(row.payout) || 0));
+      } else if (mode === "bonus") {
+        row.spinPay = Math.max(0, Math.floor(Number(row.spinPay) || 0));
+        if (row.hud && typeof row.hud === "object") row.hud = { ...row.hud };
+      }
+      out.push(row);
+    }
+    return out;
+  }
+
+  function allocateScaledByWeight(weights, targetTotal) {
+    const values = Array.isArray(weights) ? weights : [];
+    const target = Math.max(0, Math.floor(Number(targetTotal) || 0));
+    if (!values.length || target <= 0) return values.map(() => 0);
+    let total = 0;
+    for (let i = 0; i < values.length; i++) total += Math.max(0, Number(values[i]) || 0);
+    if (total <= 0) return values.map(() => 0);
+
+    const base = [];
+    const fractions = [];
+    let used = 0;
+    for (let i = 0; i < values.length; i++) {
+      const raw = (Math.max(0, Number(values[i]) || 0) / total) * target;
+      const floorVal = Math.max(0, Math.floor(raw));
+      base[i] = floorVal;
+      fractions[i] = raw - floorVal;
+      used += floorVal;
+    }
+    let remain = Math.max(0, target - used);
+    while (remain > 0) {
+      let bestIndex = 0;
+      let bestFrac = -1;
+      for (let i = 0; i < fractions.length; i++) {
+        if (fractions[i] > bestFrac) {
+          bestFrac = fractions[i];
+          bestIndex = i;
+        }
+      }
+      base[bestIndex] += 1;
+      fractions[bestIndex] = 0;
+      remain -= 1;
+    }
+    return base;
+  }
+
+  function normalizeResolvedWinFlow(resolved, payoutTarget) {
+    const src = resolved && typeof resolved === "object" ? resolved : {};
+    const target = Math.max(0, Math.floor(Number(payoutTarget) || 0));
+    const tumbleFrames = cloneWinFrames(src.tumbleFrames, "tumble");
+    const bonusFrames = cloneWinFrames(src.bonusFrames, "bonus");
+
+    const entries = [];
+    for (let i = 0; i < tumbleFrames.length; i++) {
+      const raw = Math.max(0, Math.floor(Number(tumbleFrames[i].payout) || 0));
+      if (raw <= 0) continue;
+      entries.push({ kind: "tumble", index: i, raw });
+    }
+    for (let i = 0; i < bonusFrames.length; i++) {
+      const frame = bonusFrames[i] && typeof bonusFrames[i] === "object" ? bonusFrames[i] : {};
+      const type = String(frame.frameType || "bonus_spin").trim().toLowerCase();
+      if (type !== "bonus_spin") continue;
+      const raw = Math.max(0, Math.floor(Number(frame.spinPay) || 0));
+      if (raw <= 0) continue;
+      entries.push({ kind: "bonus", index: i, raw });
+    }
+
+    let rawStepsTotal = 0;
+    for (let i = 0; i < entries.length; i++) rawStepsTotal += entries[i].raw;
+    const scaled = allocateScaledByWeight(entries.map((row) => row.raw), target);
+    let tumbleScaled = 0;
+    let bonusScaled = 0;
+    let tumbleRaw = 0;
+    let bonusRaw = 0;
+
+    for (let i = 0; i < entries.length; i++) {
+      const row = entries[i];
+      const next = Math.max(0, Math.floor(Number(scaled[i]) || 0));
+      if (row.kind === "tumble") {
+        tumbleRaw += row.raw;
+        tumbleScaled += next;
+        if (tumbleFrames[row.index]) tumbleFrames[row.index].payout = next;
+      } else if (row.kind === "bonus") {
+        bonusRaw += row.raw;
+        bonusScaled += next;
+        if (bonusFrames[row.index]) bonusFrames[row.index].spinPay = next;
+      }
+    }
+
+    let runningBonus = 0;
+    for (let i = 0; i < bonusFrames.length; i++) {
+      const frame = bonusFrames[i] && typeof bonusFrames[i] === "object" ? bonusFrames[i] : {};
+      const type = String(frame.frameType || "bonus_spin").trim().toLowerCase();
+      if (type === "bonus_spin") {
+        const spinPay = Math.max(0, Math.floor(Number(frame.spinPay) || 0));
+        runningBonus += spinPay;
+        const hud = frame.hud && typeof frame.hud === "object" ? { ...frame.hud } : {};
+        hud.currentSpinWin = spinPay;
+        hud.bonusWin = runningBonus;
+        frame.hud = hud;
+        const left = Math.max(0, Math.floor(Number(hud.spinsLeft) || Number(hud.freeSpinsLeft) || 0));
+        frame.lineText = "Bonus Spin | +" + spinPay + " WL" + (left > 0 ? (" | Left " + left) : "");
+        bonusFrames[i] = frame;
+      } else if (type === "bonus_end") {
+        const summary = frame.summary && typeof frame.summary === "object" ? { ...frame.summary } : {};
+        summary.bonusWin = bonusScaled;
+        frame.summary = summary;
+        bonusFrames[i] = frame;
+      }
+    }
+    for (let i = 0; i < tumbleFrames.length; i++) {
+      const pay = Math.max(0, Math.floor(Number(tumbleFrames[i].payout) || 0));
+      tumbleFrames[i].lineText = "Tumble " + (i + 1) + " | +" + pay + " WL";
+    }
+
+    const normalized = {
+      ...src,
+      tumbleFrames,
+      bonusFrames
+    };
+    return {
+      resolved: normalized,
+      breakdown: {
+        rawStepTotal: Math.max(0, rawStepsTotal),
+        tumbleRaw: Math.max(0, tumbleRaw),
+        bonusRaw: Math.max(0, bonusRaw),
+        tumbleScaled: Math.max(0, tumbleScaled),
+        bonusScaled: Math.max(0, bonusScaled),
+        baseScaled: Math.max(0, target - tumbleScaled - bonusScaled),
+        target
+      }
+    };
   }
 
   function loadUiSettings() {
@@ -1947,11 +2161,26 @@
     return safe.toLocaleString("en-US");
   }
 
+  function pushSpinAuditLine(line) {
+    const text = String(line || "").trim();
+    if (!text) return;
+    const list = Array.isArray(state.debug.spinAudit) ? state.debug.spinAudit.slice(0) : [];
+    list.push(text);
+    while (list.length > 14) list.shift();
+    state.debug.spinAudit = list;
+    state.debug.lastLog = list[list.length - 1] || "No events yet.";
+  }
+
+  function resetSpinAudit() {
+    state.debug.spinAudit = [];
+    state.debug.lastLog = "No events yet.";
+  }
+
   function appendDevLog(line) {
     const text = String(line || "").trim();
     if (!text) return;
     const stamp = new Date().toLocaleTimeString([], { hour12: false });
-    state.debug.lastLog = "[" + stamp + "] " + text;
+    pushSpinAuditLine("[" + stamp + "] " + text);
     renderDevPanel();
   }
 
@@ -1991,6 +2220,12 @@
     if (els.devRawWinValue instanceof HTMLElement) {
       els.devRawWinValue.textContent = formatDebugAmount(state.debug.lastRawWin);
     }
+    if (els.devCappedWinValue instanceof HTMLElement) {
+      els.devCappedWinValue.textContent = formatDebugAmount(state.debug.lastCappedWin);
+    }
+    if (els.devCreditedWinValue instanceof HTMLElement) {
+      els.devCreditedWinValue.textContent = formatDebugAmount(state.debug.lastCreditedWin);
+    }
     if (els.devDisplayWinValue instanceof HTMLElement) {
       els.devDisplayWinValue.textContent = formatDebugAmount(state.currentWinValue);
     }
@@ -2007,10 +2242,19 @@
       els.devMultiplierInfo.textContent = String(state.debug.lastMultiplierText || "x1");
     }
     if (els.devFeatureQueue instanceof HTMLElement) {
-      els.devFeatureQueue.textContent = String(state.debug.lastFeatureQueue || "-");
+      const queue = String(state.debug.lastFeatureQueue || "-");
+      const breakdown = String(state.debug.lastWinBreakdown || "-");
+      els.devFeatureQueue.textContent = queue + " | " + breakdown;
+    }
+    if (els.devBalanceDelta instanceof HTMLElement) {
+      const before = Math.max(0, Math.floor(Number(state.debug.lastBalanceBeforeCredit) || 0));
+      const after = Math.max(0, Math.floor(Number(state.debug.lastBalanceAfterCredit) || 0));
+      const delta = after - before;
+      els.devBalanceDelta.textContent = formatDebugAmount(delta) + " (" + formatDebugAmount(before) + " -> " + formatDebugAmount(after) + ")";
     }
     if (els.devLogText instanceof HTMLElement) {
-      els.devLogText.textContent = String(state.debug.lastLog || "No events yet.");
+      const audit = Array.isArray(state.debug.spinAudit) ? state.debug.spinAudit : [];
+      els.devLogText.textContent = audit.length ? audit.join("\n") : String(state.debug.lastLog || "No events yet.");
     }
     if (els.devForceSelect instanceof HTMLSelectElement) {
       const force = String(state.debug.forceMode || "none");
@@ -3908,6 +4152,7 @@
     const totalWin = frames.reduce((sum, row) => sum + Math.max(0, Math.floor(Number(row && row.payout) || 0)), 0);
     if (!tumbleAnimator || typeof tumbleAnimator.playSequence !== "function") {
       if (totalWin > 0 && winCounter && typeof winCounter.startCountUp === "function") {
+        pushSpinAuditLine("[tumble] +" + formatDebugAmount(totalWin) + " (fallback)");
         await winCounter.startCountUp(state.currentWinValue, state.currentWinValue + totalWin, {
           bet: safeBet,
           turbo: Boolean(state.uiSettings.turbo),
@@ -3915,6 +4160,7 @@
         });
       }
       setTumbleIndicator("");
+      renderDevPanel();
       return { steps: frames.length, totalWin };
     }
 
@@ -3923,11 +4169,13 @@
       onStepWin: async (step) => {
         const add = Math.max(0, Math.floor(Number(step && step.payout) || 0));
         if (add <= 0 || !winCounter || typeof winCounter.startCountUp !== "function") return;
+        pushSpinAuditLine("[tumble step] +" + formatDebugAmount(add));
         await winCounter.startCountUp(state.currentWinValue, state.currentWinValue + add, {
           bet: safeBet,
           turbo: Boolean(state.uiSettings.turbo),
           durationScale: 0.78
         });
+        renderDevPanel();
       }
     });
     setTumbleIndicator("");
@@ -4379,6 +4627,22 @@
   }
 
   function normalizeToken(value) { return String(value || "").trim().toUpperCase() || "?"; }
+  function fallbackTokenForMachine(machineType) {
+    const key = String(machineType || "slots").trim().toLowerCase();
+    const pool = SYMBOL_POOL[key] || SYMBOL_POOL.slots || [];
+    for (let i = 0; i < pool.length; i++) {
+      const tok = normalizeToken(pool[i]);
+      if (SYMBOL_ICONS[tok] || SYMBOL_LABELS[tok]) return tok;
+    }
+    return "COIN";
+  }
+  function resolveDisplayToken(token, machineType) {
+    const tok = normalizeToken(token);
+    const parsed = parseDisplayToken(tok);
+    const hasBase = Boolean(SYMBOL_ICONS[parsed.base] || SYMBOL_LABELS[parsed.base] || SYMBOL_CLASSES[parsed.base]);
+    if (hasBase) return tok;
+    return fallbackTokenForMachine(machineType);
+  }
   function parseDisplayToken(token) {
     const raw = normalizeToken(token);
     const idx = raw.indexOf("@");
@@ -4389,28 +4653,31 @@
       overlay: normalizeToken(raw.slice(idx + 1))
     };
   }
-  function symbolIcon(token) {
-    const parsed = parseDisplayToken(token);
-    return SYMBOL_ICONS[parsed.base] || SYMBOL_ICONS["?"];
+  function symbolIcon(token, machineType) {
+    const safeToken = resolveDisplayToken(token, machineType);
+    const parsed = parseDisplayToken(safeToken);
+    return SYMBOL_ICONS[parsed.base] || SYMBOL_ICONS["?"] || "\u2022";
   }
-  function symbolLabel(token) {
-    const parsed = parseDisplayToken(token);
-    const baseLabel = SYMBOL_LABELS[parsed.base] || parsed.base;
-    if (!parsed.overlay) return baseLabel;
+  function symbolLabel(token, machineType) {
+    const safeToken = resolveDisplayToken(token, machineType);
+    const parsed = parseDisplayToken(safeToken);
+    const baseLabel = SYMBOL_LABELS[parsed.base] || "";
+    if (!parsed.overlay) return baseLabel || "";
     const match = /^([WM])(\d+)$/.exec(parsed.overlay);
-    if (!match) return baseLabel + " " + parsed.overlay;
+    if (!match) return baseLabel ? (baseLabel + " " + parsed.overlay) : parsed.overlay;
     const mult = Math.max(1, Math.floor(Number(match[2]) || 1));
-    if (match[1] === "W") return baseLabel + " x" + mult;
-    return baseLabel + " x" + mult;
+    return (baseLabel || "Boost") + " x" + mult;
   }
-  function symbolClass(token) {
-    const parsed = parseDisplayToken(token);
+  function symbolClass(token, machineType) {
+    const safeToken = resolveDisplayToken(token, machineType);
+    const parsed = parseDisplayToken(safeToken);
     const baseClass = SYMBOL_CLASSES[parsed.base] || "";
     if (!parsed.overlay) return baseClass;
     return baseClass ? (baseClass + " boosted") : "boosted";
   }
-  function symbolTokenClass(token) {
-    const parsed = parseDisplayToken(token);
+  function symbolTokenClass(token, machineType) {
+    const safeToken = resolveDisplayToken(token, machineType);
+    const parsed = parseDisplayToken(safeToken);
     const safe = String(parsed.base || "")
       .trim()
       .toLowerCase()
@@ -4425,7 +4692,7 @@
     const rows = text.split("|").map((s) => String(s || "").trim()).filter(Boolean);
     const out = [];
     for (let i = 0; i < rows.length; i++) {
-      out.push(rows[i].split(",").map((t) => normalizeToken(t)).filter(Boolean));
+      out.push(rows[i].split(",").map((t) => resolveDisplayToken(t, "slots")).filter(Boolean));
     }
     const normalized = out.filter((row) => row.length > 0);
     if (!normalized.length) return [];
@@ -5028,6 +5295,8 @@
     }
 
     const model = buildRowsForRender(machine);
+    const spinningPhase = state.sequenceState === BONUS_PHASES.BASE_SPINNING || state.sequenceState === BONUS_PHASES.BONUS_SPINNING;
+    const isFastFrame = spinningPhase && !(animCtx && animCtx.forceFull === true);
     const rows = Array.isArray(model.rows) ? model.rows : [];
     const rowCount = Math.max(1, rows.length);
     let colCount = 1;
@@ -5047,9 +5316,9 @@
       boardHtml += "<div class=\"reel\" style=\"--rows:" + rowCount + ";\">";
       for (let r = 0; r < rowCount; r++) {
         const key = r + "_" + c;
-        const tok = normalizeToken(rows[r] && rows[r][c] ? rows[r][c] : "?");
-        const cls = symbolClass(tok);
-        const tokCls = symbolTokenClass(tok);
+        const tok = resolveDisplayToken(rows[r] && rows[r][c] ? rows[r][c] : "?", safeMachineType);
+        const cls = symbolClass(tok, safeMachineType);
+        const tokCls = symbolTokenClass(tok, safeMachineType);
         const hit = hitMask[key] ? " hit" : "";
         const markedCls = markedMask[key] ? " marked" : "";
         const meta = cellMeta[key] && typeof cellMeta[key] === "object" ? cellMeta[key] : {};
@@ -5057,13 +5326,18 @@
         const effect = String(effectCells[key] || "").trim().toLowerCase();
         const effectCls = effect ? (" effect-" + effect) : "";
         let badgeHtml = "";
-        if (meta.wildMult && meta.wildMult > 1) badgeHtml += "<span class=\"cell-badge wild\">x" + meta.wildMult + "</span>";
-        if (meta.cellMult && meta.cellMult > 1) badgeHtml += "<span class=\"cell-badge mult\">x" + meta.cellMult + "</span>";
-        if (meta.locked) badgeHtml += "<span class=\"cell-badge lock\">L</span>";
-        if (badgeHtml) badgeHtml = "<span class=\"cell-badges\">" + badgeHtml + "</span>";
-        const flash = String(upgradeFlashes[key] || "").trim();
-        const flashHtml = flash ? ("<span class=\"cell-upgrade-flash\">" + escapeHtml(flash) + "</span>") : "";
-        boardHtml += "<div class=\"cell " + cls + (tokCls ? (" " + tokCls) : "") + hit + markedCls + lockedCls + effectCls + "\" data-col=\"" + c + "\" data-row=\"" + r + "\"><span class=\"icon\">" + escapeHtml(symbolIcon(tok)) + "</span><span class=\"txt\">" + escapeHtml(symbolLabel(tok)) + "</span>" + badgeHtml + flashHtml + "</div>";
+        let flashHtml = "";
+        let txtHtml = "";
+        if (!isFastFrame) {
+          if (meta.wildMult && meta.wildMult > 1) badgeHtml += "<span class=\"cell-badge wild\">x" + meta.wildMult + "</span>";
+          if (meta.cellMult && meta.cellMult > 1) badgeHtml += "<span class=\"cell-badge mult\">x" + meta.cellMult + "</span>";
+          if (meta.locked) badgeHtml += "<span class=\"cell-badge lock\">L</span>";
+          if (badgeHtml) badgeHtml = "<span class=\"cell-badges\">" + badgeHtml + "</span>";
+          const flash = String(upgradeFlashes[key] || "").trim();
+          flashHtml = flash ? ("<span class=\"cell-upgrade-flash\">" + escapeHtml(flash) + "</span>") : "";
+          txtHtml = "<span class=\"txt\">" + escapeHtml(symbolLabel(tok, safeMachineType)) + "</span>";
+        }
+        boardHtml += "<div class=\"cell " + cls + (tokCls ? (" " + tokCls) : "") + hit + markedCls + lockedCls + effectCls + "\" data-col=\"" + c + "\" data-row=\"" + r + "\"><span class=\"icon\">" + escapeHtml(symbolIcon(tok, safeMachineType)) + "</span>" + txtHtml + badgeHtml + flashHtml + "</div>";
       }
       boardHtml += "</div>";
     }
@@ -5072,7 +5346,7 @@
 
     // --- draw paylines using real DOM cell centers (pixel-perfect) ---
     const wrap = els.boardWrap;
-    if (wrap instanceof HTMLElement) {
+    if (!isFastFrame && wrap instanceof HTMLElement) {
       const wrapRect = wrap.getBoundingClientRect();
 
       // Make SVG coordinate system match boardWrap pixels
@@ -5112,12 +5386,12 @@
     if (els.boardWrap instanceof HTMLElement) {
       els.boardWrap.classList.toggle("has-win", lineWins.length > 0);
     }
-    if (lineWins.length) {
+    if (!isFastFrame && lineWins.length) {
       els.lineList.innerHTML = lineWins.slice(0, 18).map((line, index) => "<span class=\"line-badge hot\">#" + (index + 1) + " " + escapeHtml(line) + "</span>").join("");
-    } else {
+    } else if (!isFastFrame) {
       els.lineList.innerHTML = "<span class=\"line-badge muted\">No winning lines in the latest spin.</span>";
     }
-    SymbolAnimator.applyWinState();
+    if (!isFastFrame) SymbolAnimator.applyWinState();
   }
 
   function randomRowsForMachine(machine, tick) {
@@ -5149,10 +5423,19 @@
     winPresenter.hideBanner();
     winPresenter.setCurrentWinValue(0, Math.max(1, Math.floor(Number(betForDisplay) || Number(state.currentBetValue) || 1)));
     state.debug.lastRawWin = 0;
+    state.debug.lastCappedWin = 0;
+    state.debug.lastCreditedWin = 0;
+    state.debug.lastBaseStepWin = 0;
+    state.debug.lastTumbleStepWin = 0;
+    state.debug.lastBonusStepWin = 0;
+    state.debug.lastBalanceBeforeCredit = 0;
+    state.debug.lastBalanceAfterCredit = 0;
     state.debug.lastTumbleCount = 0;
     state.debug.lastCapStatus = "none";
     state.debug.lastFeatureQueue = "-";
+    state.debug.lastWinBreakdown = "-";
     state.debug.lastMultiplierText = "x1";
+    resetSpinAudit();
     EffectQueue.clear();
     EffectQueue.push({ type: "spin_start" });
     renderDevPanel();
@@ -5744,6 +6027,7 @@
       if (banner) showBonusBanner(banner);
       if (!banner && frame.lineText && !isSnoop) showBonusBanner(String(frame.lineText).slice(0, 120));
       if (spinPay > 0) {
+        pushSpinAuditLine("[bonus spin " + resolvedSpinCount + "] +" + formatDebugAmount(spinPay));
         const frameCountedByTumble = Math.max(0, Math.min(spinPay, tumbleCounted));
         const remaining = Math.max(0, spinPay - frameCountedByTumble);
         countedWin += frameCountedByTumble;
@@ -5768,6 +6052,7 @@
           spawnParticles("win");
           safeVibrate(10);
         }
+        renderDevPanel();
       }
       if (frame && frame.fills) {
         setBonusPhase(BONUS_PHASES.BONUS_RESOLVING);
@@ -6467,17 +6752,18 @@
 
   function rowsFromResult(reels, machineType) {
     const arr = Array.isArray(reels) ? reels : [];
-    if (!arr.length) return [["?"]];
-    if (machineType === "slots") return [arr.map((v) => normalizeToken(v))];
+    const fallback = fallbackTokenForMachine(machineType);
+    if (!arr.length) return [[fallback]];
+    if (machineType === "slots") return [arr.map((v) => resolveDisplayToken(v, machineType))];
     const rows = [];
     for (let i = 0; i < arr.length; i++) {
-      const row = String(arr[i] || "").split(",").map((v) => normalizeToken(v)).filter(Boolean);
-      rows.push(row.length ? row : ["?"]);
+      const row = String(arr[i] || "").split(",").map((v) => resolveDisplayToken(v, machineType)).filter(Boolean);
+      rows.push(row.length ? row : [fallback]);
     }
     const normalized = rows.filter((row) => row.length > 0);
     const singleCol = normalized.length > 1 && normalized.every((row) => row.length === 1);
     if (singleCol) return [normalized.map((row) => row[0])];
-    return normalized.length ? normalized : [["?"]];
+    return normalized.length ? normalized : [[fallback]];
   }
 
   function sanitizeEffectCells(rawMap) {
@@ -6938,6 +7224,34 @@
         cellMeta: sanitizeCellMeta(rawResult && rawResult.cellMeta),
         bonusFrames: extractBonusFrames(machine.type, rawResult)
       };
+      const normalizedFlow = normalizeResolvedWinFlow(resolved, payout);
+      resolved = normalizedFlow.resolved;
+      const capInfo = rawResult && rawResult.capInfo && typeof rawResult.capInfo === "object" ? rawResult.capInfo : {};
+      const rawWin = Math.max(
+        0,
+        Math.floor(
+          Number(rawResult && rawResult.rawPayoutWanted) ||
+          Number(capInfo.rawPayout) ||
+          Number(payout) ||
+          0
+        )
+      );
+      state.debug.lastRawWin = rawWin;
+      state.debug.lastCappedWin = payout;
+      state.debug.lastCreditedWin = 0;
+      state.debug.lastBaseStepWin = Math.max(0, normalizedFlow.breakdown.baseScaled);
+      state.debug.lastTumbleStepWin = Math.max(0, normalizedFlow.breakdown.tumbleScaled);
+      state.debug.lastBonusStepWin = Math.max(0, normalizedFlow.breakdown.bonusScaled);
+      state.debug.lastWinBreakdown =
+        "base:" + formatDebugAmount(state.debug.lastBaseStepWin)
+        + " | tumble:" + formatDebugAmount(state.debug.lastTumbleStepWin)
+        + " | bonus:" + formatDebugAmount(state.debug.lastBonusStepWin);
+      pushSpinAuditLine("[flow] raw=" + formatDebugAmount(rawWin)
+        + " capped=" + formatDebugAmount(payout)
+        + " base=" + formatDebugAmount(state.debug.lastBaseStepWin)
+        + " tumble=" + formatDebugAmount(state.debug.lastTumbleStepWin)
+        + " bonus=" + formatDebugAmount(state.debug.lastBonusStepWin));
+      renderDevPanel();
 
       if (state.spinTimer) {
         window.clearInterval(state.spinTimer);
@@ -7015,16 +7329,30 @@
         stopSpinFx();
       }
 
+      if (payout > countedPayout) {
+        pushSpinAuditLine("[base settle] +" + formatDebugAmount(Math.max(0, payout - countedPayout)));
+      }
+      const balanceBeforeCredit = Math.max(0, Math.floor(Number(state.webVaultLocks) || 0));
+      state.debug.lastBalanceBeforeCredit = balanceBeforeCredit;
       if (payout > 0) {
         const creditOut = await creditPayoutAfterSpin(payout);
         payoutCredited = Boolean(creditOut && creditOut.ok);
+        state.debug.lastCreditedWin = payoutCredited ? payout : 0;
+      } else {
+        state.debug.lastCreditedWin = 0;
       }
+      state.debug.lastBalanceAfterCredit = Math.max(0, Math.floor(Number(state.webVaultLocks) || 0));
+      pushSpinAuditLine("[credit] awarded=" + formatDebugAmount(state.debug.lastCreditedWin)
+        + " before=" + formatDebugAmount(state.debug.lastBalanceBeforeCredit)
+        + " after=" + formatDebugAmount(state.debug.lastBalanceAfterCredit));
+      renderDevPanel();
 
       const shouldShowCounter = hasBonus || payout >= (bet * 2);
+      const alreadyFullyCounted = payout > 0 && countedPayout >= payout;
       await winPresenter.presentWin(payout, bet, {
         forceCounter: shouldShowCounter,
-        replayFromZero: shouldShowCounter,
-        alreadyCounted: shouldShowCounter ? false : (countedPayout >= payout)
+        replayFromZero: false,
+        alreadyCounted: alreadyFullyCounted
       });
       const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
       pushSpinHistory({
@@ -7036,9 +7364,10 @@
 
       if (els.lastWinLabel) {
         if (payout > 0) {
+          const cappedSuffix = state.debug.lastCapStatus === "clamped" ? " (CAPPED)" : "";
           els.lastWinLabel.textContent = payoutCredited
-            ? ("Won: " + payout + " WL")
-            : ("Won: " + payout + " WL (sync pending)");
+            ? ("Won: " + payout + " WL" + cappedSuffix)
+            : ("Won: " + payout + " WL" + cappedSuffix + " (sync pending)");
           els.lastWinLabel.classList.remove("hidden");
           els.lastWinLabel.classList.toggle("good", payoutCredited);
         } else {
@@ -7174,6 +7503,36 @@
         if (debugTrace && typeof debugTrace === "object") {
           updateDebugSpinTrace(debugTrace.machine, debugTrace.rawResult, debugTrace.payout, debugTrace.bet, debugTrace.wager);
         }
+        const normalizedFlow = normalizeResolvedWinFlow(resolved, payout);
+        resolved = normalizedFlow.resolved;
+        const capInfo = debugTrace && debugTrace.rawResult && debugTrace.rawResult.capInfo && typeof debugTrace.rawResult.capInfo === "object"
+          ? debugTrace.rawResult.capInfo
+          : {};
+        const rawWin = Math.max(
+          0,
+          Math.floor(
+            Number(debugTrace && debugTrace.rawResult && debugTrace.rawResult.rawPayoutWanted) ||
+            Number(capInfo.rawPayout) ||
+            Number(payout) ||
+            0
+          )
+        );
+        state.debug.lastRawWin = rawWin;
+        state.debug.lastCappedWin = payout;
+        state.debug.lastCreditedWin = 0;
+        state.debug.lastBaseStepWin = Math.max(0, normalizedFlow.breakdown.baseScaled);
+        state.debug.lastTumbleStepWin = Math.max(0, normalizedFlow.breakdown.tumbleScaled);
+        state.debug.lastBonusStepWin = Math.max(0, normalizedFlow.breakdown.bonusScaled);
+        state.debug.lastWinBreakdown =
+          "base:" + formatDebugAmount(state.debug.lastBaseStepWin)
+          + " | tumble:" + formatDebugAmount(state.debug.lastTumbleStepWin)
+          + " | bonus:" + formatDebugAmount(state.debug.lastBonusStepWin);
+        pushSpinAuditLine("[flow] raw=" + formatDebugAmount(rawWin)
+          + " capped=" + formatDebugAmount(payout)
+          + " base=" + formatDebugAmount(state.debug.lastBaseStepWin)
+          + " tumble=" + formatDebugAmount(state.debug.lastTumbleStepWin)
+          + " bonus=" + formatDebugAmount(state.debug.lastBonusStepWin));
+        renderDevPanel();
         const useAnticipation = shouldUseReelAnticipation(machine, resolved, payout, bet);
         await reelAnimator.animate(machine, resolved.spinStartRows, {
           anticipation: useAnticipation
@@ -7237,16 +7596,30 @@
           stopSpinFx();
         }
 
+        if (payout > countedPayout) {
+          pushSpinAuditLine("[base settle] +" + formatDebugAmount(Math.max(0, payout - countedPayout)));
+        }
+        const balanceBeforeCredit = Math.max(0, Math.floor(Number(state.webVaultLocks) || 0));
+        state.debug.lastBalanceBeforeCredit = balanceBeforeCredit;
         if (payout > 0) {
           const creditOut = await creditPayoutAfterSpin(payout);
           payoutCredited = Boolean(creditOut && creditOut.ok);
+          state.debug.lastCreditedWin = payoutCredited ? payout : 0;
+        } else {
+          state.debug.lastCreditedWin = 0;
         }
+        state.debug.lastBalanceAfterCredit = Math.max(0, Math.floor(Number(state.webVaultLocks) || 0));
+        pushSpinAuditLine("[credit] awarded=" + formatDebugAmount(state.debug.lastCreditedWin)
+          + " before=" + formatDebugAmount(state.debug.lastBalanceBeforeCredit)
+          + " after=" + formatDebugAmount(state.debug.lastBalanceAfterCredit));
+        renderDevPanel();
 
         const shouldShowCounter = hasBonus || payout >= (bet * 2);
+        const alreadyFullyCounted = payout > 0 && countedPayout >= payout;
         await winPresenter.presentWin(payout, bet, {
           forceCounter: shouldShowCounter,
-          replayFromZero: shouldShowCounter,
-          alreadyCounted: shouldShowCounter ? false : (countedPayout >= payout)
+          replayFromZero: false,
+          alreadyCounted: alreadyFullyCounted
         });
         const isBigWin = payout >= (bet * BIG_WIN_MULTIPLIER);
         pushSpinHistory({
@@ -7258,9 +7631,10 @@
 
         if (els.lastWinLabel) {
           if (payout > 0) {
+            const cappedSuffix = state.debug.lastCapStatus === "clamped" ? " (CAPPED)" : "";
             els.lastWinLabel.textContent = payoutCredited
-              ? ("Won: " + payout + " WL")
-              : ("Won: " + payout + " WL (sync pending)");
+              ? ("Won: " + payout + " WL" + cappedSuffix)
+              : ("Won: " + payout + " WL" + cappedSuffix + " (sync pending)");
             els.lastWinLabel.classList.remove("hidden");
             els.lastWinLabel.classList.toggle("good", payoutCredited);
           } else {
