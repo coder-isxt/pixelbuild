@@ -406,7 +406,24 @@
       return 0;
     }
 
-    chooseRandomSymbol(rng, allowScatter) {
+    chooseRandomSymbol(rng, allowScatter, preferredSymbols) {
+      const preferred = Array.isArray(preferredSymbols) ? preferredSymbols : [];
+      if (preferred.length) {
+        const filtered = [];
+        for (let i = 0; i < preferred.length; i++) {
+          const id = String(preferred[i] || "");
+          if (!id) continue;
+          if (!this.symbolMap[id]) continue;
+          if (!allowScatter && this.symbolMap[id].scatter) continue;
+          if (this.symbolMap[id].scatter) continue;
+          if (filtered.indexOf(id) >= 0) continue;
+          filtered.push(id);
+        }
+        const connectionChance = 0.18;
+        if (filtered.length && rng.next() < connectionChance) {
+          return filtered[rng.int(filtered.length)];
+        }
+      }
       const pool = allowScatter ? this.weightedPool : this.weightedNoScatterPool;
       return pool[rng.int(pool.length)];
     }
@@ -440,7 +457,13 @@
       const grid = [];
       for (let r = 0; r < this.config.rows; r++) {
         const row = [];
-        for (let c = 0; c < this.config.cols; c++) row.push(this.chooseRandomSymbol(rng, true));
+        for (let c = 0; c < this.config.cols; c++) {
+          const preferred = [];
+          if (c > 0) preferred.push(row[c - 1]);
+          if (r > 0) preferred.push(grid[r - 1][c]);
+          if (c > 1) preferred.push(row[c - 2]);
+          row.push(this.chooseRandomSymbol(rng, true, preferred));
+        }
         grid.push(row);
       }
 
@@ -613,7 +636,11 @@
           write -= 1;
         }
         for (let r = write; r >= 0; r--) {
-          const symbolId = this.chooseRandomSymbol(rng, true);
+          const preferred = [];
+          if (r < rows - 1 && out[r + 1][c]) preferred.push(out[r + 1][c]);
+          if (c > 0 && out[r][c - 1]) preferred.push(out[r][c - 1]);
+          if (c < cols - 1 && out[r][c + 1]) preferred.push(out[r][c + 1]);
+          const symbolId = this.chooseRandomSymbol(rng, true, preferred);
           out[r][c] = symbolId;
           spawns.push({ to: [r, c], symbolId, dropDistance: (write - r) + 1 });
         }
@@ -915,6 +942,10 @@
 
   let winCounterHideTimer = 0;
   let winCounterDismissResolve = null;
+  let winCounterAnimating = false;
+  let winCounterAtEnd = false;
+  let winCounterTargetValue = 0;
+  let winCounterCurrentValue = 0;
 
   audio.setEnabled(!state.muted);
 
@@ -1142,6 +1173,10 @@
   function hideWinCounterNow() {
     clearWinCounterTimer();
     if (el.winCounterOverlay instanceof HTMLElement) el.winCounterOverlay.classList.add("hidden");
+    winCounterAnimating = false;
+    winCounterAtEnd = false;
+    winCounterTargetValue = 0;
+    winCounterCurrentValue = 0;
     if (typeof winCounterDismissResolve === "function") {
       const resolve = winCounterDismissResolve;
       winCounterDismissResolve = null;
@@ -1155,6 +1190,8 @@
       el.winCounterLabel.textContent = String(label || "WIN").trim().toUpperCase();
     }
     if (el.winCounterOverlay instanceof HTMLElement) el.winCounterOverlay.classList.remove("hidden");
+    winCounterAtEnd = false;
+    if (!winCounterAnimating) winCounterTargetValue = Math.max(winCounterTargetValue, winCounterCurrentValue);
   }
 
   function queueHideWinCounter(ms) {
@@ -1176,7 +1213,23 @@
 
   function setWinCounterValue(value) {
     if (!(el.winCounterValue instanceof HTMLElement)) return;
-    el.winCounterValue.textContent = formatWL(value);
+    winCounterCurrentValue = Math.max(0, toInt(value, 0));
+    el.winCounterValue.textContent = formatWL(winCounterCurrentValue);
+    if (!winCounterAnimating && winCounterCurrentValue >= winCounterTargetValue) winCounterAtEnd = true;
+  }
+
+  function handleWinCounterClick() {
+    if (!isWinCounterVisible()) return false;
+    if (winCounterAnimating && !winCounterAtEnd) {
+      counter.skip();
+      requestFastForward(state.turbo ? 340 : 620);
+      return true;
+    }
+    if (winCounterAtEnd) {
+      hideWinCounterNow();
+      return true;
+    }
+    return true;
   }
 
   function updateTopButtons() {
@@ -1758,6 +1811,9 @@
       spawnCenterFx("win", 10);
     }
 
+    winCounterTargetValue = finalTotal;
+    winCounterAnimating = true;
+    winCounterAtEnd = false;
     const duration = countDurationByWin(finalTotal, bet) + (state.turbo ? 170 : 360);
     const tickEvery = state.turbo ? 190 : 250;
     const tickHandle = window.setInterval(() => {
@@ -1769,6 +1825,8 @@
       setWinCounterValue(toInt(Math.round(value), 0));
     });
     window.clearInterval(tickHandle);
+    winCounterAnimating = false;
+    winCounterAtEnd = true;
     setWinCounterValue(finalTotal);
     queueHideWinCounter(state.turbo ? 170 : 320);
     await waitForWinCounterDismiss();
@@ -1779,6 +1837,9 @@
     const start = state.spinWin;
     if (opts.showOverlay !== false && targetValue > start) {
       showWinCounter(opts.label || "WIN");
+      winCounterTargetValue = targetValue;
+      winCounterAnimating = true;
+      winCounterAtEnd = false;
       setWinCounterValue(start);
     }
     await counter.animate(start, targetValue, duration, (value) => {
@@ -1789,7 +1850,11 @@
     });
     state.spinWin = targetValue;
     updateHUD();
-    if (opts.showOverlay !== false) setWinCounterValue(state.spinWin);
+    if (opts.showOverlay !== false) {
+      winCounterAnimating = false;
+      winCounterAtEnd = true;
+      setWinCounterValue(state.spinWin);
+    }
   }
 
   async function animateBalanceTo(targetValue, duration) {
@@ -2319,8 +2384,8 @@
     if (el.spinArea instanceof HTMLElement) {
       el.spinArea.addEventListener("pointerdown", () => {
         audio.unlock();
+        if (handleWinCounterClick()) return;
         if (!state.busy) return;
-        if (isWinCounterVisible()) hideWinCounterNow();
         requestFastForward();
       });
     }
@@ -2328,9 +2393,9 @@
     if (el.winCounterOverlay instanceof HTMLElement) {
       el.winCounterOverlay.addEventListener("pointerdown", (event) => {
         event.preventDefault();
+        event.stopPropagation();
         audio.unlock();
-        if (state.busy) requestFastForward();
-        hideWinCounterNow();
+        handleWinCounterClick();
       });
     }
 
@@ -2349,7 +2414,7 @@
       if (event.key === " ") {
         event.preventDefault();
         if (state.busy) {
-          if (isWinCounterVisible()) hideWinCounterNow();
+          if (handleWinCounterClick()) return;
           requestFastForward();
         } else {
           runSpin("paid");
