@@ -1241,6 +1241,7 @@
     handlers: { inventory: null },
     walletById: {},
     walletCarryCents: 0,
+    balanceDisplayKey: String(saved.balanceDisplayKey || "world_lock").trim().toLowerCase() || "world_lock",
     walletLinked: false,
     balanceSyncPaused: false,
     pendingWalletTotal: null,
@@ -1294,11 +1295,51 @@
         muted: state.muted,
         autoplayRemaining: state.autoplayRemaining,
         bet: state.bet,
-        balance: state.balance
+        balance: state.balance,
+        balanceDisplayKey: state.balanceDisplayKey
       }));
     } catch (_error) {
       // noop
     }
+  }
+
+  function getBalanceDisplayRows() {
+    const rows = Array.isArray(state.lockRows) ? state.lockRows.slice() : [];
+    rows.sort((a, b) => (a.value - b.value) || (a.id - b.id));
+    if (!rows.length) rows.push({ id: 9, key: "world_lock", value: 1, short: "WL" });
+    return rows;
+  }
+
+  function getActiveBalanceDisplayRow() {
+    const rows = getBalanceDisplayRows();
+    const key = String(state.balanceDisplayKey || "").trim().toLowerCase();
+    let row = rows.find((r) => String(r.key || "").trim().toLowerCase() === key);
+    if (!row) row = rows.find((r) => toInt(r.value, 0) === 1);
+    return row || rows[0];
+  }
+
+  function formatBalanceDisplay(valueInCents) {
+    const row = getActiveBalanceDisplayRow();
+    const wlValue = centsToWl(valueInCents);
+    const unitValue = Math.max(1, Number(row.value) || 1);
+    const amount = wlValue / unitValue;
+    const minFrac = unitValue === 1 ? 2 : 2;
+    const maxFrac = unitValue === 1 ? 2 : 4;
+    return amount.toLocaleString("en-US", { minimumFractionDigits: minFrac, maximumFractionDigits: maxFrac }) + " " + String(row.short || "WL");
+  }
+
+  function cycleBalanceDisplayMode() {
+    const rows = getBalanceDisplayRows();
+    if (rows.length <= 1) return;
+    const currentKey = String(state.balanceDisplayKey || "").trim().toLowerCase();
+    let idx = rows.findIndex((r) => String(r.key || "").trim().toLowerCase() === currentKey);
+    if (idx < 0) idx = rows.findIndex((r) => toInt(r.value, 0) === 1);
+    if (idx < 0) idx = 0;
+    const next = rows[(idx + 1) % rows.length];
+    state.balanceDisplayKey = String(next.key || "world_lock").trim().toLowerCase();
+    updateHUD();
+    saveSettings();
+    setMessage("Balance view: " + String(next.short || "WL"));
   }
 
   function walletCarryStorageKey() {
@@ -1631,7 +1672,10 @@
   }
 
   function updateHUD() {
-    if (el.balanceValue) el.balanceValue.textContent = formatWL(state.balance);
+    if (el.balanceValue) {
+      el.balanceValue.textContent = formatBalanceDisplay(state.balance);
+      el.balanceValue.title = "Click to cycle lock unit";
+    }
     if (el.betValue) el.betValue.textContent = formatWL(wlToCents(state.bet));
     if (el.spinWinValue) el.spinWinValue.textContent = formatWL(state.spinWin);
     if (el.totalBetValue) el.totalBetValue.textContent = formatWL(state.totalBetDisplay);
@@ -1909,7 +1953,8 @@
             root.dataset.symbol = symbolId;
             view.icon.innerHTML = symbolIconMarkup(symbolId);
           }
-          view.symbol.textContent = symbolLabel(symbolId);
+          const sym = symbolMap[symbolId];
+          view.symbol.textContent = (sym && sym.scatter) ? symbolLabel(symbolId) : "";
           view.level.textContent = symbolLevelText(symbolId);
           if (symbolId === "scatter" && scatterPulse) root.classList.add("scatter-hit");
         }
@@ -2921,6 +2966,14 @@
     if (el.spinBtn instanceof HTMLButtonElement) el.spinBtn.addEventListener("click", () => runSpin("paid"));
     if (el.buyBonusBtn instanceof HTMLButtonElement) el.buyBonusBtn.addEventListener("click", () => runSpin("buy_bonus"));
     if (el.buySuperBonusBtn instanceof HTMLButtonElement) el.buySuperBonusBtn.addEventListener("click", () => runSpin("buy_super_bonus"));
+    if (el.balanceValue instanceof HTMLElement) {
+      el.balanceValue.classList.add("clickable-balance");
+      el.balanceValue.addEventListener("click", () => {
+        audio.unlock();
+        audio.play("ui_click");
+        cycleBalanceDisplayMode();
+      });
+    }
 
     if (el.spinArea instanceof HTMLElement) {
       el.spinArea.addEventListener("pointerdown", () => {

@@ -3,13 +3,6 @@
   "defaultSlot": "mergeup_ducks",
   "slots": [
     {
-      "key": "legacy_slots",
-      "name": "Legacy Slots Lobby",
-      "tag": "Slots",
-      "subtitle": "Open the original multi-slot page with all existing slot games.",
-      "url": "../gambling_slots.html"
-    },
-    {
       "key": "mergeup_ducks",
       "name": "Cluster Rush 1000",
       "tag": "Slots",
