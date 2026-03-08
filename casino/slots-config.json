@@ -3,6 +3,13 @@
   "defaultSlot": "mergeup_ducks",
   "slots": [
     {
+      "key": "city_rush_ways",
+      "name": "City Rush Ways",
+      "tag": "Rush Ways",
+      "subtitle": "5x4 ways slot with chained rush respins and free spins.",
+      "url": "./rushways-slot.html?game=city_rush_ways"
+    },
+    {
       "key": "mergeup_ducks",
       "name": "Cluster Rush 1000",
       "tag": "Slots",
@@ -127,4 +134,3 @@
     }
   ]
 }
-

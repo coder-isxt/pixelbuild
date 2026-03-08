@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "defaultGame": "city_rush_ways",
+  "games": [
+    {
+      "key": "city_rush_ways",
+      "name": "City Rush Ways",
+      "tag": "Rush Ways",
+      "subtitle": "5x4 ways slot with chained rush respins.",
+      "config": {
+        "rows": 4,
+        "cols": 5,
+        "minMatchReels": 3,
+        "currencyScale": 100,
+        "defaultBet": 20,
+        "minBet": 1,
+        "maxBet": 5000,
+        "buyBonusCostMultiplier": 100,
+        "maxRespinChain": 6,
+        "respinIncrement": 1,
+        "bonusStartRushMultiplier": 2,
+        "maxRushMultiplier": 10,
+        "connectionBiasChance": 0.045,
+        "basePayoutScale": 0.52,
+        "maxWinMultiplier": 50000,
+        "freeSpinsTrigger": { "3": 10, "4": 12, "5": 15 },
+        "freeSpinsRetrigger": { "3": 10, "4": 12, "5": 15 },
+        "winCounterHighlightMinRatio": 2.2,
+        "bonusWinCounterHighlightMinRatio": 7.0,
+        "rtp": "95.90%",
+        "volatility": "High",
+        "autoplayOptions": [0, 10, 25, 50, 100]
+      },
+      "symbols": [
+        { "id": "taxi", "name": "Taxi", "glyph": "TX", "weight": 24, "pays": { "3": 0.03, "4": 0.05, "5": 0.08 } },
+        { "id": "bus", "name": "Bus", "glyph": "BS", "weight": 22, "pays": { "3": 0.035, "4": 0.055, "5": 0.09 } },
+        { "id": "train", "name": "Train", "glyph": "TR", "weight": 20, "pays": { "3": 0.04, "4": 0.065, "5": 0.1 } },
+        { "id": "park", "name": "Park", "glyph": "PK", "weight": 18, "pays": { "3": 0.045, "4": 0.075, "5": 0.12 } },
+        { "id": "rent", "name": "Rent", "glyph": "RT", "weight": 14, "pays": { "3": 0.06, "4": 0.1, "5": 0.16 } },
+        { "id": "cab", "name": "Cab", "glyph": "CB", "weight": 11, "pays": { "3": 0.09, "4": 0.15, "5": 0.24 } },
+        { "id": "hotel", "name": "Hotel", "glyph": "HT", "weight": 8, "pays": { "3": 0.14, "4": 0.24, "5": 0.38 } },
+        { "id": "wild", "name": "Wild", "glyph": "W", "weight": 4, "wild": true },
+        { "id": "scatter", "name": "Scatter", "glyph": "S", "weight": 2, "scatter": true }
+      ]
+    }
+  ]
+}

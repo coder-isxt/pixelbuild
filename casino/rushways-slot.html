@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>PIXELBUILD Rush Ways</title>
+  <link rel="icon" href="../assets/logo.ico" type="image/x-icon">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="./rushways-slot.css">
+</head>
+<body>
+  <div class="slot-app">
+    <header class="topbar">
+      <div class="brand">
+        <h1 id="slotTitle">CITY RUSH WAYS</h1>
+        <p id="slotSubtitle">5x4 ways slot with chained rush respins.</p>
+      </div>
+      <div class="top-actions">
+        <div class="chip">State: <strong id="phaseValue">IDLE</strong></div>
+        <div class="chip">FS Left: <strong id="fsValue">0</strong></div>
+        <button id="soundBtn" class="btn ghost" type="button">Sound: On</button>
+        <button id="turboBtn" class="btn ghost" type="button">Turbo: Off</button>
+        <button id="autoplayBtn" class="btn ghost" type="button">Autoplay: Off</button>
+        <button id="infoBtn" class="btn ghost" type="button">Info</button>
+        <button id="backBtn" class="btn" type="button">Back To Casino</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="machine">
+        <div class="machine-hud">
+          <div class="stat"><span>Balance</span><strong id="balanceValue">0</strong></div>
+          <div class="stat"><span>Bet</span><strong id="betValue">0</strong></div>
+          <div class="stat"><span>Total Bet</span><strong id="totalBetValue">0</strong></div>
+          <div class="stat"><span>Spin Win</span><strong id="spinWinValue">0</strong></div>
+          <div class="stat"><span>Rush Mult</span><strong id="rushValue">x1</strong></div>
+          <div class="stat"><span>Bonus Win</span><strong id="bonusWinValue">0</strong></div>
+        </div>
+
+        <div id="spinArea" class="spin-area">
+          <div id="grid" class="slot-grid" aria-label="rush ways grid"></div>
+          <div id="banner" class="banner hidden"></div>
+          <div id="message" class="message">Ready to spin.</div>
+          <div id="floatingLayer" class="floating-layer" aria-hidden="true"></div>
+        </div>
+
+        <div class="controls">
+          <div class="bet-controls">
+            <button id="betDownBtn" class="btn" type="button">- Bet</button>
+            <input id="betInput" class="field" type="number" min="1" step="1" value="20">
+            <button id="betUpBtn" class="btn" type="button">+ Bet</button>
+            <button id="betMaxBtn" class="btn" type="button">Max Bet</button>
+          </div>
+          <div class="spin-controls">
+            <button id="spinBtn" class="btn spin" type="button">Spin</button>
+            <button id="buyBonusBtn" class="btn" type="button">Buy Bonus (100x)</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="infoModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="infoTitle">Rush Ways Rules</h3>
+        <button id="closeInfoBtn" class="btn ghost" type="button">Close</button>
+      </div>
+      <div id="infoContent" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+  <script src="../config/firebase-config.js"></script>
+  <script src="../config/settings.js"></script>
+  <script src="../items/catalog.js"></script>
+  <script src="../system/db.js"></script>
+  <script src="../system/auth.js"></script>
+  <script src="../system/auth_storage.js"></script>
+  <script src="./rushways-slot.js"></script>
+</body>
+</html>
