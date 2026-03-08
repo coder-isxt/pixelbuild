@@ -109,7 +109,7 @@ body {
 
 .machine-hud {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -149,7 +149,7 @@ body {
 .slot-grid {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--slot-cols, 7), minmax(0, 1fr));
   gap: 8px;
   z-index: 2;
 }
@@ -158,7 +158,7 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(157, 178, 213, 0.28);
   background: #1a273d;
-  min-height: 96px;
+  min-height: 84px;
   display: grid;
   grid-template-rows: auto auto auto;
   align-content: center;
@@ -170,8 +170,8 @@ body {
 }
 
 .cell .icon {
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
   filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.42));
@@ -221,6 +221,17 @@ body {
   padding: 3px 5px;
   min-width: 30px;
   text-align: center;
+}
+
+.cell.marked-cell {
+  box-shadow: 0 0 0 1px rgba(255, 219, 150, 0.26) inset;
+}
+
+.cell.mult-active {
+  border-color: rgba(255, 214, 122, 0.76);
+  box-shadow:
+    0 0 0 1px rgba(255, 219, 150, 0.32) inset,
+    0 0 18px rgba(255, 189, 92, 0.2);
 }
 
 .cell.sym-lv1 { background: linear-gradient(180deg, #2c3b54, #24344d); }
@@ -707,7 +718,7 @@ body {
 }
 
 .spin-controls {
-  grid-template-columns: 1fr minmax(180px, auto);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .right-rail {
@@ -922,12 +933,12 @@ body {
   }
 
   .cell {
-    min-height: 68px;
+    min-height: 62px;
   }
 
   .cell .icon {
-    width: 40px;
-    height: 40px;
+    width: 34px;
+    height: 34px;
   }
 
   .cell .symbol {

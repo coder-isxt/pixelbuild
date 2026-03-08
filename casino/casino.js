@@ -442,11 +442,17 @@ window.GTModules = window.GTModules || {};
       const key = String(row.key || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
       if (!key || used[key]) continue;
       used[key] = true;
+      const rawUrl = String(row.url || "").trim();
+      let safeUrl = "";
+      if (rawUrl && /^(\.\/|\.\.\/)[a-z0-9_./-]+\.html(?:\?[a-z0-9_=&%-]+)?$/i.test(rawUrl)) {
+        safeUrl = rawUrl;
+      }
       out.push({
         key,
         name: String(row.name || "Slot Game").trim() || "Slot Game",
         tag: String(row.tag || "Slots").trim() || "Slots",
-        subtitle: String(row.subtitle || "Config-based tumble slot").trim() || "Config-based tumble slot"
+        subtitle: String(row.subtitle || "Config-based tumble slot").trim() || "Config-based tumble slot",
+        url: safeUrl
       });
     }
     return out;
@@ -470,8 +476,8 @@ window.GTModules = window.GTModules || {};
       els.slotCardsMount.innerHTML =
         "<button type=\"button\" class=\"game-card\" data-slot-key=\"mergeup_ducks\">" +
         "<span class=\"game-card-tag\">Slots</span>" +
-        "<strong>MergeUp Tumble</strong>" +
-        "<small>6x6 cluster slot with cascades and free spins</small>" +
+        "<strong>Cluster Rush 1000</strong>" +
+        "<small>7x7 cluster tumbles with sticky multipliers and free spins</small>" +
         "</button>";
       if (els.slotCategoryCount instanceof HTMLElement) els.slotCategoryCount.textContent = "1";
       return;
@@ -479,11 +485,12 @@ window.GTModules = window.GTModules || {};
     let html = "";
     for (let i = 0; i < slots.length; i++) {
       const slot = slots[i];
-      html += "<button type=\"button\" class=\"game-card\" data-slot-key=\"" + escapeHtml(slot.key) + "\">" +
+      const urlAttr = slot.url ? (" data-slot-url=\"" + escapeHtml(slot.url) + "\"") : "";
+      html += "<button type=\"button\" class=\"game-card\" data-slot-key=\"" + escapeHtml(slot.key) + "\"" + urlAttr + ">" +
         "<span class=\"game-card-tag\">" + escapeHtml(slot.tag) + "</span>" +
         "<strong>" + escapeHtml(slot.name) + "</strong>" +
         "<small>" + escapeHtml(slot.subtitle) + "</small>" +
-        "</button>";
+      "</button>";
     }
     els.slotCardsMount.innerHTML = html;
     if (els.slotCategoryCount instanceof HTMLElement) els.slotCategoryCount.textContent = String(slots.length);
@@ -503,9 +510,14 @@ window.GTModules = window.GTModules || {};
     }
   }
 
-  function openSlotGame(slotKey) {
+  function openSlotGame(slotKey, slotUrl) {
     const key = String(slotKey || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    const url = String(slotUrl || "").trim();
     storeSlotSessionTransfer();
+    if (url && /^(\.\/|\.\.\/)[a-z0-9_./-]+\.html(?:\?[a-z0-9_=&%-]+)?$/i.test(url)) {
+      window.location.href = url;
+      return;
+    }
     window.location.href = "./mergeup-slot.html?slot=" + encodeURIComponent(key || "mergeup_ducks");
   }
 
@@ -1650,8 +1662,9 @@ window.GTModules = window.GTModules || {};
         const card = target.closest(".game-card");
         if (!(card instanceof HTMLElement)) return;
         const slotKey = String(card.getAttribute("data-slot-key") || "").trim().toLowerCase();
+        const slotUrl = String(card.getAttribute("data-slot-url") || "").trim();
         if (slotKey) {
-          openSlotGame(slotKey);
+          openSlotGame(slotKey, slotUrl);
           return;
         }
         const gameId = String(card.getAttribute("data-game-card") || "").trim().toLowerCase();
