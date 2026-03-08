@@ -23,12 +23,15 @@
     minBet: 1,
     maxBet: 5000,
     buyBonusCostMultiplier: 100,
-    maxRespinChain: 6,
+    maxRespinChain: 5,
     respinIncrement: 1,
     bonusStartRushMultiplier: 2,
     maxRushMultiplier: 10,
-    connectionBiasChance: 0.045,
-    basePayoutScale: 0.52,
+    connectionBiasChance: 0.012,
+    basePayoutScale: 0.34,
+    minWaysByReels: { "3": 4, "4": 8, "5": 14 },
+    maxSymbolWinsPerStep: 1,
+    maxLockedPerReelPerStep: 2,
     maxWinMultiplier: 50000,
     freeSpinsTrigger: { "3": 10, "4": 12, "5": 15 },
     freeSpinsRetrigger: { "3": 10, "4": 12, "5": 15 },
@@ -47,7 +50,7 @@
     { id: "rent", name: "Rent", glyph: "RT", weight: 14, pays: { "3": 0.06, "4": 0.1, "5": 0.16 } },
     { id: "cab", name: "Cab", glyph: "CB", weight: 11, pays: { "3": 0.09, "4": 0.15, "5": 0.24 } },
     { id: "hotel", name: "Hotel", glyph: "HT", weight: 8, pays: { "3": 0.14, "4": 0.24, "5": 0.38 } },
-    { id: "wild", name: "Wild", glyph: "W", weight: 4, wild: true },
+    { id: "wild", name: "Wild", glyph: "W", weight: 2, wild: true },
     { id: "scatter", name: "Scatter", glyph: "S", weight: 2, scatter: true }
   ];
 
@@ -609,6 +612,9 @@
     if (!Number.isFinite(out.connectionBiasChance)) out.connectionBiasChance = DEFAULT_CONFIG.connectionBiasChance;
     out.basePayoutScale = clamp(Number(cfg.basePayoutScale), 0.05, 5);
     if (!Number.isFinite(out.basePayoutScale)) out.basePayoutScale = DEFAULT_CONFIG.basePayoutScale;
+    out.minWaysByReels = normalizeWaysGate(cfg.minWaysByReels, DEFAULT_CONFIG.minWaysByReels);
+    out.maxSymbolWinsPerStep = clamp(toInt(cfg.maxSymbolWinsPerStep, DEFAULT_CONFIG.maxSymbolWinsPerStep), 1, 10);
+    out.maxLockedPerReelPerStep = clamp(toInt(cfg.maxLockedPerReelPerStep, DEFAULT_CONFIG.maxLockedPerReelPerStep), 1, out.rows);
     out.maxWinMultiplier = clamp(toInt(cfg.maxWinMultiplier, out.maxWinMultiplier), 100, 1000000000);
     out.freeSpinsTrigger = normalizeSpinAwardMap(cfg.freeSpinsTrigger, DEFAULT_CONFIG.freeSpinsTrigger);
     out.freeSpinsRetrigger = normalizeSpinAwardMap(cfg.freeSpinsRetrigger, out.freeSpinsTrigger);
@@ -646,6 +652,19 @@
       if (spins > 0) out[String(scatters)] = spins;
     }
     if (!Object.keys(out).length) return deepClone(fallback || { "3": 10, "4": 12, "5": 15 });
+    return out;
+  }
+
+  function normalizeWaysGate(input, fallback) {
+    const src = input && typeof input === "object" ? input : fallback;
+    const out = {};
+    const keys = Object.keys(src || {});
+    for (let i = 0; i < keys.length; i++) {
+      const reels = clamp(toInt(keys[i], 0), 1, 12);
+      const minWays = clamp(toInt(src[keys[i]], 1), 1, 10000);
+      out[String(reels)] = minWays;
+    }
+    if (!Object.keys(out).length) return deepClone(fallback || { "3": 1, "4": 1, "5": 1 });
     return out;
   }
 
@@ -1041,9 +1060,7 @@
   }
 
   function evaluateWaysWins(grid, rushMultiplier) {
-    const wins = [];
-    const winSet = new Set();
-    let total = 0;
+    const candidateWins = [];
 
     for (let i = 0; i < state.regularSymbols.length; i++) {
       const symbol = state.regularSymbols[i];
@@ -1074,17 +1091,18 @@
         for (let k = 0; k < reels[c].length; k++) {
           const cell = reels[c][k];
           cellList.push(cell);
-          winSet.add(coordKey(cell.row, cell.col));
         }
       }
 
       const pay = getPayValue(symbol, length);
       if (pay <= 0 || ways <= 0) continue;
+      const waysGate = Math.max(1, toInt(state.config.minWaysByReels[String(length)], 1));
+      if (ways < waysGate) continue;
       const raw = wlToCents(state.betWl) * pay * ways * state.config.basePayoutScale * Math.max(1, rushMultiplier);
       const payout = Math.max(0, Math.floor(raw));
       if (!payout) continue;
 
-      wins.push({
+      candidateWins.push({
         symbolId: symbol.id,
         symbolName: symbol.name,
         length,
@@ -1092,7 +1110,25 @@
         payout,
         cells: cellList
       });
-      total += payout;
+    }
+
+    candidateWins.sort((a, b) => {
+      if (b.payout !== a.payout) return b.payout - a.payout;
+      if (b.length !== a.length) return b.length - a.length;
+      return b.ways - a.ways;
+    });
+
+    const wins = candidateWins.slice(0, Math.max(1, toInt(state.config.maxSymbolWinsPerStep, 1)));
+    const winSet = new Set();
+    let total = 0;
+    for (let i = 0; i < wins.length; i++) {
+      const win = wins[i];
+      total += win.payout;
+      const cells = Array.isArray(win.cells) ? win.cells : [];
+      for (let k = 0; k < cells.length; k++) {
+        const cell = cells[k];
+        winSet.add(coordKey(cell.row, cell.col));
+      }
     }
 
     return {
@@ -1105,11 +1141,34 @@
 
   function applyWinningLocks(winSet) {
     const keys = Array.from(winSet || []);
+    const perReel = {};
     for (let i = 0; i < keys.length; i++) {
       const coord = parseCoordKey(keys[i]);
       if (coord.row < 0 || coord.row >= state.config.rows || coord.col < 0 || coord.col >= state.config.cols) continue;
-      state.lockedCells[coord.row][coord.col] = true;
-      state.grid[coord.row][coord.col] = state.wildSymbolId;
+      if (!perReel[coord.col]) perReel[coord.col] = [];
+      perReel[coord.col].push(coord);
+    }
+    const reelKeys = Object.keys(perReel);
+    const perReelCap = Math.max(1, toInt(state.config.maxLockedPerReelPerStep, 2));
+    for (let i = 0; i < reelKeys.length; i++) {
+      const col = reelKeys[i];
+      const coords = perReel[col];
+      for (let k = coords.length - 1; k > 0; k--) {
+        const swapIdx = Math.floor(Math.random() * (k + 1));
+        const temp = coords[k];
+        coords[k] = coords[swapIdx];
+        coords[swapIdx] = temp;
+      }
+      coords.length = Math.min(coords.length, perReelCap);
+    }
+    for (let i = 0; i < reelKeys.length; i++) {
+      const col = reelKeys[i];
+      const coords = perReel[col];
+      for (let k = 0; k < coords.length; k++) {
+        const coord = coords[k];
+        state.lockedCells[coord.row][coord.col] = true;
+        state.grid[coord.row][coord.col] = state.wildSymbolId;
+      }
     }
   }
 
@@ -1179,6 +1238,29 @@
     return "";
   }
 
+  async function presentFinalRoundCounter(totalWinCents, hadBonusRound) {
+    const total = Math.max(0, toInt(totalWinCents, 0));
+    if (!total) return;
+    const betCents = Math.max(1, wlToCents(state.betWl));
+    const ratio = total / betCents;
+    const minRatio = hadBonusRound
+      ? Math.max(0, Number(state.config.bonusWinCounterHighlightMinRatio) || 0)
+      : Math.max(0, Number(state.config.winCounterHighlightMinRatio) || 0);
+    if (ratio < minRatio) return;
+
+    const baseLabel = getRoundWinTierLabel(total) || (hadBonusRound ? "BONUS WIN" : "WIN");
+    const label = hadBonusRound ? ("BONUS " + baseLabel) : baseLabel;
+    const duration = clamp(480 + Math.floor(Math.min(1, ratio / 20) * 1100), 480, 1700);
+
+    setBanner(label + " - " + formatWL(0), { big: true });
+    await pause(180);
+    await animateCounter(0, total, duration, (value) => {
+      setBanner(label + " - " + formatWL(value), { big: true });
+    });
+    await pause(340);
+    setBanner("");
+  }
+
   async function applyStepWin(stepWinCents, isBonus, sourceEval) {
     const maxTotalWin = wlToCents(state.betWl) * state.config.maxWinMultiplier;
     const remain = Math.max(0, maxTotalWin - state.spinWinCents);
@@ -1191,7 +1273,7 @@
 
     const fromSpin = state.spinWinCents;
     const fromBonus = state.bonusWinCents;
-    const duration = getStepCountDuration(applied);
+    const duration = Math.max(180, Math.floor(getStepCountDuration(applied) * (isBonus ? 0.72 : 0.9)));
     if (applied >= wlToCents(state.betWl) * 4) audio.play("bigwin");
     else audio.play("win");
 
@@ -1207,13 +1289,6 @@
         const cell = first.cells[0];
         addFloatingText(cell.row, cell.col, "+" + formatWL(applied), "win-float");
       }
-    }
-
-    const label = getRoundWinTierLabel(state.spinWinCents);
-    if (label) {
-      setBanner(label + " - " + formatWL(state.spinWinCents), { big: true });
-      await pause(540);
-      setBanner("");
     }
 
     if (state.spinWinCents >= maxTotalWin) {
@@ -1351,9 +1426,11 @@
     state.inBonus = false;
     state.freeSpinsLeft = 0;
     updateHUD();
-    setBanner("BONUS WIN " + formatWL(state.bonusWinCents), { big: true });
-    await pause(900);
-    setBanner("");
+    if (state.bonusWinCents >= wlToCents(state.betWl) * 2) {
+      setBanner("BONUS WIN " + formatWL(state.bonusWinCents), { big: true });
+      await pause(780);
+      setBanner("");
+    }
     return state.bonusWinCents;
   }
 
@@ -1424,19 +1501,24 @@
     state.balanceCents = toInt(debit.nextTotal, state.balanceCents);
     updateHUD();
 
+    let hadBonusRound = false;
     try {
       if (buyBonus) {
         const scatterRoll = randomScatterRollForBonusBuy();
         const spins = getAwardedSpins(scatterRoll, false) || 10;
         setMessage("Bonus buy activated - simulated " + scatterRoll + " scatters.");
         await pause(420);
+        hadBonusRound = true;
         await runBonusFeature(spins, "Bonus buy awarded " + spins + " free spins.");
       } else {
         const base = await runSingleRushChain(false);
         if (base.awardedSpins > 0 && !state.maxWinReached) {
+          hadBonusRound = true;
           await runBonusFeature(base.awardedSpins, "Triggered by " + base.scatterCount + " scatters.");
         }
       }
+
+      await presentFinalRoundCounter(state.spinWinCents, hadBonusRound);
 
       setPhase(PHASE.CREDIT);
       if (state.spinWinCents > 0) {
@@ -1507,7 +1589,8 @@
     if (!(el.infoContent instanceof HTMLElement)) return;
     let html = "";
     html += "<div><strong>Mechanic:</strong> 5x4 Ways. Wins start from reel 1 and chain through consecutive reels.</div>";
-    html += "<div><strong>Rush Feature:</strong> Winning cells lock as Wilds, then non-locked cells respin. Rush multiplier grows by +" + state.config.respinIncrement + " each win, up to x" + state.config.maxRushMultiplier + ".</div>";
+    html += "<div><strong>Payout filter:</strong> Minimum ways gate by reels (3/4/5) and top " + state.config.maxSymbolWinsPerStep + " symbol payout(s) per step are paid.</div>";
+    html += "<div><strong>Rush Feature:</strong> Winning cells lock as Wilds (cap " + state.config.maxLockedPerReelPerStep + " new lock(s) per reel each step), then non-locked cells respin. Rush multiplier grows by +" + state.config.respinIncrement + " each win, up to x" + state.config.maxRushMultiplier + ".</div>";
     html += "<div><strong>Free Spins:</strong> 3+ scatters award spins. Retriggers use the same scatter mapping.</div>";
     html += "<div><strong>Buy Bonus:</strong> " + state.config.buyBonusCostMultiplier + "x bet.</div>";
     html += "<div><strong>RTP:</strong> " + state.config.rtp + " | <strong>Volatility:</strong> " + state.config.volatility + "</div>";

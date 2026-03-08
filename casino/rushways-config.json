@@ -16,12 +16,15 @@
         "minBet": 1,
         "maxBet": 5000,
         "buyBonusCostMultiplier": 100,
-        "maxRespinChain": 6,
+        "maxRespinChain": 5,
         "respinIncrement": 1,
         "bonusStartRushMultiplier": 2,
         "maxRushMultiplier": 10,
-        "connectionBiasChance": 0.045,
-        "basePayoutScale": 0.52,
+        "connectionBiasChance": 0.012,
+        "basePayoutScale": 0.34,
+        "minWaysByReels": { "3": 4, "4": 8, "5": 14 },
+        "maxSymbolWinsPerStep": 1,
+        "maxLockedPerReelPerStep": 2,
         "maxWinMultiplier": 50000,
         "freeSpinsTrigger": { "3": 10, "4": 12, "5": 15 },
         "freeSpinsRetrigger": { "3": 10, "4": 12, "5": 15 },
@@ -39,7 +42,7 @@
         { "id": "rent", "name": "Rent", "glyph": "RT", "weight": 14, "pays": { "3": 0.06, "4": 0.1, "5": 0.16 } },
         { "id": "cab", "name": "Cab", "glyph": "CB", "weight": 11, "pays": { "3": 0.09, "4": 0.15, "5": 0.24 } },
         { "id": "hotel", "name": "Hotel", "glyph": "HT", "weight": 8, "pays": { "3": 0.14, "4": 0.24, "5": 0.38 } },
-        { "id": "wild", "name": "Wild", "glyph": "W", "weight": 4, "wild": true },
+        { "id": "wild", "name": "Wild", "glyph": "W", "weight": 2, "wild": true },
         { "id": "scatter", "name": "Scatter", "glyph": "S", "weight": 2, "scatter": true }
       ]
     }
