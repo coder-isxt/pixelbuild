@@ -24,8 +24,8 @@
         "maxCellMultiplier": 1024,
         "clusterMultiplierCombine": "sum",
         "maxClusterMultiplierApplied": 50176,
-        "connectionBiasChance": 0.09,
-        "basePayoutScale": 1.6,
+        "connectionBiasChance": 0.032,
+        "basePayoutScale": 1.18,
         "maxWinMultiplier": 80000,
         "rtp": "96.00%",
         "volatility": "High"
@@ -40,7 +40,7 @@
         { "id": "lv7", "name": "Amber Duck", "uiLabel": "Duck", "level": 7, "weight": 5, "iconGlyph": "d7", "iconColor": "#f3b56d", "payoutBySize": { "4": 0.88, "5": 1.2, "6": 1.7, "7": 2.2, "8": 3.0, "10": 4.6 } },
         { "id": "lv8", "name": "Coral Duck", "uiLabel": "Duck", "level": 8, "weight": 3, "iconGlyph": "d8", "iconColor": "#f59583", "payoutBySize": { "4": 1.3, "5": 1.9, "6": 2.6, "7": 3.4, "8": 4.8, "10": 7.2 } },
         { "id": "lv9", "name": "Mythic Duck", "uiLabel": "Duck", "level": 9, "weight": 2, "iconGlyph": "d9", "iconColor": "#f070ab", "payoutBySize": { "4": 2.0, "5": 2.8, "6": 3.9, "7": 5.2, "8": 7.4, "10": 11.0 } },
-        { "id": "scatter", "name": "Scatter", "uiLabel": "Scatter", "level": 0, "weight": 2, "scatter": true, "iconGlyph": "S" }
+        { "id": "scatter", "name": "Scatter", "uiLabel": "Scatter", "level": 0, "weight": 1, "scatter": true, "iconGlyph": "S" }
       ]
     },
     {
@@ -65,8 +65,8 @@
         "maxCellMultiplier": 1024,
         "clusterMultiplierCombine": "sum",
         "maxClusterMultiplierApplied": 50176,
-        "connectionBiasChance": 0.095,
-        "basePayoutScale": 1.45,
+        "connectionBiasChance": 0.028,
+        "basePayoutScale": 1.08,
         "maxWinMultiplier": 65000,
         "rtp": "95.80%",
         "volatility": "Medium-High"
@@ -81,7 +81,7 @@
         { "id": "lv7", "name": "Diamond", "uiLabel": "Diamond", "level": 7, "weight": 5, "iconGlyph": "D", "iconColor": "#f0b96f", "payoutBySize": { "4": 0.78, "5": 1.08, "6": 1.52, "7": 1.98, "8": 2.7, "10": 4.1 } },
         { "id": "lv8", "name": "Prism", "uiLabel": "Prism", "level": 8, "weight": 3, "iconGlyph": "P", "iconColor": "#f7948a", "payoutBySize": { "4": 1.18, "5": 1.7, "6": 2.4, "7": 3.1, "8": 4.4, "10": 6.6 } },
         { "id": "lv9", "name": "Nova", "uiLabel": "Nova", "level": 9, "weight": 2, "iconGlyph": "N", "iconColor": "#ec71b5", "payoutBySize": { "4": 1.8, "5": 2.55, "6": 3.55, "7": 4.8, "8": 6.8, "10": 10.0 } },
-        { "id": "scatter", "name": "Portal Scatter", "uiLabel": "Scatter", "level": 0, "weight": 2, "scatter": true, "iconGlyph": "*" }
+        { "id": "scatter", "name": "Portal Scatter", "uiLabel": "Scatter", "level": 0, "weight": 1, "scatter": true, "iconGlyph": "*" }
       ]
     },
     {
@@ -106,8 +106,8 @@
         "maxCellMultiplier": 1024,
         "clusterMultiplierCombine": "sum",
         "maxClusterMultiplierApplied": 50176,
-        "connectionBiasChance": 0.085,
-        "basePayoutScale": 1.35,
+        "connectionBiasChance": 0.024,
+        "basePayoutScale": 0.98,
         "maxWinMultiplier": 70000,
         "rtp": "95.40%",
         "volatility": "High"
@@ -122,10 +122,9 @@
         { "id": "lv7", "name": "Crown", "uiLabel": "Crown", "level": 7, "weight": 5, "iconGlyph": "Cr", "iconColor": "#efb26e", "payoutBySize": { "4": 0.78, "5": 1.08, "6": 1.52, "7": 1.98, "8": 2.74, "10": 4.2 } },
         { "id": "lv8", "name": "Phoenix", "uiLabel": "Phoenix", "level": 8, "weight": 3, "iconGlyph": "Ph", "iconColor": "#f78f88", "payoutBySize": { "4": 1.2, "5": 1.75, "6": 2.45, "7": 3.2, "8": 4.6, "10": 7.0 } },
         { "id": "lv9", "name": "Ancient", "uiLabel": "Ancient", "level": 9, "weight": 2, "iconGlyph": "An", "iconColor": "#ee6fb0", "payoutBySize": { "4": 1.9, "5": 2.7, "6": 3.8, "7": 5.1, "8": 7.3, "10": 10.8 } },
-        { "id": "scatter", "name": "Relic Scatter", "uiLabel": "Scatter", "level": 0, "weight": 2, "scatter": true, "iconGlyph": "!" }
+        { "id": "scatter", "name": "Relic Scatter", "uiLabel": "Scatter", "level": 0, "weight": 1, "scatter": true, "iconGlyph": "!" }
       ]
     }
   ]
 }
-
 

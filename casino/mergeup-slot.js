@@ -47,8 +47,8 @@
     maxCellMultiplier: 1024,
     clusterMultiplierCombine: "sum",
     maxClusterMultiplierApplied: 50176,
-    connectionBiasChance: 0.11,
-    basePayoutScale: 1.6,
+    connectionBiasChance: 0.035,
+    basePayoutScale: 1.2,
     maxWinMultiplier: 50000,
     highBetPayoutBoostTiers: [
       { minBet: 100, multiplier: 1.01 },
