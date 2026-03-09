@@ -107,6 +107,8 @@
             <div id="gtSocialMenuPopup" class="gt-quick-popup hidden">
               <button id="gtSocialFriendsBtn" type="button">Friends</button>
               <button id="gtSocialQuestsBtn" type="button">Quests</button>
+              <button id="gtSocialGuestbookBtn" type="button">Guestbook</button>
+              <button id="gtSocialJournalBtn" type="button">Journal</button>
               <button id="gtSocialResumeBtn" type="button">Resume</button>
             </div>
           </div>
@@ -442,6 +444,26 @@
         <div id="questsActions" class="vending-actions"></div>
       </div>
     </div>
+    <div id="guestbookModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="guestbookTitle">Guestbook</strong>
+          <button id="guestbookCloseBtn" type="button">Close</button>
+        </div>
+        <div id="guestbookBody" class="vending-body"></div>
+        <div id="guestbookActions" class="vending-actions"></div>
+      </div>
+    </div>
+    <div id="discoveryJournalModal" class="vending-modal hidden">
+      <div class="vending-card trade-card">
+        <div class="vending-header">
+          <strong id="discoveryJournalTitle">Discovery Journal</strong>
+          <button id="discoveryJournalCloseBtn" type="button">Close</button>
+        </div>
+        <div id="discoveryJournalBody" class="vending-body"></div>
+        <div id="discoveryJournalActions" class="vending-actions"></div>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -500,6 +522,7 @@
         "progression/progression.js",
         "progression/quests.js",
         "progression/achievements.js",
+        "progression/discovery_journal.js",
         "progression/gacha.js",
         "progression/items.js",
         "progression/cosmetics.js",
@@ -534,6 +557,7 @@
         "economy/chest.js",
         "social/friends.js",
         "social/trade.js",
+        "social/guestbook.js",
         "economy/shop.js",
         "economy/sign.js",
         "economy/splicing.js",

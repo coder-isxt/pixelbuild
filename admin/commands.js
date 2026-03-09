@@ -38,6 +38,61 @@ window.GTModules.commands = {
       c.postLocalSystemChat("Private message module is unavailable.");
       return true;
     }
+    if (command === "/guestbook") {
+      if (!c.inWorld) {
+        c.postLocalSystemChat("Enter a world first.");
+        return true;
+      }
+      if (typeof c.openGuestbookMenu === "function") {
+        c.openGuestbookMenu();
+      } else {
+        c.postLocalSystemChat("Guestbook menu is unavailable.");
+      }
+      return true;
+    }
+    if (command === "/journal" || command === "/discovery") {
+      if (typeof c.openDiscoveryJournalMenu === "function") {
+        c.openDiscoveryJournalMenu();
+      } else {
+        c.postLocalSystemChat("Discovery journal is unavailable.");
+      }
+      return true;
+    }
+    if (command === "/lore") {
+      const symbolId = String(parts[1] || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40);
+      if (!symbolId) {
+        c.postLocalSystemChat("Usage: /lore <symbol_id>");
+        return true;
+      }
+      if (typeof c.applyDiscoveryEvent === "function") {
+        c.applyDiscoveryEvent("lore_symbol", {
+          symbolId,
+          label: symbolId,
+          worldId: c.currentWorldId || ""
+        });
+        c.postLocalSystemChat("Lore symbol discovered: " + symbolId + ".");
+      } else {
+        c.postLocalSystemChat("Discovery journal is unavailable.");
+      }
+      return true;
+    }
+    if (command === "/season" || command === "/seasonal") {
+      const eventId = String(parts[1] || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40);
+      if (!eventId) {
+        c.postLocalSystemChat("Usage: /season <event_id>");
+        return true;
+      }
+      if (typeof c.applyDiscoveryEvent === "function") {
+        c.applyDiscoveryEvent("seasonal_complete", {
+          eventId,
+          label: eventId
+        });
+        c.postLocalSystemChat("Seasonal completion recorded: " + eventId + ".");
+      } else {
+        c.postLocalSystemChat("Discovery journal is unavailable.");
+      }
+      return true;
+    }
     if (command === "/verify") {
       if (!c.network.db) {
         c.postLocalSystemChat("Network unavailable.");
@@ -153,6 +208,10 @@ window.GTModules.commands = {
         "/dance",
         "/msg <user> <message>",
         "/r <message>",
+        "/guestbook",
+        "/journal",
+        "/lore <symbol_id>",
+        "/season <event_id>",
         "/verify",
         "/lock",
         "/unlock"

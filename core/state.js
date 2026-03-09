@@ -170,6 +170,16 @@ window.GTModules.state = (function createStateModule() {
     questsBodyEl: "questsBody",
     questsActionsEl: "questsActions",
     questsCloseBtn: "questsCloseBtn",
+    guestbookModalEl: "guestbookModal",
+    guestbookTitleEl: "guestbookTitle",
+    guestbookBodyEl: "guestbookBody",
+    guestbookActionsEl: "guestbookActions",
+    guestbookCloseBtn: "guestbookCloseBtn",
+    discoveryJournalModalEl: "discoveryJournalModal",
+    discoveryJournalTitleEl: "discoveryJournalTitle",
+    discoveryJournalBodyEl: "discoveryJournalBody",
+    discoveryJournalActionsEl: "discoveryJournalActions",
+    discoveryJournalCloseBtn: "discoveryJournalCloseBtn",
     worldLockModalEl: "worldLockModal",
     worldLockTitleEl: "worldLockTitle",
     worldLockAdminInputEl: "worldLockAdminInput",
@@ -266,10 +276,12 @@ window.GTModules.state = (function createStateModule() {
       chatModule: "chat",
       menuModule: "menu",
       messagesModule: "messages",
+      guestbookModule: "guestbook",
       anticheatModule: "anticheat",
       progressionModule: "progression",
       achievementsModule: "achievements",
       questsModule: "quests",
+      discoveryJournalModule: "discoveryJournal",
       gachaModule: "gacha",
       backupModule: "backup",
       vendingModule: "vending",
@@ -551,6 +563,10 @@ window.GTModules.state = (function createStateModule() {
     ensure("achievementsSaveTimer", () => 0);
     ensure("questsState", () => null);
     ensure("questsSaveTimer", () => 0);
+    ensure("discoveryJournalState", () => null);
+    ensure("discoveryJournalSaveTimer", () => 0);
+    ensure("guestbookEntries", () => []);
+    ensure("guestbookLastWorldId", () => "");
     ensure("worldChatStartedAt", () => 0);
     ensure("desktopLeftPanelWidth", () => Math.floor(Number(opts.desktopPanelLeftDefault) || 0));
     ensure("desktopRightPanelWidth", () => Math.floor(Number(opts.desktopPanelRightDefault) || 0));

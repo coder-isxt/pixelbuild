@@ -1839,6 +1839,8 @@ function drawBackground() {
             centerX,
             baseY,
             text,
+            speaker: String(entry.speaker || "").trim().slice(0, 20),
+            kind: String(entry.kind || "").trim().toLowerCase(),
             alpha,
             maxWidth: CHAT_BUBBLE_MAX_WIDTH,
             lineHeight: CHAT_BUBBLE_LINE_HEIGHT,

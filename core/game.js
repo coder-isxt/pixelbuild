@@ -78,6 +78,8 @@
       const gtSocialMenuPopupEl = document.getElementById("gtSocialMenuPopup");
       const gtSocialFriendsBtnEl = document.getElementById("gtSocialFriendsBtn");
       const gtSocialQuestsBtnEl = document.getElementById("gtSocialQuestsBtn");
+      const gtSocialGuestbookBtnEl = document.getElementById("gtSocialGuestbookBtn");
+      const gtSocialJournalBtnEl = document.getElementById("gtSocialJournalBtn");
       const gtSocialResumeBtnEl = document.getElementById("gtSocialResumeBtn");
       let gtQuickMenuMode = "";
 
@@ -291,6 +293,8 @@
         loadCameraZoomPref,
         cosmeticsModule
       });
+      if (!Array.isArray(guestbookEntries)) guestbookEntries = [];
+      if (typeof guestbookLastWorldId !== "string") guestbookLastWorldId = "";
       function getVendingController() {
         if (vendingController) return vendingController;
         if (typeof vendingModule.createController !== "function") return null;
@@ -1299,6 +1303,7 @@
       const CHAT_PANEL_TOP_MIN = 8;
       const CHAT_PANEL_BOTTOM_GAP = 12;
       const CHAT_MESSAGES_LIMIT = 100;
+      const GUESTBOOK_MESSAGES_LIMIT = 120;
       const SYSTEM_CHAT_TEXT_MAX = 240;
       const INVENTORY_PANEL_OFFSET_KEY = "gt_inventory_panel_offset_v1";
       const INVENTORY_PANEL_PEEK_PX = 40;
@@ -1316,6 +1321,9 @@
       let inventoryPanelDragStartOffsetPx = 0;
       let inventoryPanelHandleEl = null;
       let inventoryPanelDragBound = false;
+      let guestbookSubmitBusy = false;
+      let guestbookLoadToken = 0;
+      const localGuestbookByWorld = new Map();
       const touchControls = {
         left: false,
         right: false,
@@ -5207,6 +5215,9 @@
           normalizeWorldId,
           switchWorld,
           postLocalSystemChat,
+          openGuestbookMenu,
+          openDiscoveryJournalMenu,
+          applyDiscoveryEvent,
           setDanceUntilMs: (value) => { danceUntilMs = Number(value) || 0; },
           DANCE_DURATION_MS,
           inWorld,
@@ -5452,6 +5463,7 @@
         playerProfileId = accountId;
         playerName = username;
         loadQuestsFromLocal();
+        loadDiscoveryJournalFromLocal();
         postDailyQuestStatus();
         const gemsCtrl = getGemsController();
         if (gemsCtrl && typeof gemsCtrl.reset === "function") {
@@ -5492,6 +5504,9 @@
           }
           if (!loadQuestsFromLocal()) {
             questsState = normalizeQuestsState({});
+          }
+          if (!loadDiscoveryJournalFromLocal()) {
+            discoveryJournalState = normalizeDiscoveryJournalState({});
           }
           refreshToolbar();
           //postDailyQuestStatus();
@@ -5849,6 +5864,408 @@
         if (questsModalEl) questsModalEl.classList.remove("hidden");
       }
 
+      function getDiscoveryJournalStorageKey() {
+        return "growtopia_discovery_journal_" + (playerProfileId || "guest");
+      }
+
+      function normalizeDiscoveryJournalState(raw) {
+        if (typeof discoveryJournalModule.normalizeState === "function") {
+          return discoveryJournalModule.normalizeState(raw || {});
+        }
+        return raw && typeof raw === "object" ? raw : {};
+      }
+
+      function buildDiscoveryJournalPayload() {
+        if (typeof discoveryJournalModule.buildPayload === "function") {
+          return discoveryJournalModule.buildPayload(discoveryJournalState || {});
+        }
+        return normalizeDiscoveryJournalState(discoveryJournalState || {});
+      }
+
+      function saveDiscoveryJournalToLocal() {
+        saveJsonToLocalStorage(getDiscoveryJournalStorageKey(), buildDiscoveryJournalPayload());
+      }
+
+      function loadDiscoveryJournalFromLocal() {
+        const parsed = loadJsonFromLocalStorage(getDiscoveryJournalStorageKey());
+        if (!parsed) return false;
+        discoveryJournalState = normalizeDiscoveryJournalState(parsed);
+        return true;
+      }
+
+      function flushDiscoveryJournalSave() {
+        discoveryJournalSaveTimer = 0;
+        saveDiscoveryJournalToLocal();
+        if (!network.enabled || !network.discoveryJournalRef) return;
+        const payload = buildDiscoveryJournalPayload();
+        payload.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+        network.discoveryJournalRef.set(payload).catch(() => {
+          setNetworkState("Discovery journal save error", true);
+        });
+      }
+
+      function scheduleDiscoveryJournalSave(immediate) {
+        if (immediate) {
+          if (discoveryJournalSaveTimer) {
+            clearTimeout(discoveryJournalSaveTimer);
+            discoveryJournalSaveTimer = 0;
+          }
+          flushDiscoveryJournalSave();
+          return;
+        }
+        if (!discoveryJournalSaveTimer) {
+          discoveryJournalSaveTimer = setTimeout(flushDiscoveryJournalSave, 300);
+        }
+      }
+
+      function applyDiscoveryEvent(eventType, payload) {
+        if (typeof discoveryJournalModule.applyEvent !== "function") return;
+        const safePayload = payload && typeof payload === "object"
+          ? { ...payload, worldId: payload.worldId || (inWorld ? currentWorldId : "") }
+          : { worldId: inWorld ? currentWorldId : "" };
+        const result = discoveryJournalModule.applyEvent(discoveryJournalState || {}, eventType, safePayload);
+        if (!result || !result.state) return;
+        discoveryJournalState = normalizeDiscoveryJournalState(result.state);
+        if (!result.changed) return;
+        const unlocked = Array.isArray(result.unlockedNow) ? result.unlockedNow : [];
+        for (let i = 0; i < unlocked.length; i++) {
+          const row = unlocked[i] && typeof unlocked[i] === "object" ? unlocked[i] : {};
+          const label = String(row.label || row.id || "").trim();
+          if (!label) continue;
+          const kind = String(row.kind || "").trim().replace(/_/g, " ");
+          const prefix = kind ? ("Journal " + kind + ": ") : "Journal: ";
+          postLocalSystemChat(prefix + label + ".");
+        }
+        if (discoveryJournalModalEl && !discoveryJournalModalEl.classList.contains("hidden")) {
+          renderDiscoveryJournalMenu();
+        }
+        scheduleDiscoveryJournalSave(false);
+      }
+
+      function renderDiscoveryJournalMenu() {
+        if (!discoveryJournalTitleEl || !discoveryJournalBodyEl || !discoveryJournalActionsEl) return;
+        const state = normalizeDiscoveryJournalState(discoveryJournalState || {});
+        discoveryJournalState = state;
+        const summary = typeof discoveryJournalModule.summarize === "function"
+          ? discoveryJournalModule.summarize(state)
+          : {
+            worldTypes: 0,
+            rareFinds: 0,
+            loreSymbols: 0,
+            seasonalEvents: 0,
+            total: 0
+          };
+        const catalog = typeof discoveryJournalModule.getCatalog === "function"
+          ? discoveryJournalModule.getCatalog()
+          : { worldTypes: [], rareFindTypes: [] };
+        discoveryJournalTitleEl.textContent = "Discovery Journal (" + Math.max(0, Number(summary.total) || 0) + ")";
+
+        const worldTypeDefs = Array.isArray(catalog.worldTypes) ? catalog.worldTypes : [];
+        const rareTypeDefs = Array.isArray(catalog.rareFindTypes) ? catalog.rareFindTypes : [];
+        const worldRows = [];
+        for (let i = 0; i < worldTypeDefs.length; i++) {
+          const def = worldTypeDefs[i] || {};
+          const id = String(def.id || "").trim();
+          if (!id) continue;
+          const row = state.worldTypes && state.worldTypes[id] ? state.worldTypes[id] : null;
+          worldRows.push(
+            "<div class='vending-section'>" +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>World Type</span><strong>" + escapeHtml(def.label || id) + "</strong></div>" +
+                "<div class='vending-stat'><span>Status</span><strong>" + (row ? "Discovered" : "Unknown") + "</strong></div>" +
+                "<div class='vending-stat'><span>First World</span><strong>" + escapeHtml((row && row.worldId) ? row.worldId : "-") + "</strong></div>" +
+              "</div>" +
+            "</div>"
+          );
+        }
+
+        const rareRows = [];
+        for (let i = 0; i < rareTypeDefs.length; i++) {
+          const def = rareTypeDefs[i] || {};
+          const id = String(def.id || "").trim();
+          if (!id) continue;
+          const row = state.rareFinds && state.rareFinds[id] ? state.rareFinds[id] : null;
+          rareRows.push(
+            "<div class='vending-section'>" +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>Collection</span><strong>" + escapeHtml(def.label || id) + "</strong></div>" +
+                "<div class='vending-stat'><span>Status</span><strong>" + (row ? "Found" : "Not found") + "</strong></div>" +
+                "<div class='vending-stat'><span>Entry</span><strong>" + escapeHtml((row && row.label) ? row.label : "-") + "</strong></div>" +
+              "</div>" +
+            "</div>"
+          );
+        }
+
+        const loreList = Object.keys(state.loreSymbols || {})
+          .map((id) => {
+            const row = state.loreSymbols[id] || {};
+            return "<div class='sign-hint'>- " + escapeHtml(row.label || id) + "</div>";
+          })
+          .slice(0, 36);
+        const seasonalList = Object.keys(state.seasonalEvents || {})
+          .map((id) => {
+            const row = state.seasonalEvents[id] || {};
+            return "<div class='sign-hint'>- " + escapeHtml(row.label || id) + "</div>";
+          })
+          .slice(0, 36);
+
+        discoveryJournalBodyEl.innerHTML =
+          "<div class='vending-section'>" +
+            "<div class='vending-stat-grid'>" +
+              "<div class='vending-stat'><span>World Types</span><strong>" + Math.max(0, Number(summary.worldTypes) || 0) + "</strong></div>" +
+              "<div class='vending-stat'><span>Rare Finds</span><strong>" + Math.max(0, Number(summary.rareFinds) || 0) + "</strong></div>" +
+              "<div class='vending-stat'><span>Lore Symbols</span><strong>" + Math.max(0, Number(summary.loreSymbols) || 0) + "</strong></div>" +
+              "<div class='vending-stat'><span>Seasonal</span><strong>" + Math.max(0, Number(summary.seasonalEvents) || 0) + "</strong></div>" +
+            "</div>" +
+          "</div>" +
+          "<div class='vending-section'><strong>World Discovery</strong></div>" +
+          (worldRows.join("") || "<div class='vending-empty'>No world discovery entries yet.</div>") +
+          "<div class='vending-section'><strong>Rare Finds</strong></div>" +
+          (rareRows.join("") || "<div class='vending-empty'>No rare finds recorded yet.</div>") +
+          "<div class='vending-section'><strong>Hidden Lore Symbols</strong></div>" +
+          (loreList.join("") || "<div class='vending-empty'>No lore symbols discovered yet.</div>") +
+          "<div class='vending-section'><strong>Seasonal Event Completions</strong></div>" +
+          (seasonalList.join("") || "<div class='vending-empty'>No seasonal event completions yet.</div>");
+        discoveryJournalActionsEl.innerHTML = "<button type='button' data-discovery-act='close'>Close</button>";
+      }
+
+      function closeDiscoveryJournalMenu() {
+        if (discoveryJournalModalEl) discoveryJournalModalEl.classList.add("hidden");
+      }
+
+      function openDiscoveryJournalMenu() {
+        renderDiscoveryJournalMenu();
+        if (discoveryJournalModalEl) discoveryJournalModalEl.classList.remove("hidden");
+      }
+
+      function getGuestbookWorldId() {
+        const raw = inWorld ? currentWorldId : "";
+        if (typeof guestbookModule.normalizeWorldId === "function") {
+          return guestbookModule.normalizeWorldId(raw);
+        }
+        return normalizeWorldId(raw);
+      }
+
+      function normalizeGuestbookEntries(raw) {
+        if (typeof guestbookModule.normalizeEntriesSnapshot === "function") {
+          return guestbookModule.normalizeEntriesSnapshot(raw || {}, GUESTBOOK_MESSAGES_LIMIT);
+        }
+        const src = raw && typeof raw === "object" ? raw : {};
+        return Object.keys(src).map((id) => {
+          const row = src[id] || {};
+          return {
+            id: String(id || ""),
+            name: String(row.name || "Guest").slice(0, 20),
+            text: String(row.text || "").slice(0, 120),
+            stampId: String(row.stampId || "").slice(0, 24),
+            stickerId: String(row.stickerId || "").slice(0, 24),
+            createdAt: Number(row.createdAt) || 0
+          };
+        }).filter((row) => row.text).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, GUESTBOOK_MESSAGES_LIMIT);
+      }
+
+      function setGuestbookStatus(text, isError) {
+        const statusEl = document.getElementById("guestbookStatus");
+        if (!(statusEl instanceof HTMLElement)) return;
+        statusEl.textContent = String(text || "").slice(0, 180);
+        statusEl.classList.toggle("danger", Boolean(isError));
+      }
+
+      function renderGuestbookMenu(options) {
+        if (!guestbookTitleEl || !guestbookBodyEl || !guestbookActionsEl) return;
+        const opts = options && typeof options === "object" ? options : {};
+        const worldId = getGuestbookWorldId();
+        const stampCatalog = typeof guestbookModule.getStampCatalog === "function"
+          ? guestbookModule.getStampCatalog()
+          : [];
+        const stickerCatalog = typeof guestbookModule.getStickerCatalog === "function"
+          ? guestbookModule.getStickerCatalog()
+          : [];
+        const entries = Array.isArray(guestbookEntries) ? guestbookEntries.slice() : [];
+        guestbookTitleEl.textContent = worldId ? ("Guestbook - " + worldId) : "Guestbook";
+
+        const rows = [];
+        for (let i = 0; i < entries.length; i++) {
+          const row = entries[i] || {};
+          const stampDef = typeof guestbookModule.getStampById === "function" ? guestbookModule.getStampById(row.stampId) : null;
+          const stickerDef = typeof guestbookModule.getStickerById === "function" ? guestbookModule.getStickerById(row.stickerId) : null;
+          const time = formatChatTimestamp(row.createdAt);
+          rows.push(
+            "<div class='vending-section'>" +
+              "<div class='vending-stat-grid'>" +
+                "<div class='vending-stat'><span>Visitor</span><strong>" + escapeHtml(String(row.name || "Guest")) + "</strong></div>" +
+                "<div class='vending-stat'><span>Stamp</span><strong>" + escapeHtml(stampDef && stampDef.label ? stampDef.label : "-") + "</strong></div>" +
+                "<div class='vending-stat'><span>Sticker</span><strong>" + escapeHtml(stickerDef && stickerDef.label ? stickerDef.label : "-") + "</strong></div>" +
+                "<div class='vending-stat'><span>Time</span><strong>" + escapeHtml(time || "--:--") + "</strong></div>" +
+              "</div>" +
+              "<div class='sign-hint' style='margin-top:8px;'>" + escapeHtml(String(row.text || "")) + "</div>" +
+            "</div>"
+          );
+        }
+
+        const stampOptions = ["<option value=''>No stamp</option>"].concat(
+          stampCatalog.map((row) => "<option value='" + escapeHtml(row.id) + "'>" + escapeHtml(row.label || row.id) + "</option>")
+        ).join("");
+        const stickerOptions = ["<option value=''>No sticker</option>"].concat(
+          stickerCatalog.map((row) => "<option value='" + escapeHtml(row.id) + "'>" + escapeHtml(row.label || row.id) + "</option>")
+        ).join("");
+
+        guestbookBodyEl.innerHTML =
+          "<div class='vending-section'>" +
+            "<div class='sign-hint'>Leave a short memory in this world's guestbook.</div>" +
+            "<div class='vending-field-grid' style='margin-top:8px;'>" +
+              "<div class='vending-field'><span>Message</span><input id='guestbookMessageInput' type='text' maxlength='120' placeholder='Share a memory...'></div>" +
+              "<div class='vending-field'><span>Stamp</span><select id='guestbookStampSelect'>" + stampOptions + "</select></div>" +
+              "<div class='vending-field'><span>Sticker</span><select id='guestbookStickerSelect'>" + stickerOptions + "</select></div>" +
+            "</div>" +
+            "<div id='guestbookStatus' class='sign-hint' style='margin-top:8px;'>" + escapeHtml(opts.statusText || "") + "</div>" +
+          "</div>" +
+          "<div class='vending-section'><strong>Memory Wall (" + entries.length + ")</strong></div>" +
+          (rows.join("") || "<div class='vending-empty'>No memories yet in this world.</div>");
+        guestbookActionsEl.innerHTML =
+          "<button type='button' data-guestbook-act='submit'" + (guestbookSubmitBusy ? " disabled" : "") + ">Leave Memory</button>" +
+          "<button type='button' data-guestbook-act='refresh'>Refresh</button>" +
+          "<button type='button' data-guestbook-act='close'>Close</button>";
+      }
+
+      function loadGuestbookEntries(force) {
+        const worldId = getGuestbookWorldId();
+        if (!worldId) {
+          guestbookEntries = [];
+          guestbookLastWorldId = "";
+          renderGuestbookMenu({ statusText: "Enter a world to view guestbook." });
+          return Promise.resolve([]);
+        }
+        const shouldUseCached = !force && guestbookLastWorldId === worldId && Array.isArray(guestbookEntries) && guestbookEntries.length;
+        if (shouldUseCached) {
+          renderGuestbookMenu({ statusText: "Loaded from cache." });
+          return Promise.resolve(guestbookEntries.slice());
+        }
+        const token = ++guestbookLoadToken;
+        if (!network.enabled || !network.db) {
+          const localEntries = Array.isArray(localGuestbookByWorld.get(worldId))
+            ? localGuestbookByWorld.get(worldId).slice(0, GUESTBOOK_MESSAGES_LIMIT)
+            : [];
+          guestbookEntries = localEntries;
+          guestbookLastWorldId = worldId;
+          renderGuestbookMenu({ statusText: "Offline guestbook." });
+          return Promise.resolve(localEntries);
+        }
+        const ref = (network.guestbookRef && worldId === currentWorldId)
+          ? network.guestbookRef
+          : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/guestbook");
+        return ref.limitToLast(GUESTBOOK_MESSAGES_LIMIT).once("value")
+          .then((snapshot) => {
+            if (token !== guestbookLoadToken) return guestbookEntries.slice();
+            const data = snapshot && snapshot.val ? (snapshot.val() || {}) : {};
+            guestbookEntries = normalizeGuestbookEntries(data);
+            guestbookLastWorldId = worldId;
+            renderGuestbookMenu({ statusText: "Loaded " + guestbookEntries.length + " memories." });
+            return guestbookEntries.slice();
+          })
+          .catch(() => {
+            if (token !== guestbookLoadToken) return guestbookEntries.slice();
+            renderGuestbookMenu({ statusText: "Failed to load guestbook.", isError: true });
+            return guestbookEntries.slice();
+          });
+      }
+
+      function submitGuestbookEntry() {
+        if (!inWorld || !currentWorldId) {
+          postLocalSystemChat("Enter a world first.");
+          return;
+        }
+        if (guestbookSubmitBusy) return;
+        const messageEl = document.getElementById("guestbookMessageInput");
+        const stampEl = document.getElementById("guestbookStampSelect");
+        const stickerEl = document.getElementById("guestbookStickerSelect");
+        if (!(messageEl instanceof HTMLInputElement)) return;
+        const worldId = getGuestbookWorldId();
+        const result = typeof guestbookModule.buildEntryInput === "function"
+          ? guestbookModule.buildEntryInput({
+            worldId,
+            accountId: playerProfileId,
+            playerId,
+            name: playerName,
+            text: messageEl.value || "",
+            stampId: stampEl && "value" in stampEl ? stampEl.value : "",
+            stickerId: stickerEl && "value" in stickerEl ? stickerEl.value : "",
+            createdAt: Date.now()
+          })
+          : { ok: true, payload: {
+            worldId,
+            accountId: playerProfileId,
+            playerId,
+            name: playerName || "Guest",
+            text: String(messageEl.value || "").trim().slice(0, 120),
+            stampId: stampEl && "value" in stampEl ? String(stampEl.value || "").slice(0, 24) : "",
+            stickerId: stickerEl && "value" in stickerEl ? String(stickerEl.value || "").slice(0, 24) : "",
+            createdAt: Date.now()
+          } };
+        if (!result || !result.ok || !result.payload) {
+          setGuestbookStatus((result && result.error) ? result.error : "Invalid message.", true);
+          return;
+        }
+        const payload = result.payload;
+        guestbookSubmitBusy = true;
+        renderGuestbookMenu({ statusText: "Posting memory..." });
+
+        const applyLocalSuccess = (entryId, createdAtValue) => {
+          const nextEntry = normalizeGuestbookEntries({
+            [entryId]: { ...payload, createdAt: createdAtValue }
+          })[0];
+          const list = Array.isArray(guestbookEntries) ? guestbookEntries.slice() : [];
+          if (nextEntry) {
+            list.unshift(nextEntry);
+          }
+          guestbookEntries = list.slice(0, GUESTBOOK_MESSAGES_LIMIT);
+          guestbookLastWorldId = worldId;
+          localGuestbookByWorld.set(worldId, guestbookEntries.slice());
+          messageEl.value = "";
+          setGuestbookStatus("Memory added.");
+          renderGuestbookMenu({ statusText: "Memory added." });
+        };
+
+        if (!network.enabled || !network.db) {
+          applyLocalSuccess("local_" + Date.now().toString(36), Date.now());
+          guestbookSubmitBusy = false;
+          return;
+        }
+
+        const writePayload = {
+          ...payload,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        const ref = (network.guestbookRef && worldId === currentWorldId)
+          ? network.guestbookRef
+          : network.db.ref(BASE_PATH + "/worlds/" + worldId + "/guestbook");
+        ref.push(writePayload).then((snap) => {
+          const key = snap && snap.key ? String(snap.key) : ("entry_" + Date.now().toString(36));
+          applyLocalSuccess(key, Date.now());
+          return loadGuestbookEntries(true);
+        }).catch(() => {
+          setGuestbookStatus("Failed to add memory.", true);
+          renderGuestbookMenu({ statusText: "Failed to add memory." });
+        }).finally(() => {
+          guestbookSubmitBusy = false;
+          renderGuestbookMenu({ statusText: "" });
+        });
+      }
+
+      function closeGuestbookMenu() {
+        if (guestbookModalEl) guestbookModalEl.classList.add("hidden");
+      }
+
+      function openGuestbookMenu() {
+        if (!inWorld) {
+          postLocalSystemChat("Enter a world first.");
+          return;
+        }
+        renderGuestbookMenu({ statusText: "Loading guestbook..." });
+        if (guestbookModalEl) guestbookModalEl.classList.remove("hidden");
+        loadGuestbookEntries(false);
+      }
+
       function renderTitlesMenu() {
         if (!titlesBodyEl || !titlesActionsEl || !titlesTitleEl) return;
         const unlocked = [];
@@ -6138,6 +6555,15 @@
               changed = true;
               inventoryChanged = true;
               needsSync = true;
+              const cosmeticItem = COSMETIC_ITEMS.find((row) => row && row.id === id) || null;
+              if (cosmeticItem && String(cosmeticItem.rarity || "").toLowerCase() === "rare") {
+                applyDiscoveryEvent("rare_find", {
+                  findType: "relic",
+                  key: id,
+                  label: cosmeticItem.name || id,
+                  worldId: currentWorldId
+                });
+              }
             }
             continue;
           }
@@ -6219,6 +6645,11 @@
             ? questsModule.getQuestById(questId)
             : null;
           grantQuestRewards(def);
+          applyDiscoveryEvent("quest_complete", {
+            questId,
+            questLabel: def && def.label ? def.label : questId,
+            category: def && def.category ? def.category : ""
+          });
           if (typeof questsModule.markRewarded === "function") {
             const marked = questsModule.markRewarded(questsState, questId);
             if (marked && marked.state) questsState = normalizeQuestsState(marked.state);
@@ -7002,6 +7433,8 @@
         closeTradeMenuModal();
         closeTradeRequestModal();
         closeFriendModals();
+        closeGuestbookMenu();
+        closeDiscoveryJournalMenu();
         updateOnlineCount();
         world = makeWorld(currentWorldId);
         setLocalWorldWeather(localWeatherByWorld.get(currentWorldId) || null);
@@ -7053,6 +7486,8 @@
           setChatOpen(false);
           closeAchievementsMenu();
           closeTitlesMenu();
+          closeGuestbookMenu();
+          closeDiscoveryJournalMenu();
           closeVendingModal();
           closeDonationModal();
           closeChestModal();
@@ -7151,6 +7586,12 @@
         for (const message of ordered) {
           const row = document.createElement("div");
           row.className = "chat-row";
+          if (String(message.playerId || "") && String(message.playerId || "") === playerId) {
+            row.classList.add("self");
+          }
+          if (!String(message.playerId || "") || String(message.name || "").trim().toLowerCase() === "[system]") {
+            row.classList.add("system");
+          }
           const time = formatChatTimestamp(message.createdAt);
           const name = (message.name || "Guest").slice(0, 16);
           const sessionTag = String(message.sessionId || "").slice(-4);
@@ -7618,6 +8059,9 @@
         if (network.questsRef && network.handlers.quests) {
           network.questsRef.off("value", network.handlers.quests);
         }
+        if (network.discoveryJournalRef && network.handlers.discoveryJournal) {
+          network.discoveryJournalRef.off("value", network.handlers.discoveryJournal);
+        }
         if (network.mySessionRef && network.handlers.mySession) {
           network.mySessionRef.off("value", network.handlers.mySession);
         }
@@ -7809,6 +8253,7 @@
         saveProgressionToLocal();
         saveAchievementsToLocal();
         saveQuestsToLocal();
+        saveDiscoveryJournalToLocal();
         if (progressionSaveTimer) {
           clearTimeout(progressionSaveTimer);
           progressionSaveTimer = 0;
@@ -7820,6 +8265,10 @@
         if (questsSaveTimer) {
           clearTimeout(questsSaveTimer);
           questsSaveTimer = 0;
+        }
+        if (discoveryJournalSaveTimer) {
+          clearTimeout(discoveryJournalSaveTimer);
+          discoveryJournalSaveTimer = 0;
         }
         if (inventorySaveTimer) {
           clearTimeout(inventorySaveTimer);
@@ -7867,6 +8316,9 @@
         progressionXpForNext = 100;
         achievementsState = null;
         questsState = null;
+        discoveryJournalState = null;
+        guestbookEntries = [];
+        guestbookLastWorldId = "";
         worldIndexMetaById = {};
         worldLockOwnerCache.clear();
         ownedWorldScanInFlight = false;
@@ -7897,6 +8349,8 @@
         hideAnnouncementPopup();
         closeAchievementsMenu();
         closeTitlesMenu();
+        closeGuestbookMenu();
+        closeDiscoveryJournalMenu();
         const shopCtrl = getShopController();
         if (shopCtrl && typeof shopCtrl.closeModal === "function") {
           shopCtrl.closeModal();
@@ -7956,8 +8410,12 @@
           chatMessages.shift();
         }
         if (message.playerId) {
+          const loweredName = name.trim().toLowerCase();
+          const isSystem = loweredName === "[system]";
           overheadChatByPlayer.set(message.playerId, {
             text: (message.text || "").toString().slice(0, 80),
+            speaker: name ? name.slice(0, 20) : "",
+            kind: isSystem ? "system" : (message.playerId === playerId ? "self" : "other"),
             expiresAt: performance.now() + CHAT_BUBBLE_MS
           });
         }
@@ -8014,6 +8472,8 @@
         try {
           overheadChatByPlayer.set(playerId, {
             text,
+            speaker: playerName ? String(playerName).slice(0, 20) : "",
+            kind: "self",
             expiresAt: performance.now() + CHAT_BUBBLE_MS
           });
           chatInputEl.value = "";
@@ -10846,16 +11306,32 @@
           saveInventory(false);
           refreshToolbar(true);
           awardXp(15, "harvesting");
+          const rewardDef = blockDefs[rewardBlockId];
+          const rewardName = rewardDef && rewardDef.name ? rewardDef.name : ("Block " + rewardBlockId);
           applyAchievementEvent("tree_harvest", { count: 1 });
           applyQuestEvent("tree_harvest", { count: 1 });
+          applyDiscoveryEvent("tree_harvest", {
+            count: 1,
+            worldId: currentWorldId,
+            blockKey: (() => {
+              const rewardDefForDiscovery = blockDefs[rewardBlockId] || {};
+              return String(rewardDefForDiscovery.key || "").trim().toLowerCase();
+            })(),
+            label: rewardName
+          });
           applyQuestWorldGameplayEvent("tree_harvest", { count: 1, tx, ty });
           const harvestedSeedDef = blockDefs[id] || {};
           const harvestedSeedKey = String(harvestedSeedDef.key || "").trim().toLowerCase();
           applyAchievementEvent("break_block", { count: 1, blockId: id, blockKey: harvestedSeedKey });
           applyQuestEvent("break_block", { count: 1, blockId: id, blockKey: harvestedSeedKey });
+          applyDiscoveryEvent("break_block", {
+            count: 1,
+            blockId: id,
+            blockKey: harvestedSeedKey,
+            label: harvestedSeedDef && harvestedSeedDef.name ? harvestedSeedDef.name : harvestedSeedKey,
+            worldId: currentWorldId
+          });
           applyQuestWorldGameplayEvent("break_block", { count: 1, blockId: id, blockKey: harvestedSeedKey, tx, ty });
-          const rewardDef = blockDefs[rewardBlockId];
-          const rewardName = rewardDef && rewardDef.name ? rewardDef.name : ("Block " + rewardBlockId);
           if (treeRewardDroppedToWorld) {
             postLocalSystemChat("Harvested seed: dropped " + rewardAmount + " " + rewardName + " and +" + gemReward + " gems.");
           } else {
@@ -11055,6 +11531,13 @@
         const brokenBlockKey = String(brokenDef.key || "").trim().toLowerCase();
         applyAchievementEvent("break_block", { count: 1, blockId: id, blockKey: brokenBlockKey });
         applyQuestEvent("break_block", { count: 1, blockId: id, blockKey: brokenBlockKey });
+        applyDiscoveryEvent("break_block", {
+          count: 1,
+          blockId: id,
+          blockKey: brokenBlockKey,
+          label: brokenDef && brokenDef.name ? brokenDef.name : brokenBlockKey,
+          worldId: currentWorldId
+        });
         applyQuestWorldGameplayEvent("break_block", { count: 1, blockId: id, blockKey: brokenBlockKey, tx, ty });
         return reportAction("success", "block broken");
       }
@@ -11737,6 +12220,8 @@
         network.lockRef = null;
         network.chatRef = null;
         network.chatFeedRef = null;
+        network.guestbookRef = null;
+        network.guestbookFeedRef = null;
         network.handlers.players = null;
         network.handlers.playerAdded = null;
         network.handlers.playerChanged = null;
@@ -11788,6 +12273,9 @@
         network.handlers.cameraLogAdded = null;
         network.handlers.worldLock = null;
         network.handlers.chatAdded = null;
+        network.handlers.guestbookAdded = null;
+        network.handlers.guestbookChanged = null;
+        network.handlers.guestbookRemoved = null;
         currentWorldLock = null;
         const ctrl = getVendingController();
         if (ctrl && typeof ctrl.clearAll === "function") ctrl.clearAll();
@@ -11827,6 +12315,10 @@
         closeTradeMenuModal();
         closeTradeRequestModal();
         closeFriendModals();
+        closeGuestbookMenu();
+        closeDiscoveryJournalMenu();
+        guestbookEntries = [];
+        guestbookLastWorldId = "";
       }
 
       function leaveCurrentWorld() {
@@ -11967,6 +12459,7 @@
           });
           applyQuestEvent("visit_world", { worldId });
           applyAchievementEvent("visit_world", { worldId });
+          applyDiscoveryEvent("visit_world", { worldId });
           finishWorldTransition(transitionToken);
           return;
         }
@@ -12027,6 +12520,8 @@
           : (worldChatStartedAt > 0
             ? network.chatRef.orderByChild("createdAt").startAt(worldChatStartedAt).limitToLast(100)
             : network.chatRef.limitToLast(100));
+        network.guestbookRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/guestbook");
+        network.guestbookFeedRef = network.guestbookRef.limitToLast(GUESTBOOK_MESSAGES_LIMIT);
         network.playerRef = network.playersRef.child(playerId);
         {
           const questCtrl = getQuestWorldController();
@@ -12576,6 +13071,7 @@
         }).catch(() => {});
         applyQuestEvent("visit_world", { worldId });
         applyAchievementEvent("visit_world", { worldId });
+        applyDiscoveryEvent("visit_world", { worldId });
 
         if (network.connected) {
           if (network.globalPlayerRef) {
@@ -12789,6 +13285,20 @@
             openQuestsMenu();
           });
         }
+        if (gtSocialGuestbookBtnEl) {
+          eventsModule.on(gtSocialGuestbookBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            openGuestbookMenu();
+          });
+        }
+        if (gtSocialJournalBtnEl) {
+          eventsModule.on(gtSocialJournalBtnEl, "click", () => {
+            if (!inWorld) return;
+            setQuickMenuMode("");
+            openDiscoveryJournalMenu();
+          });
+        }
         if (gtSocialResumeBtnEl) {
           eventsModule.on(gtSocialResumeBtnEl, "click", () => {
             setQuickMenuMode("");
@@ -12835,6 +13345,16 @@
             closeTitlesMenu();
           });
         }
+        if (guestbookCloseBtn) {
+          eventsModule.on(guestbookCloseBtn, "click", () => {
+            closeGuestbookMenu();
+          });
+        }
+        if (discoveryJournalCloseBtn) {
+          eventsModule.on(discoveryJournalCloseBtn, "click", () => {
+            closeDiscoveryJournalMenu();
+          });
+        }
         if (achievementsModalEl) {
           eventsModule.on(achievementsModalEl, "click", (event) => {
             if (event.target === achievementsModalEl) {
@@ -12865,12 +13385,63 @@
             }
           });
         }
+        if (guestbookModalEl) {
+          eventsModule.on(guestbookModalEl, "click", (event) => {
+            if (event.target === guestbookModalEl) {
+              closeGuestbookMenu();
+            }
+          });
+        }
+        if (discoveryJournalModalEl) {
+          eventsModule.on(discoveryJournalModalEl, "click", (event) => {
+            if (event.target === discoveryJournalModalEl) {
+              closeDiscoveryJournalMenu();
+            }
+          });
+        }
         if (questsActionsEl) {
           eventsModule.on(questsActionsEl, "click", (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement)) return;
             if (String(target.dataset.questAct || "") === "close") {
               closeQuestsMenu();
+            }
+          });
+        }
+        if (guestbookActionsEl) {
+          eventsModule.on(guestbookActionsEl, "click", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const act = String(target.dataset.guestbookAct || "").trim().toLowerCase();
+            if (!act) return;
+            if (act === "submit") {
+              submitGuestbookEntry();
+              return;
+            }
+            if (act === "refresh") {
+              loadGuestbookEntries(true);
+              return;
+            }
+            if (act === "close") {
+              closeGuestbookMenu();
+            }
+          });
+        }
+        if (guestbookBodyEl) {
+          eventsModule.on(guestbookBodyEl, "keydown", (event) => {
+            if (event.key !== "Enter") return;
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement) || target.id !== "guestbookMessageInput") return;
+            event.preventDefault();
+            submitGuestbookEntry();
+          });
+        }
+        if (discoveryJournalActionsEl) {
+          eventsModule.on(discoveryJournalActionsEl, "click", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            if (String(target.dataset.discoveryAct || "") === "close") {
+              closeDiscoveryJournalMenu();
             }
           });
         }
@@ -13372,6 +13943,7 @@
           network.progressRef = network.db.ref(BASE_PATH + "/player-progress/" + playerProfileId);
           network.achievementsRef = network.db.ref(BASE_PATH + "/player-achievements/" + playerProfileId);
           network.questsRef = network.db.ref(BASE_PATH + "/player-quests/" + playerProfileId);
+          network.discoveryJournalRef = network.db.ref(BASE_PATH + "/player-discovery-journal/" + playerProfileId);
           network.accountLogsRootRef = network.db.ref(BASE_PATH + "/account-logs");
           network.antiCheatLogsRef = network.db.ref(BASE_PATH + "/anti-cheat-logs").limitToLast(320);
           network.forceReloadRef = network.db.ref(BASE_PATH + "/system/force-reload");
@@ -13463,6 +14035,25 @@
                 questsState = normalizeQuestsState({});
                 scheduleQuestsSave(true);
               }
+            });
+          };
+
+          network.handlers.discoveryJournal = (snapshot) => {
+            processReadTaskLatest("discovery_journal", {
+              exists: snapshot.exists(),
+              value: snapshot.val() || {}
+            }, (processed) => {
+              const exists = processed && processed.exists === true;
+              const value = processed && processed.value && typeof processed.value === "object" ? processed.value : {};
+              if (exists) {
+                discoveryJournalState = normalizeDiscoveryJournalState(value);
+                saveDiscoveryJournalToLocal();
+              } else {
+                discoveryJournalState = normalizeDiscoveryJournalState({});
+                scheduleDiscoveryJournalSave(true);
+              }
+              const open = discoveryJournalModalEl && !discoveryJournalModalEl.classList.contains("hidden");
+              if (open) renderDiscoveryJournalMenu();
             });
           };
 
@@ -13932,6 +14523,7 @@
           network.progressRef.on("value", network.handlers.progression);
           network.achievementsRef.on("value", network.handlers.achievements);
           network.questsRef.on("value", network.handlers.quests);
+          network.discoveryJournalRef.on("value", network.handlers.discoveryJournal);
           network.mySessionRef.on("value", network.handlers.mySession);
           network.myCommandRef.on("value", network.handlers.myCommand);
           network.myReachRef.on("value", network.handlers.myReach);
@@ -13969,6 +14561,7 @@
             scheduleProgressionSave(true);
             scheduleAchievementsSave(true);
             scheduleQuestsSave(true);
+            scheduleDiscoveryJournalSave(true);
             if (inWorld) {
               sendSystemWorldMessage(playerName + " left the world.");
             }
@@ -14888,6 +15481,16 @@
           closeTitlesMenu();
           return;
         }
+        if (e.key === "Escape" && guestbookModalEl && !guestbookModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeGuestbookMenu();
+          return;
+        }
+        if (e.key === "Escape" && discoveryJournalModalEl && !discoveryJournalModalEl.classList.contains("hidden")) {
+          e.preventDefault();
+          closeDiscoveryJournalMenu();
+          return;
+        }
         const tradePanelEl = document.getElementById("tradePanelModal");
         if (e.key === "Escape" && tradePanelEl && !tradePanelEl.classList.contains("hidden")) {
           e.preventDefault();
@@ -15052,6 +15655,9 @@
         }
         if (!loadQuestsFromLocal()) {
           questsState = normalizeQuestsState({});
+        }
+        if (!loadDiscoveryJournalFromLocal()) {
+          discoveryJournalState = normalizeDiscoveryJournalState({});
         }
         refreshToolbar();
         //postDailyQuestStatus();
