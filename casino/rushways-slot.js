@@ -23,14 +23,14 @@
     minBet: 1,
     maxBet: 5000,
     buyBonusCostMultiplier: 100,
-    maxRespinChain: 5,
+    maxRespinChain: 6,
     respinIncrement: 1,
     bonusStartRushMultiplier: 2,
     maxRushMultiplier: 10,
-    connectionBiasChance: 0.012,
-    basePayoutScale: 0.34,
-    minWaysByReels: { "3": 4, "4": 8, "5": 14 },
-    maxSymbolWinsPerStep: 1,
+    connectionBiasChance: 0.018,
+    basePayoutScale: 0.46,
+    minWaysByReels: { "3": 5, "4": 10, "5": 18 },
+    maxSymbolWinsPerStep: 2,
     maxLockedPerReelPerStep: 2,
     maxWinMultiplier: 50000,
     freeSpinsTrigger: { "3": 10, "4": 12, "5": 15 },
@@ -50,8 +50,8 @@
     { id: "rent", name: "Rent", glyph: "RT", weight: 14, pays: { "3": 0.06, "4": 0.1, "5": 0.16 } },
     { id: "cab", name: "Cab", glyph: "CB", weight: 11, pays: { "3": 0.09, "4": 0.15, "5": 0.24 } },
     { id: "hotel", name: "Hotel", glyph: "HT", weight: 8, pays: { "3": 0.14, "4": 0.24, "5": 0.38 } },
-    { id: "wild", name: "Wild", glyph: "W", weight: 2, wild: true },
-    { id: "scatter", name: "Scatter", glyph: "S", weight: 2, scatter: true }
+    { id: "wild", name: "Wild", glyph: "W", weight: 3, wild: true },
+    { id: "scatter", name: "Scatter", glyph: "S", weight: 1, scatter: true }
   ];
 
   const ICON_MAP = {
@@ -854,6 +854,8 @@
     const opts = options && typeof options === "object" ? options : {};
     const revealSet = opts.revealSet instanceof Set ? opts.revealSet : null;
     const winSet = opts.winSet instanceof Set ? opts.winSet : null;
+    const spinSet = opts.spinSet instanceof Set ? opts.spinSet : null;
+    const lockPopSet = opts.lockPopSet instanceof Set ? opts.lockPopSet : null;
     const dimOthers = Boolean(opts.dimOthers);
     const showLocks = opts.showLocks !== false;
     const revealAll = Boolean(opts.revealAll);
@@ -869,6 +871,8 @@
         const key = coordKey(r, c);
         if (showLocks && state.lockedCells[r][c]) root.classList.add("locked");
         if (winSet && winSet.has(key)) root.classList.add("win");
+        if (spinSet && spinSet.has(key)) root.classList.add("spin");
+        if (lockPopSet && lockPopSet.has(key)) root.classList.add("lock-pop");
         if (winSet && dimOthers && !winSet.has(key)) root.classList.add("dim");
         if (revealAll || (revealSet && revealSet.has(key))) {
           root.classList.add("reveal");
@@ -890,6 +894,14 @@
   function setPhase(phase) {
     state.phase = phase;
     if (el.phaseValue) el.phaseValue.textContent = phase;
+  }
+
+  function setSpinAreaMode(mode) {
+    if (!(el.spinArea instanceof HTMLElement)) return;
+    const value = String(mode || "").trim().toLowerCase();
+    el.spinArea.classList.toggle("is-spinning", value === "spin");
+    el.spinArea.classList.toggle("is-rush", value === "rush");
+    el.spinArea.classList.toggle("is-bonus", value === "bonus");
   }
 
   function setMessage(text) {
@@ -1038,6 +1050,16 @@
     state.lockedCells = createBoolGrid(state.config.rows, state.config.cols, false);
   }
 
+  function countLockedCells() {
+    let count = 0;
+    for (let r = 0; r < state.config.rows; r++) {
+      for (let c = 0; c < state.config.cols; c++) {
+        if (state.lockedCells[r][c]) count += 1;
+      }
+    }
+    return count;
+  }
+
   function countScatterOnGrid(grid) {
     let count = 0;
     for (let r = 0; r < state.config.rows; r++) {
@@ -1142,6 +1164,7 @@
   function applyWinningLocks(winSet) {
     const keys = Array.from(winSet || []);
     const perReel = {};
+    const newLockSet = new Set();
     for (let i = 0; i < keys.length; i++) {
       const coord = parseCoordKey(keys[i]);
       if (coord.row < 0 || coord.row >= state.config.rows || coord.col < 0 || coord.col >= state.config.cols) continue;
@@ -1166,10 +1189,14 @@
       const coords = perReel[col];
       for (let k = 0; k < coords.length; k++) {
         const coord = coords[k];
+        const key = coordKey(coord.row, coord.col);
+        const wasLocked = Boolean(state.lockedCells[coord.row][coord.col]);
         state.lockedCells[coord.row][coord.col] = true;
         state.grid[coord.row][coord.col] = state.wildSymbolId;
+        if (!wasLocked) newLockSet.add(key);
       }
     }
+    return newLockSet;
   }
 
   function pause(ms) {
@@ -1244,7 +1271,7 @@
     const betCents = Math.max(1, wlToCents(state.betWl));
     const ratio = total / betCents;
     const minRatio = hadBonusRound
-      ? Math.max(0, Number(state.config.bonusWinCounterHighlightMinRatio) || 0)
+      ? Math.max(10, Number(state.config.bonusWinCounterHighlightMinRatio) || 0)
       : Math.max(0, Number(state.config.winCounterHighlightMinRatio) || 0);
     if (ratio < minRatio) return;
 
@@ -1311,18 +1338,37 @@
     return Math.max(0, toInt(table[String(best)], 0));
   }
 
-  async function presentSpinGridReveal(revealSet) {
-    renderGrid(state.grid, { revealSet, showLocks: true });
+  async function presentSpinGridReveal(revealSet, isRespin, chainIndex) {
+    setSpinAreaMode(isRespin ? "rush" : "spin");
+    renderGrid(state.grid, {
+      revealSet,
+      spinSet: revealSet,
+      showLocks: true
+    });
     audio.play("spin");
-    await pause(620);
+    const colDelay = state.turbo ? 48 : 88;
+    for (let col = 0; col < state.config.cols; col++) {
+      await pause(colDelay);
+      audio.play("stop");
+    }
+    if (isRespin) {
+      setBanner("RUSH RESPIN " + chainIndex + "  x" + state.rushMultiplier, { big: false });
+      await pause(220);
+      setBanner("");
+    }
+    await pause(isRespin ? 260 : 320);
+    setSpinAreaMode(state.inBonus ? "bonus" : "");
   }
 
   async function presentWinHighlights(evalResult) {
+    setSpinAreaMode("rush");
     const winSet = evalResult && evalResult.winSet instanceof Set ? evalResult.winSet : new Set();
     renderGrid(state.grid, { winSet, dimOthers: true, showLocks: true });
+    audio.play("stop");
     await pause(420);
     renderGrid(state.grid, { showLocks: true });
     await pause(110);
+    setSpinAreaMode(state.inBonus ? "bonus" : "");
   }
 
   async function runSingleRushChain(isBonus) {
@@ -1336,7 +1382,7 @@
 
     const initialReveal = fillAllGrid(true);
     setMessage(isBonus ? "Free spin " + (state.freeSpinsPlayed + 1) + " started." : "Spin started.");
-    await presentSpinGridReveal(initialReveal);
+    await presentSpinGridReveal(initialReveal, false, 0);
 
     while (chain < state.config.maxRespinChain) {
       chain += 1;
@@ -1354,9 +1400,14 @@
       spinTotal += applied;
 
       const symbolNames = evalResult.wins.map((w) => w.symbolName + " x" + w.ways).join(" | ");
-      setMessage("Rush hit x" + state.rushMultiplier + ": " + symbolNames);
-      applyWinningLocks(evalResult.winSet);
-      renderGrid(state.grid, { showLocks: true });
+      const newLockSet = applyWinningLocks(evalResult.winSet);
+      const lockedCount = countLockedCells();
+      setMessage(
+        "Rush hit x" + state.rushMultiplier +
+        " (" + formatWL(applied) + ") - " + symbolNames +
+        " | locked " + lockedCount + "/" + (state.config.rows * state.config.cols)
+      );
+      renderGrid(state.grid, { showLocks: true, lockPopSet: newLockSet });
       await pause(260);
 
       if (state.maxWinReached) break;
@@ -1372,8 +1423,12 @@
         setMessage("Board fully locked. Rush chain stopped.");
         break;
       }
-      setMessage("Rush respin " + chain + " - multiplier now x" + state.rushMultiplier + ".");
-      await presentSpinGridReveal(revealSet);
+      setMessage(
+        "Rush respin " + chain +
+        " - multiplier x" + state.rushMultiplier +
+        " | unlocked cells: " + revealSet.size
+      );
+      await presentSpinGridReveal(revealSet, true, chain);
     }
 
     const awardedSpins = getAwardedSpins(highestScatter, isBonus);
@@ -1399,6 +1454,7 @@
     if (!start) return 0;
     await presentBonusIntro(start, sourceText);
 
+    setSpinAreaMode("bonus");
     state.inBonus = true;
     state.freeSpinsLeft = start;
     state.freeSpinsPlayed = 0;
@@ -1425,8 +1481,9 @@
 
     state.inBonus = false;
     state.freeSpinsLeft = 0;
+    setSpinAreaMode("");
     updateHUD();
-    if (state.bonusWinCents >= wlToCents(state.betWl) * 2) {
+    if (state.bonusWinCents >= wlToCents(state.betWl) * 6) {
       setBanner("BONUS WIN " + formatWL(state.bonusWinCents), { big: true });
       await pause(780);
       setBanner("");
@@ -1481,6 +1538,7 @@
 
     setControlsBusy(true);
     setPhase(PHASE.SPIN);
+    setSpinAreaMode("spin");
     setBanner("");
     setMessage("Placing bet " + formatWL(roundCost) + "...");
 
@@ -1545,6 +1603,7 @@
     } finally {
       setBanner("");
       setPhase(PHASE.IDLE);
+      setSpinAreaMode("");
       setControlsBusy(false);
       updateHUD();
       if (state.autoplayRemaining > 0 && !state.busy) {
