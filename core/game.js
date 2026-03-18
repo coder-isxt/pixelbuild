@@ -12014,6 +12014,7 @@
       }
 
       function refreshWorldButtons(worldIds, force) {
+        if (!worldButtonsEl) return;
         if (Array.isArray(worldIds)) {
           knownWorldIds = Array.from(new Set(worldIds.filter(Boolean)));
         }
@@ -13188,7 +13189,8 @@
       }
 
       function enterWorldFromInput() {
-        const id = normalizeWorldId(worldInputEl.value);
+        const rawValue = worldInputEl ? worldInputEl.value : "";
+        const id = normalizeWorldId(rawValue || getInitialWorldId());
         if (!id) return;
         switchWorld(id, true);
       }
