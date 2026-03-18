@@ -293,8 +293,15 @@
         loadCameraZoomPref,
         cosmeticsModule
       });
-      if (!Array.isArray(guestbookEntries)) guestbookEntries = [];
-      if (typeof guestbookLastWorldId !== "string") guestbookLastWorldId = "";
+      // Backward-compatible runtime defaults for clients with cached/older state.js.
+      if (!Array.isArray(globalThis.guestbookEntries)) globalThis.guestbookEntries = [];
+      if (typeof globalThis.guestbookLastWorldId !== "string") globalThis.guestbookLastWorldId = "";
+      if (!globalThis.discoveryJournalState || typeof globalThis.discoveryJournalState !== "object") {
+        globalThis.discoveryJournalState = null;
+      }
+      if (!Number.isFinite(Number(globalThis.discoveryJournalSaveTimer))) {
+        globalThis.discoveryJournalSaveTimer = 0;
+      }
       function getVendingController() {
         if (vendingController) return vendingController;
         if (typeof vendingModule.createController !== "function") return null;
