@@ -15691,27 +15691,40 @@
       eventsModule.on(mobileControlsEl, "touchmove", (e) => e.preventDefault(), { passive: false });
 
       function bootstrapGame() {
+        try {
         console.log("[DEBUG] bootstrapGame called.");
+        console.log("[DEBUG] bootstrapGame step 1: loadInventoryFromLocal");
         loadInventoryFromLocal();
+        console.log("[DEBUG] bootstrapGame step 2: loadProgressionFromLocal");
         loadProgressionFromLocal();
+        console.log("[DEBUG] bootstrapGame step 3: loadAchievementsFromLocal");
         if (!loadAchievementsFromLocal()) {
           achievementsState = normalizeAchievementsState({});
         }
+        console.log("[DEBUG] bootstrapGame step 4: loadQuestsFromLocal");
         if (!loadQuestsFromLocal()) {
           questsState = normalizeQuestsState({});
         }
+        console.log("[DEBUG] bootstrapGame step 5: loadDiscoveryJournalFromLocal");
         if (!loadDiscoveryJournalFromLocal()) {
           discoveryJournalState = normalizeDiscoveryJournalState({});
         }
+        console.log("[DEBUG] bootstrapGame step 6: refreshToolbar");
         refreshToolbar();
         //postDailyQuestStatus();
+        console.log("[DEBUG] bootstrapGame step 7: bindGlobalUiButtonSfx");
         bindGlobalUiButtonSfx();
+        console.log("[DEBUG] bootstrapGame step 8: bindMobileControls");
         bindMobileControls();
+        console.log("[DEBUG] bootstrapGame step 9: setInWorldState(false)");
         setInWorldState(false);
+        console.log("[DEBUG] bootstrapGame step 10: updateOnlineCount");
         updateOnlineCount();
+        console.log("[DEBUG] bootstrapGame step 11: bindWorldControls");
         bindWorldControls();
-        console.log("[DEBUG] bootstrapGame: about to call initFirebaseMultiplayer.");
+        console.log("[DEBUG] bootstrapGame step 12: initFirebaseMultiplayer");
         initFirebaseMultiplayer();
+        } catch (err) { console.error("[DEBUG] bootstrapGame CRASHED at:", err); }
 
         let lastTickTs = performance.now();
         let tickAccumulatorMs = 0;
