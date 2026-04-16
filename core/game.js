@@ -63,6 +63,9 @@
       }
 
       stateModule.initDefaultDomRefs();
+      console.log("[DEBUG] After initDefaultDomRefs: guestbookModalEl on globalThis?", Object.getOwnPropertyDescriptor(globalThis, "guestbookModalEl"));
+      console.log("[DEBUG] guestbookModalEl via window.GTState?", window.GTState && window.GTState.guestbookModalEl);
+      try { console.log("[DEBUG] guestbookModalEl bare access:", guestbookModalEl); } catch(e) { console.error("[DEBUG] guestbookModalEl bare access FAILED:", e.message); }
       const ctx = canvas.getContext("2d");
       const gtQuickActionsEl = document.getElementById("gtQuickActions");
       const gtMainMenuBtnEl = document.getElementById("gtMainMenuBtn");
