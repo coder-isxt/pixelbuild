@@ -104,6 +104,8 @@
       ensureGambleModalDom();
 
       stateModule.initDefaultModuleRefs(modules);
+      console.log("[DEBUG] After initDefaultModuleRefs: discoveryJournalModule defined?", typeof globalThis.discoveryJournalModule !== "undefined", "value:", globalThis.discoveryJournalModule);
+      console.log("[DEBUG] modules.discoveryJournal:", modules.discoveryJournal);
       stateModule.initCoreState({ settings: window.GT_SETTINGS || {} });
 
       const seedRegistry = typeof seedsModule.createSeedRegistry === "function"
@@ -5892,16 +5894,24 @@
         return "growtopia_discovery_journal_" + (playerProfileId || "guest");
       }
 
+      function getDiscoveryJournalModule() {
+        if (typeof discoveryJournalModule !== "undefined" && discoveryJournalModule) return discoveryJournalModule;
+        if (window.GTModules && window.GTModules.discoveryJournal) return window.GTModules.discoveryJournal;
+        return {};
+      }
+
       function normalizeDiscoveryJournalState(raw) {
-        if (typeof discoveryJournalModule.normalizeState === "function") {
-          return discoveryJournalModule.normalizeState(raw || {});
+        const mod = getDiscoveryJournalModule();
+        if (typeof mod.normalizeState === "function") {
+          return mod.normalizeState(raw || {});
         }
         return raw && typeof raw === "object" ? raw : {};
       }
 
       function buildDiscoveryJournalPayload() {
-        if (typeof discoveryJournalModule.buildPayload === "function") {
-          return discoveryJournalModule.buildPayload(discoveryJournalState || {});
+        const mod = getDiscoveryJournalModule();
+        if (typeof mod.buildPayload === "function") {
+          return mod.buildPayload(discoveryJournalState || {});
         }
         return normalizeDiscoveryJournalState(discoveryJournalState || {});
       }
@@ -5943,11 +5953,12 @@
       }
 
       function applyDiscoveryEvent(eventType, payload) {
-        if (typeof discoveryJournalModule.applyEvent !== "function") return;
+        const mod = getDiscoveryJournalModule();
+        if (typeof mod.applyEvent !== "function") return;
         const safePayload = payload && typeof payload === "object"
           ? { ...payload, worldId: payload.worldId || (inWorld ? currentWorldId : "") }
           : { worldId: inWorld ? currentWorldId : "" };
-        const result = discoveryJournalModule.applyEvent(discoveryJournalState || {}, eventType, safePayload);
+        const result = mod.applyEvent(discoveryJournalState || {}, eventType, safePayload);
         if (!result || !result.state) return;
         discoveryJournalState = normalizeDiscoveryJournalState(result.state);
         if (!result.changed) return;
@@ -5970,8 +5981,9 @@
         if (!discoveryJournalTitleEl || !discoveryJournalBodyEl || !discoveryJournalActionsEl) return;
         const state = normalizeDiscoveryJournalState(discoveryJournalState || {});
         discoveryJournalState = state;
-        const summary = typeof discoveryJournalModule.summarize === "function"
-          ? discoveryJournalModule.summarize(state)
+        const djMod = getDiscoveryJournalModule();
+        const summary = typeof djMod.summarize === "function"
+          ? djMod.summarize(state)
           : {
             worldTypes: 0,
             rareFinds: 0,
@@ -5979,8 +5991,8 @@
             seasonalEvents: 0,
             total: 0
           };
-        const catalog = typeof discoveryJournalModule.getCatalog === "function"
-          ? discoveryJournalModule.getCatalog()
+        const catalog = typeof djMod.getCatalog === "function"
+          ? djMod.getCatalog()
           : { worldTypes: [], rareFindTypes: [] };
         discoveryJournalTitleEl.textContent = "Discovery Journal (" + Math.max(0, Number(summary.total) || 0) + ")";
 
