@@ -1331,6 +1331,22 @@
       let guestbookSubmitBusy = false;
       let guestbookLoadToken = 0;
       const localGuestbookByWorld = new Map();
+      // Keep local fallbacks for menu/world index state so older cached state.js
+      // snapshots cannot break world menu rendering/join flow.
+      let knownWorldIds = Array.isArray(globalThis.knownWorldIds) ? globalThis.knownWorldIds.slice() : [];
+      let worldIndexMetaById = (globalThis.worldIndexMetaById && typeof globalThis.worldIndexMetaById === "object")
+        ? { ...globalThis.worldIndexMetaById }
+        : {};
+      let worldOccupancy = globalThis.worldOccupancy instanceof Map ? new Map(globalThis.worldOccupancy) : new Map();
+      let worldLockOwnerCache = globalThis.worldLockOwnerCache instanceof Map ? new Map(globalThis.worldLockOwnerCache) : new Map();
+      let hasRenderedMenuWorldList = Boolean(globalThis.hasRenderedMenuWorldList);
+      let ownedWorldScanInFlight = Boolean(globalThis.ownedWorldScanInFlight);
+      let ownedWorldScanToken = Number.isFinite(Number(globalThis.ownedWorldScanToken))
+        ? Math.max(0, Math.floor(Number(globalThis.ownedWorldScanToken)))
+        : 0;
+      let worldJoinRequestToken = Number.isFinite(Number(globalThis.worldJoinRequestToken))
+        ? Math.max(0, Math.floor(Number(globalThis.worldJoinRequestToken)))
+        : 0;
       const touchControls = {
         left: false,
         right: false,
@@ -5467,6 +5483,7 @@
       }
 
       function onAuthSuccess(accountId, username) {
+        console.log("[DEBUG] onAuthSuccess called. accountId:", accountId, "username:", username);
         playerProfileId = accountId;
         playerName = username;
         loadQuestsFromLocal();
@@ -12014,15 +12031,22 @@
       }
 
       function refreshWorldButtons(worldIds, force) {
-        if (!worldButtonsEl) return;
+        console.log("[DEBUG] refreshWorldButtons called. worldIds:", worldIds, "force:", force, "worldButtonsEl:", !!worldButtonsEl, "inWorld:", inWorld, "hasRenderedMenuWorldList:", hasRenderedMenuWorldList);
+        if (!worldButtonsEl) { console.warn("[DEBUG] refreshWorldButtons: no worldButtonsEl, returning."); return; }
         if (Array.isArray(worldIds)) {
           knownWorldIds = Array.from(new Set(worldIds.filter(Boolean)));
         }
         if (!inWorld && hasRenderedMenuWorldList && !force && !Array.isArray(worldIds)) {
+          console.log("[DEBUG] refreshWorldButtons: early return (already rendered, not forced, no array).");
           return;
         }
         const occupancyWorlds = Array.from(worldOccupancy.keys());
         const unique = Array.from(new Set(knownWorldIds.concat(occupancyWorlds)));
+        console.log("[DEBUG] refreshWorldButtons: unique worlds:", unique.slice(0, 10), "knownWorldIds:", knownWorldIds.length, "occupancy:", occupancyWorlds.length);
+        if (!unique.length) {
+          const fallbackWorld = normalizeWorldId(getInitialWorldId()) || "default-world";
+          unique.push(fallbackWorld);
+        }
         const ownedWorlds = unique
           .filter((id) => {
             const ownerId = getWorldLockOwnerAccountId(id);
@@ -12422,9 +12446,11 @@
 
       function switchWorld(nextWorldId, createIfMissing, skipWorldBanCheck) {
         const worldId = normalizeWorldId(nextWorldId);
+        console.log("[DEBUG] switchWorld called. worldId:", worldId, "network.enabled:", network.enabled, "network.db:", !!network.db, "skipWorldBanCheck:", skipWorldBanCheck);
         if (!worldId) return;
         const requestToken = skipWorldBanCheck ? worldJoinRequestToken : (++worldJoinRequestToken);
         if (network.enabled && !skipWorldBanCheck && playerProfileId) {
+          console.log("[DEBUG] switchWorld: checking world lock first...");
           const lockRef = network.db.ref(BASE_PATH + "/worlds/" + worldId + "/lock");
           lockRef.once("value").then((snapshot) => {
             if (requestToken !== worldJoinRequestToken) return;
@@ -13912,11 +13938,14 @@
       }
 
       async function initFirebaseMultiplayer() {
+        console.log("[DEBUG] initFirebaseMultiplayer called. playerProfileId:", playerProfileId, "firebase:", !!window.firebase);
         if (!playerProfileId) {
+          console.warn("[DEBUG] initFirebaseMultiplayer: no playerProfileId, returning.");
           setNetworkState("Auth required", true);
           return;
         }
         if (!window.firebase) {
+          console.warn("[DEBUG] initFirebaseMultiplayer: no window.firebase, going offline.");
           setNetworkState("Offline (set firebase-config.js)", true);
           refreshWorldButtons(null, true);
           totalOnlinePlayers = inWorld ? 1 : 0;
@@ -13927,6 +13956,7 @@
         try {
           hasSeenInitialTeleportCommandSnapshot = false;
           network.db = await getAuthDb();
+          console.log("[DEBUG] initFirebaseMultiplayer: got DB, enabling network.");
           network.enabled = true;
           hasSeenAdminRoleSnapshot = false;
           directAdminRole = "none";
@@ -14085,7 +14115,9 @@
           };
           network.handlers.mySession = (snapshot) => {
             const value = snapshot.val();
+            console.log("[DEBUG] mySession handler fired. value:", value, "playerSessionId:", playerSessionId);
             if (!value || !value.sessionId) {
+              console.warn("[DEBUG] mySession: no valid session, forcing logout.");
               forceLogout("You were kicked or your session expired.");
               return;
             }
@@ -14246,6 +14278,7 @@
           };
 
           network.handlers.worldsIndex = (snapshot) => {
+            console.log("[DEBUG] worldsIndex handler fired. snapshot exists:", snapshot.exists());
             processReadTaskLatest("worlds_index", {
               value: snapshot.val() || {}
             }, (processed) => {
@@ -14256,6 +14289,7 @@
               const worldIds = Array.isArray(processed && processed.worldIds)
                 ? processed.worldIds
                 : Object.keys(data);
+              console.log("[DEBUG] worldsIndex processed. worldIds:", worldIds.slice(0, 10));
               refreshWorldButtons(worldIds);
             });
           };
@@ -14586,7 +14620,7 @@
             }
           });
         } catch (error) {
-          console.error(error);
+          console.error("[DEBUG] initFirebaseMultiplayer CATCH:", error);
           setNetworkState("Firebase error", true);
           refreshWorldButtons(null, true);
           updateOnlineCount();
@@ -15657,6 +15691,7 @@
       eventsModule.on(mobileControlsEl, "touchmove", (e) => e.preventDefault(), { passive: false });
 
       function bootstrapGame() {
+        console.log("[DEBUG] bootstrapGame called.");
         loadInventoryFromLocal();
         loadProgressionFromLocal();
         if (!loadAchievementsFromLocal()) {
@@ -15675,6 +15710,7 @@
         setInWorldState(false);
         updateOnlineCount();
         bindWorldControls();
+        console.log("[DEBUG] bootstrapGame: about to call initFirebaseMultiplayer.");
         initFirebaseMultiplayer();
 
         let lastTickTs = performance.now();
