@@ -1,4 +1,5 @@
-    (() => {
+    (function() {
+      eval(''); // force V8 dynamic scope resolution for global variable access
       const modules = window.GTModules || {};
       const stateModule = modules.state || {};
       const remoteSyncModule = modules.remoteSync || {};
