@@ -12,15 +12,22 @@ window.GTModules.state = (function createStateModule() {
       Object.defineProperty(target, name, {
         configurable: true,
         enumerable: true,
-        get: function() {
-          return root[name];
-        },
-        set: function(value) {
-          root[name] = value;
-        }
+        writable: true,
+        value: root[name]
       });
     } catch (e) {
       try { target[name] = root[name]; } catch (e2) {}
+    }
+  }
+
+  function syncFromGlobals() {
+    var target = typeof window !== "undefined" ? window : globalThis;
+    var keys = Object.keys(root);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      try {
+        if (target[k] !== root[k]) root[k] = target[k];
+      } catch (e) {}
     }
   }
 
@@ -797,6 +804,7 @@ window.GTModules.state = (function createStateModule() {
     initDefaultModuleRefs,
     initDomRefs,
     initModuleRefs,
-    initRuntimeState
+    initRuntimeState,
+    syncFromGlobals
   };
 })();
