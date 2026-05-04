@@ -5,18 +5,23 @@ window.GTModules.state = (function createStateModule() {
   const root = window.GTState;
 
   function aliasGlobal(name) {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
-    if (descriptor && !descriptor.configurable) return;
-    Object.defineProperty(globalThis, name, {
-      configurable: true,
-      enumerable: false,
-      get() {
-        return root[name];
-      },
-      set(value) {
-        root[name] = value;
-      }
-    });
+    var target = typeof window !== "undefined" ? window : globalThis;
+    try {
+      var descriptor = Object.getOwnPropertyDescriptor(target, name);
+      if (descriptor && !descriptor.configurable) return;
+      Object.defineProperty(target, name, {
+        configurable: true,
+        enumerable: true,
+        get: function() {
+          return root[name];
+        },
+        set: function(value) {
+          root[name] = value;
+        }
+      });
+    } catch (e) {
+      try { target[name] = root[name]; } catch (e2) {}
+    }
   }
 
   function ensure(name, initFactory) {
